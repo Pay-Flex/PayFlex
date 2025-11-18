@@ -1,9 +1,9 @@
 /********** Template CSS **********/
 :root {
-    --primary: #0056b3;
-    --secondary: #f3dd14;
+    --primary: #0360ecd8;
+    --secondary: #fab62d;
     --light: #F7F7F7;
-    --dark: #404A3D;
+    --dark: #16181a;
 }
 
 .back-to-top {
@@ -500,4 +500,32 @@
     color: var(--light);
     letter-spacing: 1px;
     box-shadow: none;
+}
+
+/* Custom Graphic Section */
+.custom-graphic-container {
+    position: relative;
+}
+
+.custom-graphic {
+    width: 80%;
+    max-width: 400px;
+    height: auto;
+    fill: var(--primary); /* Use the primary brand color */
+    animation: pulse-graphic 3s infinite;
+}
+
+@keyframes pulse-graphic {
+    0% {
+        transform: scale(1);
+        opacity: 1;
+    }
+    50% {
+        transform: scale(1.05);
+        opacity: 0.9;
+    }
+    100% {
+        transform: scale(1);
+        opacity: 1;
+    }
 }
