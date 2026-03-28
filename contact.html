@@ -46,14 +46,14 @@
             <div class="col-lg-6 ps-5 text-start">
                 <div class="h-100 d-inline-flex align-items-center text-light">
                     <span>Suivez-nous :</span>
-                    <a class="btn btn-link text-light" href=""><i class="fab fa-facebook-f"></i></a>
-                    <a class="btn btn-link text-light" href=""><i class="fab fa-twitter"></i></a>
-                    <a class="btn btn-link text-light" href=""><i class="fab fa-linkedin-in"></i></a>
-                    <a class="btn btn-link text-light" href=""><i class="fab fa-instagram"></i></a>
+                    <a class="btn btn-link text-light" href="feature.html"><i class="fab fa-facebook-f"></i></a>
+                    <a class="btn btn-link text-light" href="feature.html"><i class="fab fa-twitter"></i></a>
+                    <a class="btn btn-link text-light" href="feature.html"><i class="fab fa-linkedin-in"></i></a>
+                    <a class="btn btn-link text-light" href="feature.html"><i class="fab fa-instagram"></i></a>
                 </div>
             </div>
             <div class="col-lg-6 text-end">
-                <div class=" h-100 d-inline-flex align-items-center text-white py-2 px-4" style="background-color:#0360ecd8;">
+                <div class=" h-100 d-inline-flex align-items-center text-white py-1 px-4 topbar-premium" style="background-color:#0360ecd8;">
                     <span class="me-2 fw-semi-bold"><i class="fa fa-phone-alt me-2"></i>Appelez-nous :</span>
                     <span>+228  345 6789</span>
                 </div>
@@ -64,7 +64,7 @@
 
 
     <!-- Navbar Start -->
-    <nav class="navbar navbar-expand-lg bg-white navbar-light sticky-top px-4 px-lg-5">
+    <nav class="navbar navbar-expand-lg glass-nav navbar-light sticky-top px-4 px-lg-5">
         <a href="index.html" class="navbar-brand d-flex align-items-center">
             <img src="img/logo.png" alt="PayFlex Logo" style="height: 70px;">
         </a>
@@ -73,20 +73,21 @@
         </button>
         <div class="collapse navbar-collapse" id="navbarCollapse">
             <div class="navbar-nav ms-auto p-4 p-lg-0">
-                <a href="index.html" class="nav-item nav-link active">Accueil</a>
+                <a href="index.html" class="nav-item nav-link">Accueil</a>
                 <div class="nav-item dropdown">
                     <a href="#" class="nav-link dropdown-toggle" data-bs-toggle="dropdown">À Propos</a>
                     <div class="dropdown-menu bg-light m-0">
                         <a href="about.html" class="dropdown-item">À Propos de Nous</a>
-                        <a href="about.html#features" class="dropdown-item">Fonctionnalités</a>
+                        <a href="feature.html" class="dropdown-item">Fonctionnalités</a>
                         <a href="about.html#team" class="dropdown-item">Notre Équipe</a>
                         <a href="about.html#testimonials" class="dropdown-item">Témoignages</a>
                     </div>
                 </div>
                 <a href="service.html" class="nav-item nav-link">Services</a>
                 <a href="catalogue.html" class="nav-item nav-link">Catalogue</a>
-                <a href="contact.html" class="nav-item nav-link">Contact</a>
+                <a href="contact.html" class="nav-item nav-link active">Contact</a>
             </div>
+            <button id="darkModeToggle" class="btn btn-sm btn-outline-secondary rounded-circle ms-3 d-flex align-items-center justify-content-center" style="width:38px; height:38px; border-width:2px; min-width: 38px;"><i class="fas fa-moon" style="font-size: 1.1rem;"></i></button>
             <!-- <div class="border-start ps-4 d-none d-lg-block">
                 <button type="button" class="btn btn-sm p-0"><i class="fa fa-search"></i></button>
             </div> -->
@@ -96,7 +97,7 @@
 
 
     <!-- Page Header Start -->
-    <div class="container-fluid page-header py-5 mb-5 wow fadeIn" data-wow-delay="0.1s">
+    <div class="container-fluid page-header py-4 mb-4 wow fadeIn" data-wow-delay="0.1s">
         <div class="container text-center py-5">
             <h1 class="display-3 text-white mb-4 animated slideInDown">Contactez-nous</h1>
             <nav aria-label="breadcrumb animated slideInDown">
@@ -112,82 +113,89 @@
 
 
     <!-- Contact Start -->
-    <div class="container-xxl py-5">
+    <div class="container-xxl py-5 my-5">
         <div class="container">
-            <div class="text-center mx-auto wow fadeInUp" data-wow-delay="0.1s" style="max-width: 500px;">
-                <p class="section-title bg-white text-center text-primary px-3">Contactez-nous</p>
-                <h1 class="mb-5">Si vous avez des questions, n'hésitez pas à nous contacter</h1>
+            <div class="text-center mx-auto wow fadeInUp" data-wow-delay="0.1s" style="max-width: 600px;">
+                <p class="section-title bg-white text-center text-primary px-3 fw-bold text-uppercase">Contactez-nous</p>
+                <h1 class="mb-5 display-5 fw-bold text-dark">Si vous avez des questions, n'hésitez pas à nous contacter</h1>
             </div>
             <div class="row g-5">
-                <div class="col-lg-6 wow fadeInUp" data-wow-delay="0.1s">
-                    <h3 class="mb-4">Besoin d'informations ?</h3>
-                    <p class="mb-4">Le formulaire de contact est actuellement inactif. Pour nous contacter, veuillez utiliser les informations ci-dessous.</p>
-                    <form>
-                        <div class="row g-3">
-                            <div class="col-md-6">
-                                <div class="form-floating">
-                                    <input type="text" class="form-control" id="name" placeholder="Votre Nom">
-                                    <label for="name">Votre Nom</label>
+                <div class="col-lg-6 wow fadeInLeft" data-wow-delay="0.1s">
+                    <div class="premium-card p-5 rounded-4 shadow-lg border-0 h-100">
+                        <h3 class="mb-4 fw-bolder text-dark">Besoin d'informations ?</h3>
+                        <p class="mb-4 text-muted line-height-lg fs-6">Le formulaire de contact est actuellement inactif. Pour nous contacter, veuillez utiliser les informations ci-dessous.</p>
+                        <form>
+                            <div class="row g-4">
+                                <div class="col-md-6">
+                                    <div class="form-floating">
+                                        <input type="text" class="form-control bg-light border-0 rounded-3 shadow-sm" id="name" placeholder="Votre Nom">
+                                        <label for="name">Votre Nom</label>
+                                    </div>
+                                </div>
+                                <div class="col-md-6">
+                                    <div class="form-floating">
+                                        <input type="email" class="form-control bg-light border-0 rounded-3 shadow-sm" id="email" placeholder="Votre Email">
+                                        <label for="email">Votre Email</label>
+                                    </div>
+                                </div>
+                                <div class="col-12">
+                                    <div class="form-floating">
+                                        <input type="text" class="form-control bg-light border-0 rounded-3 shadow-sm" id="subject" placeholder="Sujet">
+                                        <label for="subject">Sujet</label>
+                                    </div>
+                                </div>
+                                <div class="col-12">
+                                    <div class="form-floating">
+                                        <textarea class="form-control bg-light border-0 rounded-3 shadow-sm" placeholder="Laissez un message ici" id="message" style="height: 200px"></textarea>
+                                        <label for="message">Message</label>
+                                    </div>
+                                </div>
+                                <div class="col-12 mt-4">
+                                    <button class="btn btn-primary rounded-pill py-3 px-5 fw-bold shadow-lg w-100" style="transition: all 0.3s;" type="submit"><i class="fa fa-paper-plane me-2"></i>Envoyer le Message</button>
                                 </div>
                             </div>
-                            <div class="col-md-6">
-                                <div class="form-floating">
-                                    <input type="email" class="form-control" id="email" placeholder="Votre Email">
-                                    <label for="email">Votre Email</label>
-                                </div>
-                            </div>
-                            <div class="col-12">
-                                <div class="form-floating">
-                                    <input type="text" class="form-control" id="subject" placeholder="Sujet">
-                                    <label for="subject">Sujet</label>
-                                </div>
-                            </div>
-                            <div class="col-12">
-                                <div class="form-floating">
-                                    <textarea class="form-control" placeholder="Laissez un message ici" id="message" style="height: 250px"></textarea>
-                                    <label for="message">Message</label>
-                                </div>
-                            </div>
-                            <div class="col-12">
-                                <button class="btn btn-secondary rounded-pill py-3 px-5" type="submit">Envoyer le Message</button>
-                            </div>
-                        </div>
-                    </form>
+                        </form>
+                    </div>
                 </div>
-                <div class="col-lg-6 wow fadeInUp" data-wow-delay="0.5s">
-                    <h3 class="mb-4">Nos Coordonnées</h3>
-                    <div class="d-flex border-bottom pb-3 mb-3">
-                        <div class="flex-shrink-0 btn-square bg-secondary rounded-circle">
-                            <i class="fa fa-map-marker-alt text-body"></i>
+                <div class="col-lg-6 wow fadeInRight" data-wow-delay="0.4s">
+                    <div class="h-100 d-flex flex-column">
+                        <h3 class="mb-4 fw-bolder text-dark">Nos Coordonnées</h3>
+                        
+                        <div class="d-flex align-items-center bg-light rounded-4 p-4 mb-4 shadow-sm wow slideInUp" data-wow-delay="0.1s" style="border-left: 5px solid var(--primary);">
+                            <div class="bg-white rounded-circle d-flex align-items-center justify-content-center shadow-lg" style="width: 60px; height: 60px; flex-shrink: 0;">
+                                <i class="fa fa-map-marker-alt text-primary fs-4"></i>
+                            </div>
+                            <div class="ms-4">
+                                <h5 class="mb-1 fw-bold text-dark">Notre Bureau</h5>
+                                <span class="text-muted">123 Rue de l'avenir, Lomé, Togo</span>
+                            </div>
                         </div>
-                        <div class="ms-3">
-                            <h6>Notre Bureau</h6>
-                            <span>123 Rue de l'avenir, Lomé, Togo</span>
-                        </div>
-                    </div>
-                    <div class="d-flex border-bottom pb-3 mb-3">
-                        <div class="flex-shrink-0 btn-square bg-secondary rounded-circle">
-                            <i class="fa fa-phone-alt text-body"></i>
-                        </div>
-                        <div class="ms-3">
-                            <h6>Appelez-nous</h6>
-                            <span>+228 90 00 00 00</span>
-                        </div>
-                    </div>
-                    <div class="d-flex border-bottom-0 pb-3 mb-3">
-                        <div class="flex-shrink-0 btn-square bg-secondary rounded-circle">
-                            <i class="fa fa-envelope text-body"></i>
-                        </div>
-                        <div class="ms-3">
-                            <h6>Envoyez-nous un email</h6>
-                            <span>contact@payflex.com</span>
-                        </div>
-                    </div>
 
-                    <iframe class="w-100 rounded"
-                    src="https://www.google.com/maps/embed?pb=!1m18!1m12!1m3!1d253840.6566879796!2d1.093106328237502!3d6.205689445032123!2m3!1f0!2f0!3f0!3m2!1i1024!2i768!4f13.1!3m3!1m2!1s0x1023e2b20d38583d%3A0x3642fe434f5ca536!2sLom%C3%A9%2C%20Togo!5e0!3m2!1sen!2s!4v1678886395359!5m2!1sen!2s"
-                    frameborder="0" style="min-height: 300px; border:0;" allowfullscreen="" aria-hidden="false"
-                    tabindex="0"></iframe>
+                        <div class="d-flex align-items-center bg-light rounded-4 p-4 mb-4 shadow-sm wow slideInUp" data-wow-delay="0.2s" style="border-left: 5px solid var(--secondary);">
+                            <div class="bg-white rounded-circle d-flex align-items-center justify-content-center shadow-lg" style="width: 60px; height: 60px; flex-shrink: 0;">
+                                <i class="fa fa-phone-alt text-secondary fs-4"></i>
+                            </div>
+                            <div class="ms-4">
+                                <h5 class="mb-1 fw-bold text-dark">Appelez-nous</h5>
+                                <span class="text-muted">+228 90 00 00 00</span>
+                            </div>
+                        </div>
+
+                        <div class="d-flex align-items-center bg-light rounded-4 p-4 mb-5 shadow-sm wow slideInUp" data-wow-delay="0.3s" style="border-left: 5px solid #17a2b8;">
+                            <div class="bg-white rounded-circle d-flex align-items-center justify-content-center shadow-lg" style="width: 60px; height: 60px; flex-shrink: 0;">
+                                <i class="fa fa-envelope text-info fs-4"></i>
+                            </div>
+                            <div class="ms-4">
+                                <h5 class="mb-1 fw-bold text-dark">Envoyez-nous un email</h5>
+                                <span class="text-muted">contact@payflex.com</span>
+                            </div>
+                        </div>
+
+                        <div class="rounded-4 overflow-hidden shadow-lg mt-auto wow zoomIn" data-wow-delay="0.4s" style="flex-grow: 1; min-height: 250px;">
+                            <iframe class="w-100 h-100" src="https://www.google.com/maps/embed?pb=!1m18!1m12!1m3!1d253840.6566879796!2d1.093106328237502!3d6.205689445032123!2m3!1f0!2f0!3f0!3m2!1i1024!2i768!4f13.1!3m3!1m2!1s0x1023e2b20d38583d%3A0x3642fe434f5ca536!2sLom%C3%A9%2C%20Togo!5e0!3m2!1sen!2s!4v1678886395359!5m2!1sen!2s"
+                                frameborder="0" style="min-height: 250px; border:0;" allowfullscreen="" aria-hidden="false" tabindex="0"></iframe>
+                        </div>
+                    </div>
                 </div>
             </div>
         </div>
@@ -196,7 +204,7 @@
 
 
     <!-- Footer Start -->
-    <div class="container-fluid bg-dark footer mt-5 py-5 wow fadeIn" data-wow-delay="0.1s">
+    <div class="container-fluid footer-premium footer mt-5 py-5 wow fadeIn" data-wow-delay="0.1s">
         <div class="container py-5">
             <div class="row g-5">
                 <div class="col-lg-3 col-md-6">
@@ -205,10 +213,10 @@
                     <p class="mb-2"><i class="fa fa-phone-alt me-3"></i>+228 90 00 00 00</p>
                     <p class="mb-2"><i class="fa fa-envelope me-3"></i>contact@payflex.com</p>
                     <div class="d-flex pt-3">
-                        <a class="btn btn-square btn-secondary rounded-circle me-2" href=""><i class="fab fa-twitter"></i></a>
-                        <a class="btn btn-square btn-secondary rounded-circle me-2" href=""><i class="fab fa-facebook-f"></i></a>
-                        <a class="btn btn-square btn-secondary rounded-circle me-2" href=""><i class="fab fa-youtube"></i></a>
-                        <a class="btn btn-square btn-secondary rounded-circle me-2" href=""><i class="fab fa-linkedin-in"></i></a>
+                        <a class="btn btn-square btn-secondary rounded-circle me-2" href="feature.html"><i class="fab fa-twitter"></i></a>
+                        <a class="btn btn-square btn-secondary rounded-circle me-2" href="feature.html"><i class="fab fa-facebook-f"></i></a>
+                        <a class="btn btn-square btn-secondary rounded-circle me-2" href="feature.html"><i class="fab fa-youtube"></i></a>
+                        <a class="btn btn-square btn-secondary rounded-circle me-2" href="feature.html"><i class="fab fa-linkedin-in"></i></a>
                     </div>
                 </div>
                 <div class="col-lg-3 col-md-6">
@@ -216,8 +224,8 @@
                     <a class="btn btn-link" href="about.html">À Propos de Nous</a>
                     <a class="btn btn-link" href="contact.html">Contactez-nous</a>
                     <a class="btn btn-link" href="service.html">Nos Services</a>
-                    <a class="btn btn-link" href="">Termes & Conditions</a>
-                    <a class="btn btn-link" href="">Support</a>
+                    <a class="btn btn-link" href="feature.html">Termes & Conditions</a>
+                    <a class="btn btn-link" href="feature.html">Support</a>
                 </div>
                 <div class="col-lg-3 col-md-6">
                     <h5 class="text-white mb-4">Horaires</h5>
@@ -243,15 +251,15 @@
 
 
     <!-- Copyright Start -->
-    <div class="container-fluid bg-secondary text-body copyright py-4">
+    <div class="container-fluid copyright-premium copyright py-4">
         <div class="container">
             <div class="row">
                 <div class="col-md-6 text-center text-md-start mb-3 mb-md-0">
-                    &copy; <a class="fw-semi-bold" href="#">PayFlex</a>, Tous Droits Réservés.
+                    &copy; <script>document.write(new Date().getFullYear());</script> <a class="fw-semi-bold" href="#">PayFlex</a>, Tous Droits Réservés.
                 </div>
                 <div class="col-md-6 text-center text-md-end">
                     <!--/*** This template is free as long as you keep the footer author’s credit link/attribution link/backlink. If you'd like to use the template without the footer author’s credit link/attribution link/backlink, you can purchase the Credit Removal License from "https://htmlcodex.com/credit-removal". Thank you for your support. ***/-->
-                    Designed By <a class="fw-semi-bold" href="https://htmlcodex.com">HTML Codex</a>
+                    Designed By <a class="fw-semi-bold" href="https://donchaminade-alpha.vercel.app">PayFlex</a>
                 </div>
             </div>
         </div>
@@ -276,6 +284,7 @@
 
     <!-- Template Javascript -->
     <script src="js/main.js"></script>
+    <script src="js/darkmode.js"></script>
 </body>
 
 </html>
