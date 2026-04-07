@@ -7,16 +7,23 @@ import 'role_selection_screen.dart';
 import 'widgets/payflex_logo.dart';
 import 'widgets/auth_wave_background.dart';
 
-class LoginScreen extends StatefulWidget {
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+import '../../core/providers/auth_provider.dart';
+import '../agent/agent_main_navigation_screen.dart';
+
+class LoginScreen extends ConsumerStatefulWidget {
   const LoginScreen({super.key});
 
   @override
-  State<LoginScreen> createState() => _LoginScreenState();
+  ConsumerState<LoginScreen> createState() => _LoginScreenState();
 }
 
-class _LoginScreenState extends State<LoginScreen> {
+class _LoginScreenState extends ConsumerState<LoginScreen> {
   final _formKey = GlobalKey<FormState>();
+  final _idController = TextEditingController();
+  final _pinController = TextEditingController();
   bool _isPasswordVisible = false;
+  bool _isLoading = false;
 
   @override
   Widget build(BuildContext context) {
@@ -74,17 +81,19 @@ class _LoginScreenState extends State<LoginScreen> {
                 // Form Fields
                 _buildField(
                   Icons.person_outline_rounded, 
-                  'Identifiant', 
+                  'Numéro de téléphone ou ID', 
+                  controller: _idController,
                   validator: (v) => (v == null || v.isEmpty) ? 'Veuillez entrer votre identifiant' : null
                 ),
                 
                 const SizedBox(height: 20),
                 
                 _buildPasswordField(
-                  'Mot de passe', 
+                  'Code PIN / Mot de passe', 
                   _isPasswordVisible, 
+                  _pinController,
                   (v) => setState(() => _isPasswordVisible = v),
-                  validator: (v) => (v == null || v.isEmpty) ? 'Veuillez entrer votre mot de passe' : null
+                  validator: (v) => (v == null || v.isEmpty) ? 'Veuillez entrer votre code' : null
                 ),
                 
                 const SizedBox(height: 12),
@@ -103,16 +112,36 @@ class _LoginScreenState extends State<LoginScreen> {
                 const SizedBox(height: 40),
                 
                 // Login Button
-                ElevatedButton(
-                  onPressed: () {
-                    if (_formKey.currentState!.validate()) {
-                      Navigator.of(context).pushReplacement(
-                        MaterialPageRoute(builder: (context) => const MainNavigationScreen()),
-                      );
-                    }
-                  },
-                  child: const Text('SE CONNECTER'),
-                ).animate().fadeIn(delay: 1.seconds).scale(),
+                _isLoading 
+                  ? const Center(child: CircularProgressIndicator(color: AppColors.primary))
+                  : ElevatedButton(
+                    onPressed: () async {
+                      if (_formKey.currentState!.validate()) {
+                        setState(() => _isLoading = true);
+                        
+                        // Simulation de connexion
+                        // Dans un cas réel, on vérifierait l'ID et le PIN en base
+                        final String id = _idController.text.trim();
+                        final String pin = _pinController.text.trim();
+                        
+                        // Logique de démo : PIN 1111 = Agent, Autre = Client
+                        String role = (pin == "1111") ? 'agent' : 'client';
+                        
+                        await ref.read(authProvider.notifier).saveUserAndPin(role, pin);
+                        
+                        if (mounted) {
+                          Widget nextScreen = (role == 'agent') 
+                              ? const AgentMainNavigationScreen() 
+                              : const MainNavigationScreen();
+                              
+                          Navigator.of(context).pushReplacement(
+                            MaterialPageRoute(builder: (context) => nextScreen),
+                          );
+                        }
+                      }
+                    },
+                    child: const Text('SE CONNECTER'),
+                  ).animate().fadeIn(delay: 1.seconds).scale(),
                 
                 const SizedBox(height: 32),
                 
@@ -152,8 +181,9 @@ class _LoginScreenState extends State<LoginScreen> {
     );
   }
 
-  Widget _buildField(IconData icon, String hint, {String? Function(String?)? validator}) {
+  Widget _buildField(IconData icon, String hint, {required TextEditingController controller, String? Function(String?)? validator}) {
     return TextFormField(
+      controller: controller,
       validator: validator,
       decoration: InputDecoration(
         hintText: hint,
@@ -173,8 +203,9 @@ class _LoginScreenState extends State<LoginScreen> {
     ).animate().fadeIn(delay: 500.ms).slideX(begin: 0.05);
   }
 
-  Widget _buildPasswordField(String hint, bool isVisible, Function(bool) toggle, {String? Function(String?)? validator}) {
+  Widget _buildPasswordField(String hint, bool isVisible, TextEditingController controller, Function(bool) toggle, {String? Function(String?)? validator}) {
     return TextFormField(
+      controller: controller,
       obscureText: !isVisible,
       validator: validator,
       decoration: InputDecoration(

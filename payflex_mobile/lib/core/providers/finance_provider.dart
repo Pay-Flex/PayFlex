@@ -52,12 +52,16 @@ class TransactionModel {
   final String title;
   final String date;
   final double amount;
+  final String status; // 'pending', 'validated', 'rejected'
+  final String? rejectionReason;
 
   TransactionModel({
     required this.id,
     required this.title,
     required this.date,
     required this.amount,
+    required this.status,
+    this.rejectionReason,
   });
 
   factory TransactionModel.fromMap(Map<String, dynamic> map) {
@@ -66,6 +70,8 @@ class TransactionModel {
       title: map['project_id'] ?? 'Cotisation', // Idéalement jointure DB
       date: map['date'] as String,
       amount: map['amount'] as double,
+      status: map['status'] as String? ?? 'validated',
+      rejectionReason: map['rejection_reason'] as String?,
     );
   }
 }
@@ -161,7 +167,7 @@ class FinanceNotifier extends Notifier<FinanceState> {
       amount, 
       dateStr, 
       'mobile_money', 
-      'normal'
+      'pending' // En attente de validation par l'agent
     );
     
     // 2. Mise à jour de l'objectif du projet

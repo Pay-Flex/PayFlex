@@ -446,9 +446,13 @@ class TransactionTile extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final Color statusColor = transaction.amount >= 5000
-        ? AppColors.success
-        : (transaction.amount > 0 ? AppColors.warning : AppColors.error);
+    final Color statusColor = transaction.status == 'validated'
+        ? const Color(0xFF38A169) // Green Success
+        : (transaction.status == 'rejected' ? Colors.redAccent : Colors.orangeAccent);
+
+    final String statusLabel = transaction.status == 'validated'
+        ? 'VALIDÉ'
+        : (transaction.status == 'rejected' ? 'REJETÉ' : 'EN ATTENTE');
 
     return Container(
       margin: const EdgeInsets.symmetric(horizontal: 24, vertical: 6),
@@ -481,7 +485,7 @@ class TransactionTile extends StatelessWidget {
               padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
               decoration: BoxDecoration(color: statusColor.withOpacity(0.1), borderRadius: BorderRadius.circular(8)),
               child: Text(
-                transaction.amount >= 5000 ? 'COMPLET' : 'PARTIEL',
+                statusLabel,
                 style: TextStyle(color: statusColor, fontSize: 8, fontWeight: FontWeight.bold),
               ),
             ),

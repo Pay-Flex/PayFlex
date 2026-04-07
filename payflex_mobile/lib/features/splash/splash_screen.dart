@@ -3,23 +3,41 @@ import 'package:flutter/material.dart';
 import 'package:flutter_animate/flutter_animate.dart';
 import 'package:google_fonts/google_fonts.dart';
 import '../../core/constants/app_colors.dart';
+import '../../core/providers/auth_provider.dart';
 import '../auth/welcome_screen.dart';
+import '../agent/agent_main_navigation_screen.dart';
+import '../main_navigation_screen.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 
-class SplashScreen extends StatefulWidget {
+class SplashScreen extends ConsumerStatefulWidget {
   const SplashScreen({super.key});
 
   @override
-  State<SplashScreen> createState() => _SplashScreenState();
+  ConsumerState<SplashScreen> createState() => _SplashScreenState();
 }
 
-class _SplashScreenState extends State<SplashScreen> {
+class _SplashScreenState extends ConsumerState<SplashScreen> {
   @override
   void initState() {
     super.initState();
     Timer(const Duration(seconds: 3), () {
+      final auth = ref.read(authProvider);
+      
+      Widget nextScreen;
+      if (auth.isAuthenticated) {
+        if (auth.role == 'agent') {
+          nextScreen = const AgentMainNavigationScreen();
+        } else {
+          // Import dynamic for Client Nav if needed
+          nextScreen = const MainNavigationScreen();
+        }
+      } else {
+        nextScreen = const WelcomeScreen();
+      }
+
       Navigator.of(context).pushReplacement(
         PageRouteBuilder(
-          pageBuilder: (context, animation, secondaryAnimation) => const WelcomeScreen(),
+          pageBuilder: (context, animation, secondaryAnimation) => nextScreen,
           transitionsBuilder: (context, animation, secondaryAnimation, child) {
             return FadeTransition(opacity: animation, child: child);
           },

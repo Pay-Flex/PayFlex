@@ -10,7 +10,12 @@ class NavigationNotifier extends Notifier<int> {
   }
 }
 
-/// Provider global pour la navigation
+/// Provider global pour la navigation client
 final navigationIndexProvider = NotifierProvider<NavigationNotifier, int>(() {
+  return NavigationNotifier();
+});
+
+/// Provider global pour la navigation agent
+final agentNavigationIndexProvider = NotifierProvider<NavigationNotifier, int>(() {
   return NavigationNotifier();
 });

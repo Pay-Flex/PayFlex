@@ -23,8 +23,9 @@ class DatabaseService {
 
     final db = await openDatabase(
       path,
-      version: 1,
+      version: 2,
       onCreate: _onCreate,
+      onUpgrade: _onUpgrade,
     );
 
     // Ajout systématique des nouveaux produits (ignore si déjà présents)
@@ -34,13 +35,18 @@ class DatabaseService {
   }
 
   Future _onCreate(Database db, int version) async {
-    // 1. Users table (Stores Role and PIN)
+    // 1. Users table (Stores Role, PIN, Secret Code and Assignments)
     await db.execute('''
       CREATE TABLE users (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
-        role TEXT NOT NULL,
-        pin TEXT NOT NULL,
+        name TEXT,
+        phone TEXT,
+        role TEXT NOT NULL, -- 'agent', 'client', 'admin'
+        pin TEXT NOT NULL, -- Password
+        secret_code TEXT, -- Code unique pour validation physique (Cas 1)
         profession TEXT,
+        agent_id INTEGER, -- ID de l'agent assigné (si client)
+        is_approved INTEGER DEFAULT 0, -- Soumis à validation admin
         is_active INTEGER DEFAULT 1
       )
     ''');
@@ -64,7 +70,9 @@ class DatabaseService {
         amount REAL NOT NULL,
         date TEXT NOT NULL,
         type TEXT NOT NULL, -- 'mobile_money', 'cash'
-        status TEXT NOT NULL, -- 'normal' (vert), 'rattrapage' (orange), 'avance' (bleu)
+        status TEXT NOT NULL, -- 'pending', 'validated', 'rejected'
+        rejection_reason TEXT,
+        agent_id INTEGER, -- Agent qui a collecté ou doit valider
         FOREIGN KEY (project_id) REFERENCES projects (id)
       )
     ''');
@@ -126,6 +134,32 @@ class DatabaseService {
       'sender_role': 'admin',
       'timestamp': DateTime.now().toIso8601String(),
     });
+
+    // Insertion d'un Agent de démo (PIN: 1111)
+    await db.insert('users', {
+      'name': 'Jean Dupont',
+      'phone': '+221 77 123 45 67',
+      'role': 'agent',
+      'pin': '1111',
+      'is_approved': 1,
+    });
+  }
+
+  Future _onUpgrade(Database db, int oldVersion, int newVersion) async {
+    if (oldVersion < 2) {
+      // Mise à jour de la table users
+      await db.execute('ALTER TABLE users ADD COLUMN name TEXT');
+      await db.execute('ALTER TABLE users ADD COLUMN phone TEXT');
+      await db.execute('ALTER TABLE users ADD COLUMN secret_code TEXT');
+      await db.execute('ALTER TABLE users ADD COLUMN agent_id INTEGER');
+      await db.execute('ALTER TABLE users ADD COLUMN is_approved INTEGER DEFAULT 0');
+      
+      // Mise à jour de la table transactions
+      await db.execute('ALTER TABLE transactions ADD COLUMN rejection_reason TEXT');
+      await db.execute('ALTER TABLE transactions ADD COLUMN agent_id INTEGER');
+      // Note: On ne peut pas facilement changer le type d'une colonne existante en SQLite sans recréer la table,
+      // mais on peut ajouter de nouvelles colonnes. Les anciennes transactions auront l'ancien status.
+    }
   }
 
   Future<void> _seedCatalogue(Database db) async {
@@ -323,6 +357,50 @@ class DatabaseService {
       },
       conflictAlgorithm: ConflictAlgorithm.replace,
     );
+    
+    // Si la transaction est validée immédiatement (Cas 1), on met à jour le projet
+    if (status == 'validated') {
+      await updateProjectSavedAmount(projectId, amount);
+    }
+  }
+
+  Future<void> updateTransactionStatus(String transactionId, String status, {String? reason}) async {
+    final db = await database;
+    
+    // 1. On récupère la transaction pour avoir le montant et le projet
+    final List<Map<String, dynamic>> res = await db.query('transactions', where: 'id = ?', whereArgs: [transactionId]);
+    if (res.isEmpty) return;
+    
+    final trans = res.first;
+    final double amount = trans['amount'] as double;
+    final String projectId = trans['project_id'] as String;
+
+    // 2. Mise à jour du statut
+    await db.update(
+      'transactions',
+      {
+        'status': status,
+        'rejection_reason': reason,
+      },
+      where: 'id = ?',
+      whereArgs: [transactionId],
+    );
+
+    // 3. Si validé, on impacte le projet
+    if (status == 'validated') {
+      await updateProjectSavedAmount(projectId, amount);
+    }
+  }
+
+  Future<List<Map<String, dynamic>>> getPendingTransactions() async {
+    final db = await database;
+    // On pourrait joindre avec users pour avoir le nom du client
+    return await db.query('transactions', where: 'status = ?', whereArgs: ['pending'], orderBy: 'id DESC');
+  }
+
+  Future<List<Map<String, dynamic>>> getClients() async {
+    final db = await database;
+    return await db.query('users', where: 'role = ?', whereArgs: ['client']);
   }
 
   // --- CRUD Chat & Demandes ---
