@@ -23,7 +23,7 @@ class DatabaseService {
 
     final db = await openDatabase(
       path,
-      version: 2,
+      version: 3,
       onCreate: _onCreate,
       onUpgrade: _onUpgrade,
     );
@@ -111,20 +111,14 @@ class DatabaseService {
       )
     ''');
 
-    // 7. Catalogue items table
+    // 8. Session config table (Persistence of logged user)
     await db.execute('''
-      CREATE TABLE catalogue_items (
-        id TEXT PRIMARY KEY,
-        name TEXT NOT NULL,
-        category TEXT NOT NULL,
-        price REAL NOT NULL,
-        daily_min REAL NOT NULL,
-        image_url TEXT NOT NULL,
-        description TEXT NOT NULL,
-        is_featured INTEGER DEFAULT 0
+      CREATE TABLE config (
+        key TEXT PRIMARY KEY,
+        value TEXT
       )
     ''');
-
+    
     // Injection des produits de démonstration
     await _seedCatalogue(db);
     
@@ -135,7 +129,7 @@ class DatabaseService {
       'timestamp': DateTime.now().toIso8601String(),
     });
 
-    // Insertion d'un Agent de démo (PIN: 1111)
+    // Insertion d'un Agent de démo (Jean Dupont)
     await db.insert('users', {
       'name': 'Jean Dupont',
       'phone': '+221 77 123 45 67',
@@ -143,22 +137,41 @@ class DatabaseService {
       'pin': '1111',
       'is_approved': 1,
     });
+
+    // Seeding des 2 autres agents demandés
+    await db.insert('users', {
+      'name': 'Marie Diallo',
+      'phone': '+221 78 123 45 67',
+      'role': 'agent',
+      'pin': '2222',
+      'is_approved': 1,
+    });
+
+    await db.insert('users', {
+      'name': 'Moussa Traoré',
+      'phone': '+221 70 123 45 67',
+      'role': 'agent',
+      'pin': '3333',
+      'is_approved': 1,
+    });
   }
 
   Future _onUpgrade(Database db, int oldVersion, int newVersion) async {
     if (oldVersion < 2) {
-      // Mise à jour de la table users
       await db.execute('ALTER TABLE users ADD COLUMN name TEXT');
       await db.execute('ALTER TABLE users ADD COLUMN phone TEXT');
       await db.execute('ALTER TABLE users ADD COLUMN secret_code TEXT');
       await db.execute('ALTER TABLE users ADD COLUMN agent_id INTEGER');
       await db.execute('ALTER TABLE users ADD COLUMN is_approved INTEGER DEFAULT 0');
-      
-      // Mise à jour de la table transactions
       await db.execute('ALTER TABLE transactions ADD COLUMN rejection_reason TEXT');
       await db.execute('ALTER TABLE transactions ADD COLUMN agent_id INTEGER');
-      // Note: On ne peut pas facilement changer le type d'une colonne existante en SQLite sans recréer la table,
-      // mais on peut ajouter de nouvelles colonnes. Les anciennes transactions auront l'ancien status.
+    }
+    if (oldVersion < 3) {
+      // Nettoyage et Re-seeding des agents pour version 3
+      await db.delete('users', where: 'role = ?', whereArgs: ['agent']);
+      await db.insert('users', {'name': 'Jean Dupont', 'phone': '+221 77 123 45 67', 'role': 'agent', 'pin': '1111', 'is_approved': 1});
+      await db.insert('users', {'name': 'Marie Diallo', 'phone': '+221 78 123 45 67', 'role': 'agent', 'pin': '2222', 'is_approved': 1});
+      await db.insert('users', {'name': 'Moussa Traoré', 'phone': '+221 70 123 45 67', 'role': 'agent', 'pin': '3333', 'is_approved': 1});
     }
   }
 
@@ -262,13 +275,39 @@ class DatabaseService {
     );
   }
 
-  Future<Map<String, dynamic>?> getUser() async {
+  Future<void> setCurrentUserId(int? id) async {
     final db = await database;
-    final List<Map<String, dynamic>> maps = await db.query('users', limit: 1);
-    if (maps.isNotEmpty) {
-      return maps.first;
+    if (id == null) {
+      await db.delete('config', where: 'key = ?', whereArgs: ['current_user_id']);
+    } else {
+      await db.insert('config', {'key': 'current_user_id', 'value': id.toString()}, conflictAlgorithm: ConflictAlgorithm.replace);
+    }
+  }
+
+  Future<int?> getCurrentUserId() async {
+    final db = await database;
+    final List<Map<String, dynamic>> res = await db.query('config', where: 'key = ?', whereArgs: ['current_user_id'], limit: 1);
+    if (res.isNotEmpty) {
+      return int.parse(res.first['value'] as String);
     }
     return null;
+  }
+
+  Future<Map<String, dynamic>?> login(String phone, String pin) async {
+    final db = await database;
+    final List<Map<String, dynamic>> res = await db.query(
+      'users',
+      where: 'phone = ? AND pin = ? AND is_active = 1',
+      whereArgs: [phone, pin],
+      limit: 1,
+    );
+    return res.isNotEmpty ? res.first : null;
+  }
+
+  Future<Map<String, dynamic>?> getUserById(int id) async {
+    final db = await database;
+    final List<Map<String, dynamic>> res = await db.query('users', where: 'id = ?', whereArgs: [id], limit: 1);
+    return res.isNotEmpty ? res.first : null;
   }
   
   Future<void> clearDatabase() async {
@@ -398,9 +437,47 @@ class DatabaseService {
     return await db.query('transactions', where: 'status = ?', whereArgs: ['pending'], orderBy: 'id DESC');
   }
 
-  Future<List<Map<String, dynamic>>> getClients() async {
+  Future<List<Map<String, dynamic>>> getClientsForAgent(int agentId) async {
     final db = await database;
-    return await db.query('users', where: 'role = ?', whereArgs: ['client']);
+    return await db.query('users', where: 'role = ? AND agent_id = ?', whereArgs: ['client', agentId]);
+  }
+
+  Future<int> registerClientAndProject({
+    required String name,
+    required String phone,
+    required String pin,
+    required String secretCode,
+    required String profession,
+    required int agentId,
+    required String projectTitle,
+    required double targetAmount,
+    required double dailySuggested,
+  }) async {
+    final db = await database;
+    return await db.transaction((txn) async {
+      // 1. Créer le compte client
+      final userId = await txn.insert('users', {
+        'name': name,
+        'phone': phone,
+        'role': 'client',
+        'pin': pin,
+        'secret_code': secretCode,
+        'profession': profession,
+        'agent_id': agentId,
+        'is_approved': 1, // Auto-approuvé par l'agent en démo/lite
+      });
+
+      // 2. Créer le projet
+      await txn.insert('projects', {
+        'id': 'proj_${DateTime.now().millisecondsSinceEpoch}',
+        'title': projectTitle,
+        'target_amount': targetAmount,
+        'saved_amount': 0.0,
+        'daily_suggested': dailySuggested,
+      });
+
+      return userId;
+    });
   }
 
   // --- CRUD Chat & Demandes ---

@@ -116,29 +116,35 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                   ? const Center(child: CircularProgressIndicator(color: AppColors.primary))
                   : ElevatedButton(
                     onPressed: () async {
-                      if (_formKey.currentState!.validate()) {
-                        setState(() => _isLoading = true);
-                        
-                        // Simulation de connexion
-                        // Dans un cas réel, on vérifierait l'ID et le PIN en base
-                        final String id = _idController.text.trim();
-                        final String pin = _pinController.text.trim();
-                        
-                        // Logique de démo : PIN 1111 = Agent, Autre = Client
-                        String role = (pin == "1111") ? 'agent' : 'client';
-                        
-                        await ref.read(authProvider.notifier).saveUserAndPin(role, pin);
-                        
-                        if (mounted) {
-                          Widget nextScreen = (role == 'agent') 
-                              ? const AgentMainNavigationScreen() 
-                              : const MainNavigationScreen();
-                              
-                          Navigator.of(context).pushReplacement(
-                            MaterialPageRoute(builder: (context) => nextScreen),
-                          );
+                        if (_formKey.currentState!.validate()) {
+                          setState(() => _isLoading = true);
+                          
+                          final String phone = _idController.text.trim();
+                          final String pin = _pinController.text.trim();
+                          
+                          final success = await ref.read(authProvider.notifier).login(phone, pin);
+                          
+                          if (mounted) {
+                            if (success) {
+                              final auth = ref.read(authProvider);
+                              Widget nextScreen = (auth.role == 'agent') 
+                                  ? const AgentMainNavigationScreen() 
+                                  : const MainNavigationScreen();
+                                  
+                              Navigator.of(context).pushReplacement(
+                                MaterialPageRoute(builder: (context) => nextScreen),
+                              );
+                            } else {
+                              setState(() => _isLoading = false);
+                              ScaffoldMessenger.of(context).showSnackBar(
+                                const SnackBar(
+                                  content: Text('Identifiant ou PIN incorrect.'),
+                                  backgroundColor: Colors.redAccent,
+                                ),
+                              );
+                            }
+                          }
                         }
-                      }
                     },
                     child: const Text('SE CONNECTER'),
                   ).animate().fadeIn(delay: 1.seconds).scale(),

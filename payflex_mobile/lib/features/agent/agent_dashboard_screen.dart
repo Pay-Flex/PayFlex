@@ -18,11 +18,31 @@ class AgentDashboardScreen extends ConsumerStatefulWidget {
 }
 
 class _AgentDashboardScreenState extends ConsumerState<AgentDashboardScreen> {
+  final DatabaseService _dbService = DatabaseService();
+  List<Map<String, dynamic>> _clients = [];
+  bool _isLoadingClients = true;
   final TextEditingController _searchController = TextEditingController();
   
   // Données de démo pour l'UI
   final double _todayCollected = 145500;
   final double _targetAmount = 180000;
+
+  @override
+  void initState() {
+    super.initState();
+    _loadClients();
+  }
+
+  Future<void> _loadClients() async {
+    final auth = ref.read(authProvider);
+    if (auth.userId != null) {
+      final clients = await _dbService.getClientsForAgent(auth.userId!);
+      setState(() {
+        _clients = clients;
+        _isLoadingClients = false;
+      });
+    }
+  }
   
   @override
   Widget build(BuildContext context) {
@@ -256,7 +276,7 @@ class _AgentDashboardScreenState extends ConsumerState<AgentDashboardScreen> {
                           ),
                         ),
                         Text(
-                          '12 RESTANTS',
+                          '${_clients.length} AU TOTAL',
                           style: GoogleFonts.manrope(
                             fontSize: 11,
                             fontWeight: FontWeight.w900,
@@ -292,40 +312,6 @@ class _AgentDashboardScreenState extends ConsumerState<AgentDashboardScreen> {
                   ),
                 ),
 
-                // Liste des clients (Cas 1 & Cas 2 intégrés)
-                SliverPadding(
-                  padding: const EdgeInsets.symmetric(horizontal: 20),
-                  sliver: SliverList(
-                    delegate: SliverChildListDelegate([
-                      _buildClientCard(
-                        context,
-                        'Mamadou Koné',
-                        'Zone A, Secteur 4',
-                        'Hier, 16:45',
-                        'https://i.pravatar.cc/150?u=mako',
-                        true, // Is physical collect (Cas 1)
-                      ).animate().fadeIn(delay: 300.ms).slideX(begin: 0.05),
-                      const SizedBox(height: 16),
-                      _buildClientCard(
-                        context,
-                        'Awa Traoré',
-                        'Marché Central, Allée 2',
-                        'Il y a 3 jours',
-                        'https://i.pravatar.cc/150?u=awa',
-                        false, // Pending Smartphone (Cas 2)
-                        hasAlert: true,
-                      ).animate().fadeIn(delay: 400.ms).slideX(begin: 0.05),
-                      const SizedBox(height: 16),
-                      _buildClientCard(
-                        context,
-                        'Ibrahim Diallo',
-                        'Zone B, Entrée Sud',
-                        'Mardi, 09:15',
-                        'https://i.pravatar.cc/150?u=ibra',
-                        true,
-                        amountIncoherent: true,
-                      ).animate().fadeIn(delay: 500.ms).slideX(begin: 0.05),
-                      const SizedBox(height: 100),
                     ]),
                   ),
                 ),

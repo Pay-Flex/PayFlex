@@ -334,31 +334,18 @@
         <script>
 
             const products = [
-
-                { id: 1, name: 'Kit de Démarrage Mécanique', category: 'Mécanique', price: '150 000 FCFA', img: 'img/product-1.jpg', description: 'L\'essentiel pour tout mécanicien débutant.' },
-
-                { id: 2, name: 'Kit de Coiffure Professionnel', category: 'Coiffure', price: '120 000 FCFA', img: 'img/product-2.jpg', description: 'Tondeuses, ciseaux et accessoires de qualité.' },
-
-                { id: 3, name: 'Machine à Coudre "Créative"', category: 'Couture', price: '250 000 FCFA', img: 'img/product-3.jpg', description: 'Idéale pour les créations complexes et robustes.' },
-
-                { id: 4, name: 'Ensemble d\'Outils de Plomberie', category: 'Plomberie', price: '180 000 FCFA', img: 'img/product-4.jpg', description: 'Tout le nécessaire pour les installations et réparations.' },
-
-                { id: 5, name: 'Mallette de Diagnostic Auto', category: 'Mécanique', price: '350 000 FCFA', img: 'img/gallery-1.jpg', description: 'Valise de diagnostic électronique multimarque.' },
-
-                { id: 6, name: 'Casque de Séchage sur Pied', category: 'Coiffure', price: '95 000 FCFA', img: 'img/gallery-2.jpg', description: 'Pour un séchage rapide et homogène.' },
-
-                { id: 7, name: 'Surjeteuse 4 Fils', category: 'Couture', price: '320 000 FCFA', img: 'img/gallery-3.jpg', description: 'Finitions professionnelles pour tous vos ouvrages.' },
-
-                { id: 8, name: 'Déboucheur de Canalisation', category: 'Plomberie', price: '75 000 FCFA', img: 'img/gallery-4.jpg', description: 'Puissant et efficace pour les bouchons tenaces.' },
-
-                { id: 9, name: 'Pont Élévateur 2 Colonnes', category: 'Mécanique', price: '1 500 000 FCFA', img: 'img/gallery-5.jpg', description: 'Capacité de 4 tonnes, sécurité renforcée.' },
-
-                { id: 10, name: 'Fauteuil de Barbier Vintage', category: 'Coiffure', price: '450 000 FCFA', img: 'img/gallery-6.jpg', description: 'Style et confort pour votre salon.' },
-
-                { id: 11, name: 'Mannequin de Couture Réglable', category: 'Couture', price: '85 000 FCFA', img: 'img/gallery-7.jpg', description: 'Ajustable à toutes les morphologies.' },
-
-                { id: 12, name: 'Chalumeau de Plombier', category: 'Plomberie', price: '55 000 FCFA', img: 'img/gallery-8.jpg', description: 'Pour soudures et brasures de haute précision.' },
-
+                { id: 1, name: 'Kit de Démarrage Mécanique', category: 'Mécanique', price: '150 000 FCFA', img: 'img/product-mech.png', description: 'L\'essentiel pour tout mécanicien débutant avec des outils de précision.' },
+                { id: 2, name: 'Kit de Coiffure Professionnel', category: 'Coiffure', price: '120 000 FCFA', img: 'img/product-hair.jpg', description: 'Tondeuses, ciseaux et accessoires de qualité pour salons modernes.' },
+                { id: 3, name: 'Machine à Coudre "Créative"', category: 'Couture', price: '250 000 FCFA', img: 'img/product-sew.png', description: 'Idéale pour les créations complexes et robustes sur tous tissus.' },
+                { id: 4, name: 'Ensemble d\'Outils de Plomberie', category: 'Plomberie', price: '180 000 FCFA', img: 'img/product-plumb.jpg', description: 'Tout le nécessaire pour les installations et réparations sanitaires.' },
+                { id: 5, name: 'Mallette de Diagnostic Auto', category: 'Mécanique', price: '350 000 FCFA', img: 'img/gallery-ai-1.png', description: 'Valise de diagnostic électronique multimarque haute précision.' },
+                { id: 6, name: 'Casque de Séchage sur Pied', category: 'Coiffure', price: '95 000 FCFA', img: 'img/gallery-ai-2.png', description: 'Pour un séchage rapide et homogène en milieu professionnel.' },
+                { id: 7, name: 'Surjeteuse Professional', category: 'Couture', price: '320 000 FCFA', img: 'img/gallery-ai-3.png', description: 'Finitions impeccables pour tous vos ouvrages de couture.' },
+                { id: 8, name: 'Kit Énergie Solaire', category: 'Solaire', price: '450 000 FCFA', img: 'img/gallery-ai-4.png', description: 'Panneaux et onduleur pour une autonomie énergétique durable.' },
+                { id: 9, name: 'Formation Apprentis Élite', category: 'Formation', price: '75 000 FCFA', img: 'img/gallery-ai-5.png', description: 'Accompagnement complet pour le démarrage de votre activité.' },
+                { id: 10, name: 'Fauteuil de Barbier Vintage', category: 'Coiffure', price: '450 000 FCFA', img: 'img/product-hair.jpg', description: 'Style et confort exceptionnel pour votre salon de barbier.' },
+                { id: 11, name: 'Kit Couture Industriel', category: 'Couture', price: '500 000 FCFA', img: 'img/gallery-ai-3.png', description: 'Équipement complet pour atelier de confection à grande échelle.' },
+                { id: 12, name: 'Outillage Soudure Pro', category: 'Mécanique', price: '280 000 FCFA', img: 'img/product-mech.png', description: 'Poste à souder et accessoires de protection haute sécurité.' },
             ];
 
     
@@ -454,37 +441,21 @@
                     
 
                     productCol.innerHTML = `
-
-                        <div class="product-item h-100">
-
+                        <div class="product-item h-100 shadow-sm border-0 rounded-4 overflow-hidden">
                             <div class="position-relative">
-
-                                <span class="badge bg-warning position-absolute top-0 start-0 m-2">${p.category}</span>
-
-                                <img class="img-fluid" src="${p.img}" alt="${p.name}">
-
+                                <span class="badge bg-primary position-absolute top-0 start-0 m-2 px-3 py-2 rounded-pill shadow-sm" style="z-index: 10;">${p.category}</span>
+                                <img class="img-fluid w-100" src="${p.img}" alt="${p.name}" style="height: 240px; object-fit: cover;">
                                 <div class="product-overlay">
-
-                                    <a class="btn btn-square btn-secondary rounded-circle m-1" href="javascript:void(0)" onclick="openProductModal(${p.id})"><i class="bi bi-eye"></i></a>
-
-                                    <a class="btn btn-square btn-secondary rounded-circle m-1" href="#"><i class="bi bi-cart"></i></a>
-
+                                    <a class="btn btn-square btn-light rounded-circle m-1 shadow" href="javascript:void(0)" onclick="openProductModal(${p.id})"><i class="bi bi-eye text-primary"></i></a>
+                                    <a class="btn btn-square btn-primary rounded-circle m-1 shadow" href="#"><i class="bi bi-cart"></i></a>
                                 </div>
-
                             </div>
-
                             <div class="text-center p-4">
-
-                                <a class="d-block h5 mb-2 text-dark" href="javascript:void(0)" onclick="openProductModal(${p.id})">${p.name}</a>
-
-                                <p class="text-muted small">${p.description}</p>
-
-                                <span class="text-warning me-1">${p.price}</span>
-
+                                <a class="d-block h5 mb-2 text-dark fw-bold hover-primary" href="javascript:void(0)" onclick="openProductModal(${p.id})">${p.name}</a>
+                                <p class="text-muted small mb-3 line-clamp-2">${p.description}</p>
+                                <span class="text-primary fw-bold" style="font-size: 1.1rem;">${p.price}</span>
                             </div>
-
                         </div>
-
                     `;
 
                     grid.appendChild(productCol);

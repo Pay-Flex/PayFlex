@@ -1,16 +1,18 @@
-import 'package:flutter/material.dart';
-import 'package:flutter_animate/flutter_animate.dart';
 import 'package:google_fonts/google_fonts.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../core/constants/app_colors.dart';
+import '../../core/database/database_service.dart';
+import '../../core/providers/auth_provider.dart';
 
-class AgentEnrollmentScreen extends StatefulWidget {
+class AgentEnrollmentScreen extends ConsumerStatefulWidget {
   const AgentEnrollmentScreen({super.key});
 
   @override
-  State<AgentEnrollmentScreen> createState() => _AgentEnrollmentScreenState();
+  ConsumerState<AgentEnrollmentScreen> createState() => _AgentEnrollmentScreenState();
 }
 
-class _AgentEnrollmentScreenState extends State<AgentEnrollmentScreen> {
+class _AgentEnrollmentScreenState extends ConsumerState<AgentEnrollmentScreen> {
+  final DatabaseService _dbService = DatabaseService();
   int _currentStep = 0;
   final Set<int> _selectedIndices = {};
   
@@ -28,12 +30,52 @@ class _AgentEnrollmentScreenState extends State<AgentEnrollmentScreen> {
   final _phoneController = TextEditingController();
   final _professionController = TextEditingController();
   final _dailyAmountController = TextEditingController();
+  final _pinController = TextEditingController();
+  final _secretCodeController = TextEditingController();
   
-  void _nextStep() {
+  bool _isSaving = false;
+
+  Future<void> _nextStep() async {
     if (_currentStep < 3) {
       setState(() => _currentStep++);
     } else {
+      await _saveClientToDatabase();
+    }
+  }
+
+  Future<void> _saveClientToDatabase() async {
+    if (_nameController.text.isEmpty || _phoneController.text.isEmpty || _pinController.text.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Veuillez remplir tous les champs obligatoires')),
+      );
+      return;
+    }
+
+    setState(() => _isSaving = true);
+    
+    try {
+      final auth = ref.read(authProvider);
+      if (auth.userId == null) return;
+
+      await _dbService.registerClientAndProject(
+        name: _nameController.text,
+        phone: _phoneController.text,
+        pin: _pinController.text,
+        secretCode: _secretCodeController.text,
+        profession: _professionController.text,
+        agentId: auth.userId!,
+        projectTitle: _selectedIndices.map((i) => _products[i]['name']).join(' + '),
+        targetAmount: _totalProjectAmount,
+        dailySuggested: _totalProjectAmount / 365,
+      );
+
       _showSuccessDialog();
+    } catch (e) {
+       ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Erreur lors de l\'enregistrement : $e')),
+      );
+    } finally {
+      setState(() => _isSaving = false);
     }
   }
 
@@ -90,16 +132,18 @@ class _AgentEnrollmentScreenState extends State<AgentEnrollmentScreen> {
           Padding(
             padding: const EdgeInsets.all(24),
             child: ElevatedButton(
-              onPressed: _nextStep,
+              onPressed: _isSaving ? null : _nextStep,
               style: ElevatedButton.styleFrom(
                 backgroundColor: AppColors.secondary,
                 minimumSize: const Size(double.infinity, 60),
                 shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(18)),
               ),
-              child: Text(
-                _currentStep == 3 ? 'Finaliser l\'inscription' : 'Continuer',
-                style: GoogleFonts.manrope(color: Colors.white, fontSize: 16, fontWeight: FontWeight.w800),
-              ),
+              child: _isSaving 
+                ? const CircularProgressIndicator(color: Colors.white)
+                : Text(
+                    _currentStep == 3 ? 'Finaliser l\'inscription' : 'Continuer',
+                    style: GoogleFonts.manrope(color: Colors.white, fontSize: 16, fontWeight: FontWeight.w800),
+                  ),
             ),
           ),
         ],
@@ -265,9 +309,9 @@ class _AgentEnrollmentScreenState extends State<AgentEnrollmentScreen> {
         const SizedBox(height: 12),
         Text('Ces codes doivent rester strictement confidentiels.', style: GoogleFonts.manrope(fontSize: 13, color: Colors.grey)),
         const SizedBox(height: 32),
-        _buildTextField('Créer un Mot de passe (Saisi par le client)', TextEditingController(), Icons.lock_outline_rounded, isPassword: true),
+        _buildTextField('Créer un Mot de passe (Saisi par le client)', _pinController, Icons.lock_outline_rounded, isPassword: true),
         const SizedBox(height: 20),
-        _buildTextField('Créer un Code Secret de validation (Saisi par le client)', TextEditingController(), Icons.verified_user_outlined, isPassword: true, keyboardType: TextInputType.number),
+        _buildTextField('Créer un Code Secret (Saisi par le client)', _secretCodeController, Icons.verified_user_outlined, isPassword: true, keyboardType: TextInputType.number),
       ],
     ).animate().fadeIn().slideX(begin: 0.1);
   }
