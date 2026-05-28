@@ -1,11 +1,15 @@
 import 'dart:ui';
 import 'package:flutter/material.dart';
 import 'package:flutter_animate/flutter_animate.dart';
+import 'fedapay_checkout_screen.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:google_fonts/google_fonts.dart';
 import '../../core/constants/app_colors.dart';
+import '../../core/database/database_service.dart';
 import '../../core/providers/finance_provider.dart';
 import '../../core/providers/navigation_provider.dart';
+import '../../core/providers/auth_provider.dart';
+import '../../core/network/mobile_api_service.dart';
 
 class PaymentScreen extends ConsumerStatefulWidget {
   const PaymentScreen({super.key});
@@ -17,10 +21,12 @@ class PaymentScreen extends ConsumerStatefulWidget {
 class _PaymentScreenState extends ConsumerState<PaymentScreen> {
   final TextEditingController _amountController = TextEditingController();
   String _selectedMethod = 'mobile_money';
-  String _selectedProject = 'Moto Jakarta 100cc';
+  String _selectedMobileProvider = 'Flooz';
+  String? _selectedProjectId;
   bool _isProcessing = false;
 
-  final List<String> _presets = ['1000', '2500', '5000', '10000', '25000'];
+  final List<String> _presetsExtra = ['1000', '2500', '5000', '10000', '25000'];
+  final _mobileApi = MobileApiService();
 
   @override
   void dispose() {
@@ -28,16 +34,48 @@ class _PaymentScreenState extends ConsumerState<PaymentScreen> {
     super.dispose();
   }
 
+  double get _dailyRate {
+    final fin = ref.read(financeProvider);
+    if (_selectedProjectId == null) return 0;
+    try {
+      return fin.projects.firstWhere((p) => p.id == _selectedProjectId).dailySuggested;
+    } catch (_) {
+      return fin.projects.isNotEmpty ? fin.projects.first.dailySuggested : 0;
+    }
+  }
+
   int get _casesCount {
     final amount = double.tryParse(_amountController.text) ?? 0;
-    const dailyRate = 1500.0;
+    final dailyRate = _dailyRate;
     if (dailyRate <= 0 || amount <= 0) return 0;
     return (amount / dailyRate).floor();
+  }
+
+  List<String> _presetAmounts(double daily) {
+    final base = <String>{..._presetsExtra};
+    if (daily > 0) {
+      base.add(daily.ceil().toString());
+      base.add((daily * 7).ceil().toString());
+      base.add((daily * 30).ceil().toString());
+    }
+    final sorted = base.map((s) => int.tryParse(s) ?? 0).where((n) => n > 0).toSet().toList()..sort();
+    return sorted.take(9).map((n) => n.toString()).toList();
   }
 
   @override
   Widget build(BuildContext context) {
     final financeState = ref.watch(financeProvider);
+    final auth = ref.watch(authProvider);
+    final projects = financeState.projects;
+    final ids = projects.map((p) => p.id).toList();
+    if (_selectedProjectId == null || (_selectedProjectId != null && !ids.contains(_selectedProjectId))) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (!mounted) return;
+        setState(() => _selectedProjectId = ids.isNotEmpty ? ids.first : null);
+      });
+    }
+    final daily = _dailyRate;
+    final presets = _presetAmounts(daily);
 
     return Scaffold(
       backgroundColor: const Color(0xFFF8FAFC),
@@ -77,7 +115,18 @@ class _PaymentScreenState extends ConsumerState<PaymentScreen> {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-
+                if (projects.isEmpty)
+                  Padding(
+                    padding: const EdgeInsets.symmetric(vertical: 48),
+                    child: Center(
+                      child: Text(
+                        'Aucun projet d’épargne.\nChoisissez un produit dans le catalogue pour cotiser.',
+                        textAlign: TextAlign.center,
+                        style: GoogleFonts.manrope(fontWeight: FontWeight.w700, color: AppColors.secondary.withOpacity(0.7)),
+                      ),
+                    ),
+                  )
+                else ...[
                 // === CARTE CLIENT ===
                 Container(
                   padding: const EdgeInsets.all(20),
@@ -94,19 +143,33 @@ class _PaymentScreenState extends ConsumerState<PaymentScreen> {
                   ),
                   child: Row(
                     children: [
-                      const CircleAvatar(
+                      CircleAvatar(
                         radius: 26,
-                        backgroundImage: NetworkImage('https://i.pravatar.cc/150?u=payflex'),
+                        backgroundColor: AppColors.primary.withOpacity(0.25),
+                        child: Text(
+                          (auth.name != null && auth.name!.trim().isNotEmpty)
+                              ? auth.name!.trim()[0].toUpperCase()
+                              : 'P',
+                          style: GoogleFonts.manrope(
+                            color: Colors.white,
+                            fontWeight: FontWeight.w900,
+                            fontSize: 20,
+                          ),
+                        ),
                       ),
                       const SizedBox(width: 16),
                       Expanded(
                         child: Column(
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
-                            Text('Chaminade Don',
+                            Text(auth.name ?? 'Client PayFlex',
                               style: GoogleFonts.manrope(color: Colors.white, fontWeight: FontWeight.w900, fontSize: 16)),
-                            Text('ID: PF-2024-8890',
-                              style: GoogleFonts.inter(color: Colors.white.withOpacity(0.5), fontSize: 11)),
+                            Text(
+                              auth.uniqueCode != null && auth.uniqueCode!.trim().isNotEmpty
+                                  ? 'Code : ${auth.uniqueCode}'
+                                  : (auth.phone ?? '—'),
+                              style: GoogleFonts.inter(color: Colors.white.withOpacity(0.5), fontSize: 11),
+                            ),
                           ],
                         ),
                       ),
@@ -142,22 +205,38 @@ class _PaymentScreenState extends ConsumerState<PaymentScreen> {
                   ),
                   child: DropdownButtonHideUnderline(
                     child: DropdownButton<String>(
-                      value: _selectedProject,
+                      value: _selectedProjectId != null && ids.contains(_selectedProjectId) ? _selectedProjectId : null,
                       isExpanded: true,
-                      dropdownColor: AppColors.secondary, // Fond de la liste aussi en premium
+                      dropdownColor: AppColors.secondary,
                       icon: const Icon(Icons.keyboard_arrow_down_rounded, color: Colors.white),
-                      style: GoogleFonts.manrope(fontWeight: FontWeight.w700, color: Colors.white), 
-                      items: [
-                        _selectedProject,
-                        if (_selectedProject != 'Moto Jakarta 100cc') 'Moto Jakarta 100cc',
-                      ].map((p) => DropdownMenuItem(
-                        value: p, 
-                        child: Text(p, style: const TextStyle(color: Colors.white)), // Texte blanc dans la liste
-                      )).toList(),
-                      onChanged: (v) => setState(() => _selectedProject = v!),
+                      style: GoogleFonts.manrope(fontWeight: FontWeight.w700, color: Colors.white),
+                      hint: Text('Choisir un projet', style: GoogleFonts.manrope(color: Colors.white54)),
+                      items: projects
+                          .map(
+                            (p) => DropdownMenuItem<String>(
+                              value: p.id,
+                              child: Text(p.title, style: const TextStyle(color: Colors.white)),
+                            ),
+                          )
+                          .toList(),
+                      onChanged: (v) async {
+                        setState(() => _selectedProjectId = v);
+                        final uid = ref.read(authProvider).userId;
+                        if (v != null && uid != null) {
+                          await DatabaseService().setUserCurrentProject(uid, v);
+                          await ref.read(financeProvider.notifier).reload();
+                        }
+                      },
                     ),
                   ),
                 ).animate().fadeIn(delay: 100.ms),
+                if (daily > 0) ...[
+                  const SizedBox(height: 8),
+                  Text(
+                    'Référence plan : ~${daily.toStringAsFixed(0)} FCFA / jour pour ce projet.',
+                    style: GoogleFonts.inter(fontSize: 11, color: AppColors.secondary.withOpacity(0.45)),
+                  ),
+                ],
 
                 const SizedBox(height: 24),
 
@@ -199,7 +278,7 @@ class _PaymentScreenState extends ConsumerState<PaymentScreen> {
                       Wrap(
                         spacing: 8, runSpacing: 8,
                         alignment: WrapAlignment.center,
-                        children: _presets.map((p) {
+                        children: presets.map((p) {
                           final isSelected = _amountController.text == p;
                           return GestureDetector(
                             onTap: () => setState(() => _amountController.text = p),
@@ -282,6 +361,24 @@ class _PaymentScreenState extends ConsumerState<PaymentScreen> {
                     ),
                   ],
                 ).animate().fadeIn(delay: 300.ms),
+                if (_selectedMethod == 'mobile_money') ...[
+                  const SizedBox(height: 12),
+                  Container(
+                    padding: const EdgeInsets.all(14),
+                    decoration: BoxDecoration(
+                      color: Colors.white,
+                      borderRadius: BorderRadius.circular(16),
+                      border: Border.all(color: AppColors.secondary.withOpacity(0.08)),
+                    ),
+                    child: Row(
+                      children: [
+                        _providerChip('Flooz'),
+                        const SizedBox(width: 8),
+                        _providerChip('Mix by Yas'),
+                      ],
+                    ),
+                  ),
+                ],
 
                 const SizedBox(height: 36),
 
@@ -290,7 +387,7 @@ class _PaymentScreenState extends ConsumerState<PaymentScreen> {
                   width: double.infinity,
                   height: 64,
                   child: ElevatedButton(
-                    onPressed: (_amountController.text.isEmpty || _isProcessing)
+                    onPressed: (projects.isEmpty || _amountController.text.isEmpty || _isProcessing)
                       ? null
                       : () => _processPayment(context),
                     style: ElevatedButton.styleFrom(
@@ -310,7 +407,8 @@ class _PaymentScreenState extends ConsumerState<PaymentScreen> {
                   ),
                 ).animate().fadeIn(delay: 500.ms).slideY(begin: 0.2),
               ],
-            ),
+            ],
+          ),
           ),
         ],
       ),
@@ -378,15 +476,140 @@ class _PaymentScreenState extends ConsumerState<PaymentScreen> {
     if (amount <= 0) return;
 
     setState(() => _isProcessing = true);
-    await Future.delayed(const Duration(milliseconds: 800)); // Simulation paiement
+
+    final auth = ref.read(authProvider);
+    final paymentMode = _selectedMethod == 'mobile_money' ? 'mobile_money' : 'cash';
+    final productIdApi = _selectedProjectId != null
+        ? int.tryParse(_selectedProjectId!.replaceAll(RegExp(r'[^0-9]'), ''))
+        : null;
+    String? serverContributionId;
+    var fedapayValidated = false;
+
+    if (auth.userId != null && paymentMode == 'mobile_money') {
+      final fedapayInit = await _mobileApi.initFedapayContribution(
+        userId: auth.userId!,
+        amount: amount,
+        productId: productIdApi,
+      );
+      final fedapayOn = fedapayInit?['fedapayEnabled'] == true;
+      if (fedapayOn && (fedapayInit?['paymentUrl']?.toString().isNotEmpty ?? false)) {
+        final paymentUrl = fedapayInit?['paymentUrl']?.toString() ?? '';
+        final contributionId = (fedapayInit?['contributionId'] as num?)?.toInt();
+        serverContributionId = contributionId?.toString();
+        if (paymentUrl.isNotEmpty && contributionId != null && context.mounted) {
+          setState(() => _isProcessing = false);
+          final checkout = await Navigator.of(context).push<FedapayCheckoutResult>(
+            MaterialPageRoute(
+              fullscreenDialog: true,
+              builder: (_) => FedapayCheckoutScreen(
+                paymentUrl: paymentUrl,
+                contributionId: contributionId,
+                userId: auth.userId!,
+                amountFcfa: amount.round(),
+                callbackUrl: fedapayInit?['callbackUrl']?.toString() ?? '',
+              ),
+            ),
+          );
+          if (!context.mounted) return;
+          if (checkout == null || checkout.outcome == FedapayCheckoutOutcome.cancelled) {
+            ScaffoldMessenger.of(context).showSnackBar(
+              SnackBar(
+                content: Text(
+                  'Paiement annulé. Vous pouvez réessayer quand vous voulez.',
+                  style: GoogleFonts.manrope(fontWeight: FontWeight.w600),
+                ),
+                behavior: SnackBarBehavior.floating,
+              ),
+            );
+            return;
+          }
+          if (checkout.outcome == FedapayCheckoutOutcome.rejected) {
+            ScaffoldMessenger.of(context).showSnackBar(
+              SnackBar(
+                content: Text(
+                  'Paiement non confirmé par FedaPay.',
+                  style: GoogleFonts.manrope(fontWeight: FontWeight.w600),
+                ),
+                behavior: SnackBarBehavior.floating,
+              ),
+            );
+            return;
+          }
+          fedapayValidated = checkout.outcome == FedapayCheckoutOutcome.validated;
+        }
+      } else {
+        // FedaPay non configuré, erreur API ou lien absent → déclaration classique
+        final apiRes = await _mobileApi.sendContribution(
+          userId: auth.userId!,
+          amount: amount,
+          paymentMode: paymentMode,
+          productId: productIdApi,
+        );
+        serverContributionId = apiRes?['id']?.toString();
+      }
+    } else {
+      await Future.delayed(const Duration(milliseconds: 400));
+    }
+
     if (!mounted) return;
     setState(() => _isProcessing = false);
-
-    ref.read(financeProvider.notifier).addTransaction(amount, _selectedProject);
-    _showSuccessDialog(context, amount);
+    final recorded = await ref.read(financeProvider.notifier).addContribution(
+      amount,
+      paymentMode: paymentMode,
+      contributorUserId: auth.userId,
+      transactionId: serverContributionId,
+    );
+    if (!recorded && context.mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            'Aucun projet d’épargne actif. Choisissez d’abord un produit dans le catalogue.',
+            style: GoogleFonts.manrope(fontWeight: FontWeight.w600),
+          ),
+          behavior: SnackBarBehavior.floating,
+        ),
+      );
+      return;
+    }
+    if (auth.userId != null && paymentMode != 'mobile_money') {
+      try {
+        await _mobileApi.sendContribution(
+          userId: auth.userId!,
+          amount: amount,
+          paymentMode: paymentMode,
+          productId: productIdApi,
+        );
+      } catch (_) {}
+    }
+    if (!context.mounted) return;
+    _showSuccessDialog(
+      context,
+      amount,
+      awaitingAgentValidation: paymentMode == 'mobile_money' && !fedapayValidated,
+      fedapayConfirmed: fedapayValidated,
+    );
   }
 
-  void _showSuccessDialog(BuildContext context, double amount) {
+  void _showSuccessDialog(
+    BuildContext context,
+    double amount, {
+    required bool awaitingAgentValidation,
+    bool fedapayConfirmed = false,
+  }) {
+    final fin = ref.read(financeProvider);
+    double rate = 0;
+    if (_selectedProjectId != null) {
+      try {
+        rate = fin.projects.firstWhere((p) => p.id == _selectedProjectId).dailySuggested;
+      } catch (_) {
+        rate = fin.projects.isNotEmpty ? fin.projects.first.dailySuggested : 0;
+      }
+    }
+    final slotsApprox = rate > 0 ? (amount / rate).floor() : _casesCount;
+    final slotsLabel = slotsApprox > 0 ? slotsApprox : _casesCount;
+
+    final refTx = 'PF-${DateTime.now().millisecondsSinceEpoch}';
+    final paidAt = DateTime.now();
     showDialog(
       context: context,
       barrierDismissible: false,
@@ -402,18 +625,57 @@ class _PaymentScreenState extends ConsumerState<PaymentScreen> {
               Container(
                 padding: const EdgeInsets.all(24),
                 decoration: BoxDecoration(
-                  color: const Color(0xFFF0FFF4), shape: BoxShape.circle,
+                  color: awaitingAgentValidation
+                      ? const Color(0xFFFFF8E6)
+                      : const Color(0xFFF0FFF4),
+                  shape: BoxShape.circle,
                 ),
-                child: const Icon(Icons.check_rounded, color: Color(0xFF38A169), size: 56),
+                child: Icon(
+                  awaitingAgentValidation ? Icons.hourglass_top_rounded : Icons.check_rounded,
+                  color: awaitingAgentValidation ? const Color(0xFFB7791F) : const Color(0xFF38A169),
+                  size: 56,
+                ),
               ).animate().scale(duration: 500.ms, curve: Curves.easeOutBack),
               const SizedBox(height: 24),
-              Text('Cotisation Validée !',
-                style: GoogleFonts.manrope(fontWeight: FontWeight.w900, fontSize: 22, color: AppColors.secondary)),
+              Text(
+                awaitingAgentValidation
+                    ? 'Demande envoyée'
+                    : (fedapayConfirmed ? 'Paiement FedaPay confirmé' : 'Cotisation validée'),
+                style: GoogleFonts.manrope(fontWeight: FontWeight.w900, fontSize: 22, color: AppColors.secondary),
+              ),
               const SizedBox(height: 8),
               Text(
-                '${amount.toInt()} FCFA ajoutés à votre carnet\n(${ _casesCount > 0 ? _casesCount : (amount / 1500).floor()} case${_casesCount != 1 ? "s" : ""} cochées)',
+                awaitingAgentValidation
+                    ? 'Votre cotisation sera créditée sur votre carnet après validation par votre agent (ou automatiquement après 24 h).'
+                    : (fedapayConfirmed
+                        ? 'FedaPay a confirmé votre versement. Votre carnet est à jour.'
+                        : 'Votre paiement est enregistré et votre carnet est à jour.'),
+                textAlign: TextAlign.center,
+                style: GoogleFonts.inter(color: AppColors.secondary.withOpacity(0.7), fontSize: 13),
+              ),
+              const SizedBox(height: 10),
+              Text(
+                awaitingAgentValidation
+                    ? '${amount.toInt()} FCFA — en attente de validation (${slotsLabel > 0 ? slotsLabel : 1} jour${slotsLabel > 1 ? "s" : ""} de plan après validation)'
+                    : '${amount.toInt()} FCFA ajoutés à votre carnet\n(${slotsLabel > 0 ? slotsLabel : 1} jour${slotsLabel > 1 ? "s" : ""} de plan)',
                 textAlign: TextAlign.center,
                 style: GoogleFonts.inter(color: AppColors.secondary.withOpacity(0.6), fontSize: 13, height: 1.5),
+              ),
+              const SizedBox(height: 8),
+              Container(
+                width: double.infinity,
+                padding: const EdgeInsets.all(12),
+                decoration: BoxDecoration(
+                  color: AppColors.secondary.withOpacity(0.04),
+                  borderRadius: BorderRadius.circular(12),
+                ),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text('Référence: $refTx', style: GoogleFonts.manrope(fontSize: 11, fontWeight: FontWeight.w700, color: AppColors.secondary)),
+                    Text('Date: ${paidAt.day}/${paidAt.month}/${paidAt.year} ${paidAt.hour}:${paidAt.minute.toString().padLeft(2, '0')}', style: GoogleFonts.inter(fontSize: 11, color: AppColors.secondary.withOpacity(0.7))),
+                  ],
+                ),
               ),
               const SizedBox(height: 8),
               // Mode de paiement confirmé
@@ -431,7 +693,7 @@ class _PaymentScreenState extends ConsumerState<PaymentScreen> {
                     ),
                     const SizedBox(width: 8),
                     Text(
-                      _selectedMethod == 'mobile_money' ? 'Payé via Mobile Money' : 'Payé en espèces (Agent)',
+                      _selectedMethod == 'mobile_money' ? 'Payé via $_selectedMobileProvider' : 'Payé en espèces (Agent)',
                       style: GoogleFonts.manrope(color: AppColors.primary, fontWeight: FontWeight.w700, fontSize: 12),
                     ),
                   ],
@@ -457,6 +719,32 @@ class _PaymentScreenState extends ConsumerState<PaymentScreen> {
               ),
               const SizedBox(height: 8),
             ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _providerChip(String label) {
+    final isSelected = _selectedMobileProvider == label;
+    return Expanded(
+      child: GestureDetector(
+        onTap: () => setState(() => _selectedMobileProvider = label),
+        child: AnimatedContainer(
+          duration: 200.ms,
+          padding: const EdgeInsets.symmetric(vertical: 10),
+          decoration: BoxDecoration(
+            color: isSelected ? AppColors.primary : AppColors.secondary.withOpacity(0.06),
+            borderRadius: BorderRadius.circular(10),
+          ),
+          child: Text(
+            label,
+            textAlign: TextAlign.center,
+            style: GoogleFonts.manrope(
+              fontSize: 12,
+              fontWeight: FontWeight.w800,
+              color: isSelected ? AppColors.secondary : AppColors.secondary.withOpacity(0.7),
+            ),
           ),
         ),
       ),

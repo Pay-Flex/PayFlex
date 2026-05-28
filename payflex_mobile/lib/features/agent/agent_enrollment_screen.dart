@@ -1,9 +1,18 @@
-import 'package:google_fonts/google_fonts.dart';
+import 'package:flutter/material.dart';
+import 'package:flutter_animate/flutter_animate.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:google_fonts/google_fonts.dart';
+
 import '../../core/constants/app_colors.dart';
 import '../../core/database/database_service.dart';
+import '../../core/utils/user_visible_message.dart';
+import '../../core/models/product_model.dart';
+import '../../core/network/mobile_api_service.dart';
 import '../../core/providers/auth_provider.dart';
+import '../../core/widgets/payflex_phone_field.dart';
+import '../../core/utils/phone_input_utils.dart';
 
+/// Inscription d’un **client** par un agent déjà connecté (l’agent ne s’inscrit pas lui-même).
 class AgentEnrollmentScreen extends ConsumerStatefulWidget {
   const AgentEnrollmentScreen({super.key});
 
@@ -13,75 +22,147 @@ class AgentEnrollmentScreen extends ConsumerStatefulWidget {
 
 class _AgentEnrollmentScreenState extends ConsumerState<AgentEnrollmentScreen> {
   final DatabaseService _dbService = DatabaseService();
+  final MobileApiService _api = MobileApiService();
+
   int _currentStep = 0;
   final Set<int> _selectedIndices = {};
-  
-  final List<Map<String, dynamic>> _products = [
-    {'name': 'Moto Jakarta 100cc', 'price': 850000.0, 'img': 'https://images.unsplash.com/photo-1558618666-fcd25c85cd64?w=400&q=80'},
-    {'name': 'Solaire Elite Pack', 'price': 120000.0, 'img': 'https://images.unsplash.com/photo-1509391366360-fe5bb65858cf?w=400&q=80'},
-    {'name': 'Congélateur Solaire XL', 'price': 350000.0, 'img': 'https://images.unsplash.com/photo-1584622650111-993a426fbf0a?w=400&q=80'},
-    {'name': 'Kit TV + Solaire', 'price': 210000.0, 'img': 'https://images.unsplash.com/photo-1593359677879-a4bb92f829d1?w=400&q=80'},
-    {'name': 'Pompe à eau Solaire', 'price': 450000.0, 'img': 'https://images.unsplash.com/photo-1466692473996-395bf6463328?w=400&q=80'},
-  ];
+  List<Product> _products = [];
+  bool _isLoadingProducts = true;
+  bool _isSaving = false;
 
-  double get _totalProjectAmount => _selectedIndices.fold(0, (sum, i) => sum + _products[i]['price']);
-  
   final _nameController = TextEditingController();
   final _phoneController = TextEditingController();
+  final _cityController = TextEditingController();
   final _professionController = TextEditingController();
+  final _workplaceController = TextEditingController();
+  final _bossNameController = TextEditingController();
+  final _bossPhoneController = TextEditingController();
   final _dailyAmountController = TextEditingController();
   final _pinController = TextEditingController();
-  final _secretCodeController = TextEditingController();
-  
-  bool _isSaving = false;
+
+  double get _totalProjectAmount => _selectedIndices.fold(0.0, (sum, i) => sum + _products[i].price);
+
+  @override
+  void initState() {
+    super.initState();
+    _loadProducts();
+  }
+
+  @override
+  void dispose() {
+    _nameController.dispose();
+    _phoneController.dispose();
+    _cityController.dispose();
+    _professionController.dispose();
+    _workplaceController.dispose();
+    _bossNameController.dispose();
+    _bossPhoneController.dispose();
+    _dailyAmountController.dispose();
+    _pinController.dispose();
+    super.dispose();
+  }
+
+  Future<void> _loadProducts() async {
+    try {
+      final maps = await _api.fetchProducts();
+      if (maps.isNotEmpty) {
+        _products = maps.map(Product.fromMap).toList();
+      } else {
+        final local = await _dbService.getCatalogueItems();
+        _products = local.map(Product.fromMap).toList();
+      }
+    } catch (_) {
+      final local = await _dbService.getCatalogueItems();
+      _products = local.map(Product.fromMap).toList();
+    } finally {
+      if (mounted) setState(() => _isLoadingProducts = false);
+    }
+  }
 
   Future<void> _nextStep() async {
     if (_currentStep < 3) {
       setState(() => _currentStep++);
     } else {
-      await _saveClientToDatabase();
-    }
-  }
-
-  Future<void> _saveClientToDatabase() async {
-    if (_nameController.text.isEmpty || _phoneController.text.isEmpty || _pinController.text.isEmpty) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Veuillez remplir tous les champs obligatoires')),
-      );
-      return;
-    }
-
-    setState(() => _isSaving = true);
-    
-    try {
-      final auth = ref.read(authProvider);
-      if (auth.userId == null) return;
-
-      await _dbService.registerClientAndProject(
-        name: _nameController.text,
-        phone: _phoneController.text,
-        pin: _pinController.text,
-        secretCode: _secretCodeController.text,
-        profession: _professionController.text,
-        agentId: auth.userId!,
-        projectTitle: _selectedIndices.map((i) => _products[i]['name']).join(' + '),
-        targetAmount: _totalProjectAmount,
-        dailySuggested: _totalProjectAmount / 365,
-      );
-
-      _showSuccessDialog();
-    } catch (e) {
-       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Erreur lors de l\'enregistrement : $e')),
-      );
-    } finally {
-      setState(() => _isSaving = false);
+      await _saveClient();
     }
   }
 
   void _prevStep() {
-    if (_currentStep > 0) {
-      setState(() => _currentStep--);
+    if (_currentStep > 0) setState(() => _currentStep--);
+  }
+
+  Future<void> _saveClient() async {
+    if (_nameController.text.isEmpty || _phoneController.text.isEmpty || _pinController.text.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Veuillez remplir les champs obligatoires.')));
+      return;
+    }
+    final auth = ref.read(authProvider);
+    if (auth.userId == null) {
+      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Session agent introuvable. Reconnectez-vous.')));
+      return;
+    }
+
+    setState(() => _isSaving = true);
+    try {
+      final selectedNames = _selectedIndices.map((i) => _products[i].name).join(' + ');
+      final targetAmount = _selectedIndices.isEmpty ? 0.0 : _totalProjectAmount;
+      final daily = double.tryParse(_dailyAmountController.text.trim()) ?? (targetAmount > 0 ? targetAmount / 365 : 0);
+
+      await _dbService.registerClientAndProject(
+        name: _nameController.text.trim(),
+        phone: _phoneController.text.trim(),
+        pin: _pinController.text.trim(),
+        secretCode: _pinController.text.trim(),
+        profession: _professionController.text.trim(),
+        agentId: auth.userId!,
+        projectTitle: selectedNames.isEmpty ? 'Projet client' : selectedNames,
+        targetAmount: targetAmount <= 0 ? 50000 : targetAmount,
+        dailySuggested: daily <= 0 ? 500 : daily,
+      );
+
+      final uniqueCode = 'CL-${DateTime.now().millisecondsSinceEpoch.toString().substring(6)}';
+      final regResult = await _api.submitRegistration(
+        fullName: _nameController.text.trim(),
+        phone: _phoneController.text.trim(),
+        city: _cityController.text.trim(),
+        profession: _professionController.text.trim(),
+        gender: 'Non précisé',
+        pin: _pinController.text.trim(),
+        secretCode: _pinController.text.trim(),
+        accountPassword: _pinController.text.trim().length >= 6
+            ? _pinController.text.trim()
+            : 'PayFlex${_pinController.text.trim()}',
+        uniqueCode: uniqueCode,
+        submittedBy: 'agent',
+        requestedRole: 'client',
+        submittedByAgentUserId: auth.userId,
+        assignedAgentUserId: auth.userId,
+        workplaceName: _workplaceController.text.trim(),
+        bossName: _bossNameController.text.trim(),
+        bossPhone: _bossPhoneController.text.trim(),
+      );
+
+      if (mounted && !regResult.success) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(
+              UserVisibleMessage.apiOrFallback(
+                regResult.message,
+                'Synchronisation avec le serveur impossible. Réessayez ou vérifiez le réseau.',
+              ),
+            ),
+          ),
+        );
+      }
+      if (mounted) _showSuccessDialog();
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text(UserVisibleMessage.forException(e))),
+        );
+      }
+    } finally {
+      if (mounted) setState(() => _isSaving = false);
     }
   }
 
@@ -96,39 +177,30 @@ class _AgentEnrollmentScreenState extends ConsumerState<AgentEnrollmentScreen> {
           onPressed: _currentStep == 0 ? () => Navigator.pop(context) : _prevStep,
           icon: Icon(_currentStep == 0 ? Icons.close_rounded : Icons.arrow_back_ios_new_rounded, color: AppColors.secondary),
         ),
-        title: Text(
-          'Nouveau Client',
-          style: GoogleFonts.manrope(fontWeight: FontWeight.w800, color: AppColors.secondary, fontSize: 18),
-        ),
+        title: Text('Nouveau Client', style: GoogleFonts.manrope(fontWeight: FontWeight.w800, color: AppColors.secondary, fontSize: 18)),
         centerTitle: true,
       ),
       body: Column(
         children: [
-          // Stepper Indicator "Elite"
           Padding(
             padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 10),
             child: Row(
-              children: List.generate(4, (index) => Expanded(
-                child: Container(
-                  height: 4,
-                  margin: EdgeInsets.only(right: index == 3 ? 0 : 8),
-                  decoration: BoxDecoration(
-                    color: index <= _currentStep ? AppColors.primary : const Color(0xFFEDF2F7),
-                    borderRadius: BorderRadius.circular(2),
+              children: List.generate(
+                4,
+                (index) => Expanded(
+                  child: Container(
+                    height: 4,
+                    margin: EdgeInsets.only(right: index == 3 ? 0 : 8),
+                    decoration: BoxDecoration(
+                      color: index <= _currentStep ? AppColors.primary : const Color(0xFFEDF2F7),
+                      borderRadius: BorderRadius.circular(2),
+                    ),
                   ),
                 ),
-              )),
+              ),
             ),
           ),
-          
-          Expanded(
-            child: SingleChildScrollView(
-              padding: const EdgeInsets.all(24),
-              child: _buildStepContent(),
-            ),
-          ),
-          
-          // Bottom Navigation Buttons
+          Expanded(child: SingleChildScrollView(padding: const EdgeInsets.all(24), child: _buildStepContent())),
           Padding(
             padding: const EdgeInsets.all(24),
             child: ElevatedButton(
@@ -138,12 +210,9 @@ class _AgentEnrollmentScreenState extends ConsumerState<AgentEnrollmentScreen> {
                 minimumSize: const Size(double.infinity, 60),
                 shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(18)),
               ),
-              child: _isSaving 
-                ? const CircularProgressIndicator(color: Colors.white)
-                : Text(
-                    _currentStep == 3 ? 'Finaliser l\'inscription' : 'Continuer',
-                    style: GoogleFonts.manrope(color: Colors.white, fontSize: 16, fontWeight: FontWeight.w800),
-                  ),
+              child: _isSaving
+                  ? const CircularProgressIndicator(color: Colors.white)
+                  : Text(_currentStep == 3 ? 'Finaliser l\'inscription' : 'Continuer', style: GoogleFonts.manrope(color: Colors.white, fontSize: 16, fontWeight: FontWeight.w800)),
             ),
           ),
         ],
@@ -153,165 +222,113 @@ class _AgentEnrollmentScreenState extends ConsumerState<AgentEnrollmentScreen> {
 
   Widget _buildStepContent() {
     switch (_currentStep) {
-      case 0: return _stepInfoPersonnelle();
-      case 1: return _stepConfigFinanciere();
-      case 2: return _stepSelectionProduit();
-      case 3: return _stepSecuriteClient();
-      default: return const SizedBox();
+      case 0:
+        return _stepInfo();
+      case 1:
+        return _stepFinance();
+      case 2:
+        return _stepProducts();
+      case 3:
+        return _stepSecurity();
+      default:
+        return const SizedBox.shrink();
     }
   }
 
-  Widget _stepInfoPersonnelle() {
+  Widget _stepInfo() {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Text('INFORMATIONS PERSONNELLES', 
-          style: GoogleFonts.manrope(fontSize: 11, fontWeight: FontWeight.w900, color: AppColors.primary, letterSpacing: 1.5)),
-        const SizedBox(height: 8),
-        Text('Commençons par l\'identité du client', 
-          style: GoogleFonts.manrope(fontSize: 22, fontWeight: FontWeight.w800, color: AppColors.secondary)),
-        const SizedBox(height: 32),
         _buildTextField('Nom & Prénoms complets', _nameController, Icons.person_outline_rounded),
-        const SizedBox(height: 20),
-        _buildTextField('Numéro de téléphone', _phoneController, Icons.phone_android_rounded, keyboardType: TextInputType.phone),
-        const SizedBox(height: 20),
-        _buildTextField('Profession / Secteur d\'activité', _professionController, Icons.work_outline_rounded),
+        const SizedBox(height: 16),
+        PayflexPhoneField(
+          completeNumberController: _phoneController,
+          hint: 'Numéro de téléphone',
+          validator: (v) => PayflexPhoneValidator.validate(v),
+        ),
+        const SizedBox(height: 16),
+        _buildTextField('Ville', _cityController, Icons.location_city_rounded),
+        const SizedBox(height: 16),
+        _buildTextField('Profession / Secteur', _professionController, Icons.work_outline_rounded),
+        const SizedBox(height: 16),
+        _buildTextField('Lieu de travail', _workplaceController, Icons.apartment_rounded),
+        const SizedBox(height: 16),
+        _buildTextField('Nom patron/formateur', _bossNameController, Icons.badge_outlined),
+        const SizedBox(height: 16),
+        PayflexPhoneField(
+          completeNumberController: _bossPhoneController,
+          hint: 'Téléphone patron/formateur',
+          required: false,
+          validator: (v) => PayflexPhoneValidator.validate(v, required: false),
+        ),
       ],
     ).animate().fadeIn().slideX(begin: 0.1);
   }
 
-  Widget _stepConfigFinanciere() {
+  Widget _stepFinance() {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Text('CONFIGURATION FINANCIÈRE', 
-          style: GoogleFonts.manrope(fontSize: 11, fontWeight: FontWeight.w900, color: AppColors.primary, letterSpacing: 1.5)),
-        const SizedBox(height: 8),
-        Text('Définissons sa capacité de cotisation', 
-          style: GoogleFonts.manrope(fontSize: 22, fontWeight: FontWeight.w800, color: AppColors.secondary)),
-        const SizedBox(height: 32),
         _buildTextField('Montant idéal journalier (FCFA)', _dailyAmountController, Icons.payments_outlined, keyboardType: TextInputType.number),
-        const SizedBox(height: 20),
-        Text('Estimation des revenus mensuels', style: GoogleFonts.manrope(fontSize: 14, fontWeight: FontWeight.w700, color: AppColors.secondary)),
-        const SizedBox(height: 12),
-        _buildSelectionGrid(['< 50.000 F', '50.000 - 150.000 F', '150.000 - 300.000 F', '> 300.000 F']),
       ],
     ).animate().fadeIn().slideX(begin: 0.1);
   }
 
-  Widget _stepSelectionProduit() {
+  Widget _stepProducts() {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Text('SÉLECTION ÉQUIPEMENTS', 
-          style: GoogleFonts.manrope(fontSize: 11, fontWeight: FontWeight.w900, color: AppColors.primary, letterSpacing: 1.5)),
-        const SizedBox(height: 8),
-        Text('Quels équipements pour le client ?', 
-          style: GoogleFonts.manrope(fontSize: 22, fontWeight: FontWeight.w800, color: AppColors.secondary)),
-        const SizedBox(height: 8),
-        Text('Sélectionnez un ou plusieurs articles du catalogue PayFlex.', style: GoogleFonts.manrope(fontSize: 13, color: Colors.grey)),
-        
-        const SizedBox(height: 32),
-        
-        ListView.builder(
-          shrinkWrap: true,
-          physics: const NeverScrollableScrollPhysics(),
-          itemCount: _products.length,
-          itemBuilder: (context, i) {
+        if (_isLoadingProducts) const Center(child: CircularProgressIndicator()),
+        if (!_isLoadingProducts)
+          ...List.generate(_products.length, (i) {
             final isSelected = _selectedIndices.contains(i);
             final p = _products[i];
-            
             return AnimatedContainer(
               duration: const Duration(milliseconds: 200),
-              margin: const EdgeInsets.only(bottom: 16),
+              margin: const EdgeInsets.only(bottom: 12),
               decoration: BoxDecoration(
                 color: isSelected ? AppColors.secondary : Colors.white,
-                borderRadius: BorderRadius.circular(24),
+                borderRadius: BorderRadius.circular(20),
                 border: Border.all(color: isSelected ? AppColors.secondary : Colors.grey.shade200, width: 2),
-                boxShadow: [
-                  BoxShadow(
-                    color: isSelected ? AppColors.secondary.withOpacity(0.2) : Colors.black.withOpacity(0.04),
-                    blurRadius: 15,
-                    offset: const Offset(0, 5),
-                  ),
-                ],
               ),
               child: ListTile(
                 onTap: () => setState(() => isSelected ? _selectedIndices.remove(i) : _selectedIndices.add(i)),
-                contentPadding: const EdgeInsets.all(12),
                 leading: ClipRRect(
-                  borderRadius: BorderRadius.circular(16),
-                  child: Image.network(p['img'], width: 60, height: 60, fit: BoxFit.cover),
+                  borderRadius: BorderRadius.circular(12),
+                  child: Image.network(
+                    p.imageUrl,
+                    width: 52,
+                    height: 52,
+                    fit: BoxFit.cover,
+                    errorBuilder: (context, error, stackTrace) => Container(width: 52, height: 52, color: Colors.grey.shade200, child: const Icon(Icons.image_not_supported_outlined)),
+                  ),
                 ),
-                title: Text(p['name'], 
-                  style: GoogleFonts.manrope(fontWeight: FontWeight.w800, color: isSelected ? Colors.white : AppColors.secondary, fontSize: 15)),
-                subtitle: Text('${(p['price'] as double).toInt()} FCFA', 
-                  style: GoogleFonts.manrope(fontSize: 13, color: isSelected ? Colors.white.withOpacity(0.7) : AppColors.primary, fontWeight: FontWeight.w900)),
-                trailing: Icon(
-                  isSelected ? Icons.check_circle_rounded : Icons.add_circle_outline_rounded,
-                  color: isSelected ? Colors.white : Colors.grey.shade300,
-                ),
+                title: Text(p.name, style: GoogleFonts.manrope(fontWeight: FontWeight.w800, color: isSelected ? Colors.white : AppColors.secondary)),
+                subtitle: Text('${p.price.toInt()} FCFA', style: GoogleFonts.manrope(color: isSelected ? Colors.white70 : AppColors.primary, fontWeight: FontWeight.w900)),
+                trailing: Icon(isSelected ? Icons.check_circle_rounded : Icons.add_circle_outline_rounded, color: isSelected ? Colors.white : Colors.grey.shade400),
               ),
             );
-          },
-        ),
-        
-        const SizedBox(height: 24),
-        
-        // Résumé Financier
-        Container(
-          padding: const EdgeInsets.all(24),
-          decoration: BoxDecoration(
-            color: const Color(0xFFF7FAFC),
-            borderRadius: BorderRadius.circular(24),
-            border: Border.all(color: Colors.grey.shade100),
-          ),
-          child: Column(
-            children: [
-              Row(
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                children: [
-                  Text('VALEUR TOTALE PROJET', style: GoogleFonts.manrope(fontSize: 10, fontWeight: FontWeight.w900, color: Colors.grey, letterSpacing: 1)),
-                  Text('${_totalProjectAmount.toInt()} FCFA', 
-                    style: GoogleFonts.manrope(fontSize: 18, fontWeight: FontWeight.w900, color: AppColors.secondary)),
-                ],
-              ),
-              if (_selectedIndices.isNotEmpty) ...[
-                const SizedBox(height: 12),
-                const Divider(),
-                const SizedBox(height: 12),
-                Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                  children: [
-                    Text('MOYENNE SUGGÉRÉE', style: GoogleFonts.manrope(fontSize: 10, fontWeight: FontWeight.w900, color: Colors.grey, letterSpacing: 1)),
-                    Text('${(_totalProjectAmount / 365).toInt()} F / jour', 
-                      style: GoogleFonts.manrope(fontSize: 14, fontWeight: FontWeight.w900, color: AppColors.primary)),
-                  ],
-                ),
-              ],
-            ],
-          ),
-        ),
-        const SizedBox(height: 40),
+          }),
       ],
     ).animate().fadeIn().slideX(begin: 0.1);
   }
 
-  Widget _stepSecuriteClient() {
+  Widget _stepSecurity() {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Text('SÉCURITÉ DU COMPTE', 
-          style: GoogleFonts.manrope(fontSize: 11, fontWeight: FontWeight.w900, color: Colors.red, letterSpacing: 1.5)),
+        _buildTextField(
+          'Code PIN PayFlex du client (4 à 12 chiffres)',
+          _pinController,
+          Icons.pin_outlined,
+          isPassword: true,
+          keyboardType: TextInputType.number,
+        ),
         const SizedBox(height: 8),
-        Text('Passez le téléphone au client pour ses codes', 
-          style: GoogleFonts.manrope(fontSize: 22, fontWeight: FontWeight.w800, color: AppColors.secondary)),
-        const SizedBox(height: 12),
-        Text('Ces codes doivent rester strictement confidentiels.', style: GoogleFonts.manrope(fontSize: 13, color: Colors.grey)),
-        const SizedBox(height: 32),
-        _buildTextField('Créer un Mot de passe (Saisi par le client)', _pinController, Icons.lock_outline_rounded, isPassword: true),
-        const SizedBox(height: 20),
-        _buildTextField('Créer un Code Secret (Saisi par le client)', _secretCodeController, Icons.verified_user_outlined, isPassword: true, keyboardType: TextInputType.number),
+        Text(
+          'Ce même code sert à la connexion mobile et aux cotisations sur le terrain.',
+          style: GoogleFonts.inter(fontSize: 12, color: AppColors.onSurfaceVariant.withValues(alpha: 0.75), height: 1.35),
+        ),
       ],
     ).animate().fadeIn().slideX(begin: 0.1);
   }
@@ -320,49 +337,20 @@ class _AgentEnrollmentScreenState extends ConsumerState<AgentEnrollmentScreen> {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Text(label, style: GoogleFonts.manrope(fontSize: 13, fontWeight: FontWeight.w700, color: AppColors.secondary.withOpacity(0.7))),
+        Text(label, style: GoogleFonts.manrope(fontSize: 13, fontWeight: FontWeight.w700, color: AppColors.secondary.withValues(alpha: 0.7))),
         const SizedBox(height: 8),
         TextField(
           controller: controller,
           obscureText: isPassword,
           keyboardType: keyboardType,
-          style: GoogleFonts.manrope(fontWeight: FontWeight.w600, color: AppColors.secondary),
           decoration: InputDecoration(
             prefixIcon: Icon(icon, color: AppColors.primary, size: 20),
             filled: true,
             fillColor: const Color(0xFFF7FAFC),
             border: OutlineInputBorder(borderRadius: BorderRadius.circular(16), borderSide: BorderSide.none),
-            contentPadding: const EdgeInsets.symmetric(vertical: 16),
           ),
         ),
       ],
-    );
-  }
-
-  Widget _buildSelectionGrid(List<String> options) {
-    return GridView.builder(
-      shrinkWrap: true,
-      physics: const NeverScrollableScrollPhysics(),
-      gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-        crossAxisCount: 2,
-        childAspectRatio: 2.5,
-        mainAxisSpacing: 10,
-        crossAxisSpacing: 10,
-      ),
-      itemCount: options.length,
-      itemBuilder: (context, i) {
-        final isSelected = i == 1; // Démo
-        return Container(
-          decoration: BoxDecoration(
-            color: isSelected ? AppColors.secondary : Colors.white,
-            borderRadius: BorderRadius.circular(12),
-            border: Border.all(color: isSelected ? AppColors.secondary : Colors.grey.shade200),
-          ),
-          child: Center(
-            child: Text(options[i], style: GoogleFonts.manrope(fontSize: 12, fontWeight: FontWeight.w700, color: isSelected ? Colors.white : AppColors.secondary)),
-          ),
-        );
-      },
     );
   }
 
@@ -370,37 +358,19 @@ class _AgentEnrollmentScreenState extends ConsumerState<AgentEnrollmentScreen> {
     showDialog(
       context: context,
       barrierDismissible: false,
-      builder: (context) => Center(
-        child: Container(
-          width: 300,
-          padding: const EdgeInsets.all(32),
-          decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(32)),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              const Icon(Icons.mark_email_read_rounded, color: AppColors.primary, size: 80),
-              const SizedBox(height: 24),
-              Text('Dossier Soumis !', textAlign: TextAlign.center, style: GoogleFonts.manrope(fontSize: 22, fontWeight: FontWeight.w800, color: AppColors.secondary)),
-              const SizedBox(height: 12),
-              Text('Le compte du client est en cours de validation par les administrateurs PayFlex.', 
-                textAlign: TextAlign.center,
-                style: GoogleFonts.manrope(fontSize: 13, color: Colors.grey, height: 1.5)),
-              const SizedBox(height: 32),
-              ElevatedButton(
-                onPressed: () {
-                  Navigator.pop(context); // Dialog
-                  Navigator.pop(context); // Dashboard
-                },
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: AppColors.secondary,
-                  minimumSize: const Size(double.infinity, 54),
-                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-                ),
-                child: Text('Retour à l\'accueil', style: GoogleFonts.manrope(color: Colors.white, fontWeight: FontWeight.w800)),
-              ),
-            ],
+      builder: (context) => AlertDialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(22)),
+        title: const Text('Dossier soumis'),
+        content: const Text('Le client a été enregistré et envoyé au backend pour validation admin.'),
+        actions: [
+          TextButton(
+            onPressed: () {
+              Navigator.pop(context);
+              Navigator.pop(context);
+            },
+            child: const Text('OK'),
           ),
-        ).animate().scale().fadeIn(),
+        ],
       ),
     );
   }

@@ -1,0 +1,100 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<configuration>
+    <include resource="org/springframework/boot/logging/logback/defaults.xml"/>
+
+  <!-- Chemins configurables dans application.yml (payflex.logging.*) -->
+    <springProperty scope="context" name="payflexErrorLogFile"
+                    source="payflex.logging.error-log-file" defaultValue="erreur.log"/>
+    <springProperty scope="context" name="payflexDiagnosticLogFile"
+                    source="payflex.logging.diagnostic-log-file" defaultValue="diagnostic.log"/>
+    <springProperty scope="context" name="payflexMobileApiLogFile"
+                    source="payflex.logging.mobile-api-log-file" defaultValue="mobile-api.log"/>
+
+    <property name="LOG_PATTERN"
+              value="%d{yyyy-MM-dd HH:mm:ss.SSS} %-5level [%thread] %logger{40} - %msg%n%wEx"/>
+
+    <appender name="CONSOLE" class="ch.qos.logback.core.ConsoleAppender">
+        <encoder>
+            <pattern>${LOG_PATTERN}</pattern>
+            <charset>UTF-8</charset>
+        </encoder>
+    </appender>
+
+    <!-- ERROR uniquement — stack traces complètes -->
+    <appender name="ERROR_FILE" class="ch.qos.logback.core.rolling.RollingFileAppender">
+        <file>${payflexErrorLogFile}</file>
+        <encoder>
+            <pattern>${LOG_PATTERN}</pattern>
+            <charset>UTF-8</charset>
+        </encoder>
+        <filter class="ch.qos.logback.classic.filter.ThresholdFilter">
+            <level>ERROR</level>
+        </filter>
+        <rollingPolicy class="ch.qos.logback.core.rolling.SizeAndTimeBasedRollingPolicy">
+            <fileNamePattern>${payflexErrorLogFile}.%d{yyyy-MM-dd}.%i.gz</fileNamePattern>
+            <maxFileSize>5MB</maxFileSize>
+            <maxHistory>14</maxHistory>
+            <totalSizeCap>50MB</totalSizeCap>
+        </rollingPolicy>
+    </appender>
+
+    <!-- WARN + ERROR — connexions refusées, login échoué, SQL, etc. -->
+    <appender name="DIAGNOSTIC_FILE" class="ch.qos.logback.core.rolling.RollingFileAppender">
+        <file>${payflexDiagnosticLogFile}</file>
+        <encoder>
+            <pattern>${LOG_PATTERN}</pattern>
+            <charset>UTF-8</charset>
+        </encoder>
+        <filter class="ch.qos.logback.classic.filter.ThresholdFilter">
+            <level>WARN</level>
+        </filter>
+        <rollingPolicy class="ch.qos.logback.core.rolling.SizeAndTimeBasedRollingPolicy">
+            <fileNamePattern>${payflexDiagnosticLogFile}.%d{yyyy-MM-dd}.%i.gz</fileNamePattern>
+            <maxFileSize>5MB</maxFileSize>
+            <maxHistory>14</maxHistory>
+            <totalSizeCap>50MB</totalSizeCap>
+        </rollingPolicy>
+    </appender>
+
+    <!-- API mobile : tentatives login, inscription, erreurs métier -->
+    <appender name="MOBILE_API_FILE" class="ch.qos.logback.core.rolling.RollingFileAppender">
+        <file>${payflexMobileApiLogFile}</file>
+        <encoder>
+            <pattern>${LOG_PATTERN}</pattern>
+            <charset>UTF-8</charset>
+        </encoder>
+        <rollingPolicy class="ch.qos.logback.core.rolling.SizeAndTimeBasedRollingPolicy">
+            <fileNamePattern>${payflexMobileApiLogFile}.%d{yyyy-MM-dd}.%i.gz</fileNamePattern>
+            <maxFileSize>5MB</maxFileSize>
+            <maxHistory>14</maxHistory>
+            <totalSizeCap>30MB</totalSizeCap>
+        </rollingPolicy>
+    </appender>
+
+    <logger name="com.payflex.backend.controller.MobileApiController" level="INFO" additivity="false">
+        <appender-ref ref="MOBILE_API_FILE"/>
+        <appender-ref ref="CONSOLE"/>
+        <appender-ref ref="ERROR_FILE"/>
+        <appender-ref ref="DIAGNOSTIC_FILE"/>
+    </logger>
+
+    <logger name="com.payflex.backend.service.MobileApiService" level="DEBUG" additivity="false">
+        <appender-ref ref="MOBILE_API_FILE"/>
+        <appender-ref ref="CONSOLE"/>
+        <appender-ref ref="ERROR_FILE"/>
+        <appender-ref ref="DIAGNOSTIC_FILE"/>
+    </logger>
+
+    <logger name="com.payflex.backend.controller.FedaPayWebhookController" level="INFO" additivity="false">
+        <appender-ref ref="MOBILE_API_FILE"/>
+        <appender-ref ref="CONSOLE"/>
+        <appender-ref ref="ERROR_FILE"/>
+        <appender-ref ref="DIAGNOSTIC_FILE"/>
+    </logger>
+
+    <root level="INFO">
+        <appender-ref ref="CONSOLE"/>
+        <appender-ref ref="ERROR_FILE"/>
+        <appender-ref ref="DIAGNOSTIC_FILE"/>
+    </root>
+</configuration>

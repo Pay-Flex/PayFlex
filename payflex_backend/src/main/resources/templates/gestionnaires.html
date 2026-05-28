@@ -1,0 +1,64 @@
+<!doctype html>
+<html lang="fr" xmlns:th="http://www.thymeleaf.org">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Admin — Gestionnaires</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.2/css/all.min.css">
+  <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
+  <link rel="stylesheet" href="/css/admin-wow.css">
+</head>
+<body class="pf-admin bg-slate-100 min-h-screen">
+<th:block th:replace="~{fragments/admin-chrome :: startMain('space-y-4')}"/>
+<th:block th:replace="~{fragments/admin-chrome :: pageHeader('Gestionnaires','Comptes admin de supervision : agents, clients, inscriptions, cotisations (dossier RH complet)')}"/>
+
+<section class="pf-admin-banner rounded-xl p-5 shadow-lg text-white">
+  <div class="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
+    <div>
+      <h3 class="text-lg font-bold">Nouveau gestionnaire</h3>
+      <p class="text-sm text-white/85 mt-1 max-w-xl">Création du compte admin + dossier employé (photo, CNI, contrat, personnes à prévenir, cautionnaire…).</p>
+    </div>
+    <a href="/admin/gestionnaires/nouveau" class="inline-flex items-center gap-2 bg-white font-bold rounded-xl px-5 py-3 text-sm shrink-0 border border-slate-200 hover:bg-slate-50" style="color:var(--pf-admin-blue)">
+      <i class="fa-solid fa-user-plus"></i> Nouvelle fiche
+    </a>
+  </div>
+</section>
+
+<section class="bg-white rounded-xl p-4 shadow-sm overflow-auto">
+  <table class="w-full text-sm min-w-[720px]">
+    <thead>
+    <tr class="text-left text-slate-500 border-b border-slate-100">
+      <th class="py-2 px-3">Identifiant</th>
+      <th class="py-2 px-3">Nom</th>
+      <th class="py-2 px-3">Téléphone</th>
+      <th class="py-2 px-3">E-mail</th>
+      <th class="py-2 px-3">Matricule</th>
+      <th class="py-2 px-3">Dossier</th>
+      <th class="py-2 px-3 text-right"></th>
+    </tr>
+    </thead>
+    <tbody>
+    <tr th:each="g : ${gestionnaires}" class="border-t border-slate-50 hover:bg-slate-50/80">
+      <td class="py-3 px-3 font-mono text-xs" th:text="${g.username}"></td>
+      <td class="py-3 px-3 font-semibold text-slate-800" th:text="${g.fullName}"></td>
+      <td class="py-3 px-3 text-slate-600" th:text="${g.phone != null ? g.phone : '—'}"></td>
+      <td class="py-3 px-3 text-slate-600 break-all" th:text="${g.email != null ? g.email : '—'}"></td>
+      <td class="py-3 px-3 text-slate-600" th:text="${g.matricule != null ? g.matricule : '—'}"></td>
+      <td class="py-3 px-3">
+        <span th:if="${g.profileComplete}" class="inline-flex items-center gap-1 text-emerald-700 text-xs font-bold"><i class="fa-solid fa-circle-check"></i> Complet</span>
+        <span th:unless="${g.profileComplete}" class="inline-flex items-center gap-1 text-amber-700 text-xs font-bold"><i class="fa-solid fa-triangle-exclamation"></i> À compléter</span>
+      </td>
+      <td class="py-3 px-3 text-right">
+        <a th:href="@{/admin/gestionnaires/{u}(u=${g.username})}" class="pf-btn pf-btn-primary text-xs">Ouvrir le dossier</a>
+      </td>
+    </tr>
+    </tbody>
+  </table>
+  <p th:if="${#lists.isEmpty(gestionnaires)}" class="text-center text-slate-400 py-10">Aucun gestionnaire enregistré.</p>
+</section>
+
+<th:block th:replace="~{fragments/admin-chrome :: endMain}"/>
+<script src="/js/admin-wow.js"></script>
+</body>
+</html>

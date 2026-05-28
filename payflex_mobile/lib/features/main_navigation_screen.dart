@@ -2,12 +2,19 @@ import 'dart:ui';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../core/constants/app_colors.dart';
+import '../core/providers/auth_provider.dart';
+import '../core/providers/client_inbox_provider.dart';
 import '../core/providers/navigation_provider.dart';
+import '../core/widgets/inbox_banner.dart';
+import 'chat/chat_screen.dart';
+import 'notifications/client_notifications_screen.dart';
 import 'dashboard/dashboard_screen.dart';
 import 'catalogue/catalogue_screen.dart';
 import 'payment/payment_screen.dart';
 import 'profile/profile_screen.dart';
 import 'history/calendar_view_screen.dart';
+import 'auth/widgets/registration_feature_guard.dart';
+import 'auth/widgets/registration_locked_tab.dart';
 
 class MainNavigationScreen extends ConsumerWidget {
   const MainNavigationScreen({super.key});
@@ -15,34 +22,98 @@ class MainNavigationScreen extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final currentIndex = ref.watch(navigationIndexProvider);
+    final auth = ref.watch(authProvider);
+    final inbox = auth.role == 'client' ? ref.watch(clientInboxProvider) : null;
+    final pendingApproval = auth.awaitingAdminApproval;
 
-    final pages = const [
-      DashboardScreen(),
-      CatalogueScreen(),
-      PaymentScreen(),
-      CalendarViewScreen(),
-      ProfileScreen(),
+    final pages = [
+      const DashboardScreen(),
+      const CatalogueScreen(),
+      pendingApproval
+          ? const RegistrationLockedTab(featureName: 'Paiement')
+          : const PaymentScreen(),
+      pendingApproval
+          ? const RegistrationLockedTab(featureName: 'Suivi')
+          : const CalendarViewScreen(),
+      const ProfileScreen(),
     ];
+
+    final topInset = MediaQuery.paddingOf(context).top;
 
     return Scaffold(
       extendBody: true,
-      body: IndexedStack(
-        index: currentIndex,
-        children: pages,
+      body: Stack(
+        children: [
+          IndexedStack(
+            index: currentIndex,
+            children: pages,
+          ),
+          if (pendingApproval)
+            Positioned(
+              top: topInset + 56,
+              left: 12,
+              right: 12,
+              child: Material(
+                elevation: 2,
+                borderRadius: BorderRadius.circular(14),
+                color: Colors.blue.shade50,
+                child: Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+                  child: Row(
+                    children: [
+                      Icon(Icons.verified_user_outlined, color: Colors.blue.shade800),
+                      const SizedBox(width: 10),
+                      Expanded(
+                        child: Text(
+                          'Compte en attente : parcourez le catalogue et votre profil. Cotisations et paiements après validation PayFlex.',
+                          style: TextStyle(fontSize: 12, color: Colors.blue.shade900, fontWeight: FontWeight.w600),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+            ),
+          if (inbox != null && inbox.hasBanner)
+            Positioned(
+              top: topInset + 56 + (pendingApproval ? 88 : 0),
+              left: 12,
+              right: 12,
+              child: InboxBanner(
+                title: inbox.bannerTitle!,
+                body: inbox.bannerBody!,
+                onDismiss: () => ref.read(clientInboxProvider.notifier).dismissBanner(),
+                onTap: () {
+                  ref.read(clientInboxProvider.notifier).dismissBanner();
+                  if (inbox.bannerType == 'chat') {
+                    Navigator.push(
+                      context,
+                      MaterialPageRoute(builder: (_) => const ChatScreen()),
+                    );
+                  } else {
+                    Navigator.push(
+                      context,
+                      MaterialPageRoute(builder: (_) => const ClientNotificationsScreen()),
+                    );
+                  }
+                },
+              ),
+            ),
+        ],
       ),
-      bottomNavigationBar: _FloatingNavbar(currentIndex: currentIndex),
+      bottomNavigationBar: _FloatingNavbar(currentIndex: currentIndex, lockPaidFeatures: pendingApproval),
     );
   }
 }
 
 class _FloatingNavbar extends ConsumerWidget {
   final int currentIndex;
-  const _FloatingNavbar({required this.currentIndex});
+  final bool lockPaidFeatures;
+  const _FloatingNavbar({required this.currentIndex, this.lockPaidFeatures = false});
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     return Container(
-      // Plus mince : 72px au lieu de 90px
       height: 72,
       margin: const EdgeInsets.only(left: 28, right: 28, bottom: 20),
       decoration: BoxDecoration(
@@ -62,17 +133,20 @@ class _FloatingNavbar extends ConsumerWidget {
         child: BackdropFilter(
           filter: ImageFilter.blur(sigmaX: 12, sigmaY: 12),
           child: Padding(
-            // Espacement horizontal plus généreux entre les items
             padding: const EdgeInsets.symmetric(horizontal: 8),
             child: Row(
               mainAxisAlignment: MainAxisAlignment.spaceEvenly,
               children: [
-                _navItem(ref, 0, Icons.home_rounded, 'Accueil'),
-                _navItem(ref, 1, Icons.grid_view_rounded, 'Catalogue'),
-
-                // Bouton central premium (Paiement)
+                _navItem(context, ref, 0, Icons.home_rounded, 'Accueil'),
+                _navItem(context, ref, 1, Icons.grid_view_rounded, 'Catalogue'),
                 GestureDetector(
-                  onTap: () => ref.read(navigationIndexProvider.notifier).setIndex(2),
+                  onTap: () {
+                    if (lockPaidFeatures) {
+                      showRegistrationFeatureLockedSnackBar(context, 'Paiement');
+                      return;
+                    }
+                    ref.read(navigationIndexProvider.notifier).setIndex(2);
+                  },
                   child: AnimatedContainer(
                     duration: const Duration(milliseconds: 250),
                     width: 52,
@@ -83,8 +157,8 @@ class _FloatingNavbar extends ConsumerWidget {
                         begin: Alignment.topLeft,
                         end: Alignment.bottomRight,
                         colors: currentIndex == 2
-                          ? [AppColors.primary, AppColors.secondary]
-                          : [AppColors.primary, AppColors.primary.withOpacity(0.85)],
+                            ? [AppColors.primary, AppColors.secondary]
+                            : [AppColors.primary, AppColors.primary.withOpacity(0.85)],
                       ),
                       boxShadow: [
                         BoxShadow(
@@ -101,9 +175,8 @@ class _FloatingNavbar extends ConsumerWidget {
                     ),
                   ),
                 ),
-
-                _navItem(ref, 3, Icons.calendar_today_rounded, 'Suivi'),
-                _navItem(ref, 4, Icons.person_rounded, 'Profil'),
+                _navItem(context, ref, 3, Icons.calendar_today_rounded, 'Suivi'),
+                _navItem(context, ref, 4, Icons.person_rounded, 'Profil'),
               ],
             ),
           ),
@@ -112,22 +185,51 @@ class _FloatingNavbar extends ConsumerWidget {
     );
   }
 
-  Widget _navItem(WidgetRef ref, int index, IconData icon, String label) {
+  Widget _navItem(BuildContext context, WidgetRef ref, int index, IconData icon, String label) {
     final isActive = currentIndex == index;
+    final auth = ref.watch(authProvider);
+    final pending = auth.awaitingAdminApproval;
     return GestureDetector(
-      onTap: () => ref.read(navigationIndexProvider.notifier).setIndex(index),
+      onTap: () {
+        if (lockPaidFeatures && (index == 3)) {
+          showRegistrationFeatureLockedSnackBar(context, 'Suivi');
+          return;
+        }
+        if (index == 4) {
+          ref.read(authProvider.notifier).refreshProfile();
+        }
+        ref.read(navigationIndexProvider.notifier).setIndex(index);
+      },
       behavior: HitTestBehavior.opaque,
       child: AnimatedContainer(
         duration: const Duration(milliseconds: 250),
-        // Espacement autour de chaque item
         padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            Icon(
-              icon,
-              color: isActive ? AppColors.primary : AppColors.secondary.withOpacity(0.3),
-              size: isActive ? 26 : 23,
+            Stack(
+              clipBehavior: Clip.none,
+              children: [
+                Icon(
+                  icon,
+                  color: isActive ? AppColors.primary : AppColors.secondary.withOpacity(0.3),
+                  size: isActive ? 26 : 23,
+                ),
+                if (index == 4 && pending)
+                  Positioned(
+                    right: -4,
+                    top: -4,
+                    child: Container(
+                      width: 10,
+                      height: 10,
+                      decoration: BoxDecoration(
+                        color: const Color(0xFFDD6B20),
+                        shape: BoxShape.circle,
+                        border: Border.all(color: Colors.white, width: 1.5),
+                      ),
+                    ),
+                  ),
+              ],
             ),
             if (isActive)
               Container(

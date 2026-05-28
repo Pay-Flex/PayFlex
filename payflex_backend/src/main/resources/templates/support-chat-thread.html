@@ -1,0 +1,11 @@
+<!doctype html>
+<html lang="fr" xmlns:th="http://www.thymeleaf.org">
+<head>
+  <meta charset="UTF-8">
+  <meta http-equiv="refresh" th:content="'0;url=/admin/support-chat?open=' + ${param.open != null ? param.open[0] : ''}">
+  <title>Redirection…</title>
+</head>
+<body>
+<p><a href="/admin/support-chat">Retour au chat support</a></p>
+</body>
+</html>

@@ -1,3 +1,5 @@
+import 'dart:math' as math;
+
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_animate/flutter_animate.dart';
@@ -6,7 +8,9 @@ import 'package:google_fonts/google_fonts.dart';
 import '../../core/constants/app_colors.dart';
 import '../../core/database/database_service.dart';
 import '../../core/models/product_model.dart';
+import '../../core/providers/auth_provider.dart';
 import '../../core/providers/catalogue_provider.dart';
+import '../../core/providers/finance_provider.dart';
 
 class ProductDetailScreen extends ConsumerStatefulWidget {
   final Product product;
@@ -19,26 +23,104 @@ class ProductDetailScreen extends ConsumerStatefulWidget {
 
 class _ProductDetailScreenState extends ConsumerState<ProductDetailScreen> {
   final _amountController = TextEditingController();
+  final _galleryController = PageController();
   double _dailyAmount = 0;
   int _daysToFinish = 0;
   bool _isSaving = false;
+  int _galleryIndex = 0;
+
+  double _floorDaily(Product p) => math.min(math.max(p.dailyMin, 1.0), p.price);
+
+  double _ceilDaily(Product p) => p.price;
+
+  int _sliderDivisions(double lo, double hi) {
+    final span = hi - lo;
+    if (span <= 1) return 1;
+    final n = (span / 2500).ceil();
+    return math.min(80, math.max(5, n));
+  }
 
   @override
   void initState() {
     super.initState();
-    _dailyAmount = widget.product.dailyMin;
-    _calculateDays();
-  }
-
-  void _calculateDays() {
+    final p = widget.product;
+    _dailyAmount = _floorDaily(p);
+    _amountController.text = _dailyAmount.round().toString();
     if (_dailyAmount > 0) {
-      setState(() {
-        _daysToFinish = (widget.product.price / _dailyAmount).ceil();
-      });
+      _daysToFinish = (p.price / _dailyAmount).ceil();
     }
   }
 
+  void _setDaily(double v) {
+    final p = widget.product;
+    final lo = _floorDaily(p);
+    final hi = _ceilDaily(p);
+    final nv = v.clamp(lo, hi);
+    setState(() {
+      _dailyAmount = nv;
+      _amountController.text = nv.round().toString();
+      _daysToFinish = nv > 0 ? (p.price / nv).ceil() : 0;
+    });
+  }
+
+  void _commitManualDaily() {
+    final raw = _amountController.text.trim().replaceAll(RegExp(r'[^\d]'), '');
+    final v = double.tryParse(raw);
+    if (v == null) {
+      _amountController.text = _dailyAmount.round().toString();
+      return;
+    }
+    final p = widget.product;
+    final lo = _floorDaily(p);
+    final hi = _ceilDaily(p);
+    if (v < lo) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Le minimum pour ce produit est de ${lo.round()} FCFA / jour.'),
+          behavior: SnackBarBehavior.floating,
+        ),
+      );
+      _setDaily(lo);
+      return;
+    }
+    if (v > hi) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Le montant ne peut pas dépasser ${hi.round()} FCFA / jour (prix catalogue).'),
+          behavior: SnackBarBehavior.floating,
+        ),
+      );
+      _setDaily(hi);
+      return;
+    }
+    _setDaily(v);
+  }
+
   Future<void> _startSaving() async {
+    if (!ref.read(authProvider).canUseAppFeatures) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            'Démarrer une épargne sera possible après validation de votre inscription par PayFlex.',
+            style: GoogleFonts.manrope(fontSize: 13),
+          ),
+          behavior: SnackBarBehavior.floating,
+        ),
+      );
+      return;
+    }
+    final p = widget.product;
+    final lo = _floorDaily(p);
+    final hi = _ceilDaily(p);
+    if (_dailyAmount < lo || _dailyAmount > hi) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Choisissez un montant entre ${lo.round()} et ${hi.round()} FCFA / jour.'),
+          behavior: SnackBarBehavior.floating,
+        ),
+      );
+      return;
+    }
     setState(() => _isSaving = true);
     try {
       final db = DatabaseService();
@@ -48,6 +130,11 @@ class _ProductDetailScreenState extends ConsumerState<ProductDetailScreen> {
         widget.product.price,
         _dailyAmount,
       );
+      final uid = ref.read(authProvider).userId;
+      if (uid != null) {
+        await db.setUserCurrentProject(uid, widget.product.id);
+      }
+      await ref.read(financeProvider.notifier).reload();
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
@@ -80,6 +167,7 @@ class _ProductDetailScreenState extends ConsumerState<ProductDetailScreen> {
   @override
   void dispose() {
     _amountController.dispose();
+    _galleryController.dispose();
     super.dispose();
   }
 
@@ -87,7 +175,8 @@ class _ProductDetailScreenState extends ConsumerState<ProductDetailScreen> {
   Widget build(BuildContext context) {
     final product = widget.product;
     final isInCart = ref.watch(catalogueProvider).cart.any((p) => p.id == product.id);
-    final screenW = MediaQuery.of(context).size.width - 80;
+    final gallery = product.galleryUrls;
+    final heroUrl = gallery.isNotEmpty ? gallery.first : product.displayImageUrl;
 
     return Scaffold(
       backgroundColor: Colors.white,
@@ -134,7 +223,15 @@ class _ProductDetailScreenState extends ConsumerState<ProductDetailScreen> {
                 child: Stack(
                   fit: StackFit.expand,
                   children: [
-                    Image.network(product.imageUrl, fit: BoxFit.cover),
+                    if (gallery.length > 1)
+                      PageView.builder(
+                        controller: _galleryController,
+                        onPageChanged: (i) => setState(() => _galleryIndex = i),
+                        itemCount: gallery.length,
+                        itemBuilder: (_, i) => Image.network(gallery[i], fit: BoxFit.cover),
+                      )
+                    else
+                      Image.network(heroUrl, fit: BoxFit.cover),
                     Container(
                       decoration: BoxDecoration(
                         gradient: LinearGradient(
@@ -143,6 +240,27 @@ class _ProductDetailScreenState extends ConsumerState<ProductDetailScreen> {
                         ),
                       ),
                     ),
+                    if (gallery.length > 1)
+                      Positioned(
+                        bottom: 20,
+                        left: 0,
+                        right: 0,
+                        child: Row(
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          children: List.generate(gallery.length, (i) {
+                            final active = i == _galleryIndex;
+                            return Container(
+                              width: active ? 10 : 7,
+                              height: 7,
+                              margin: const EdgeInsets.symmetric(horizontal: 4),
+                              decoration: BoxDecoration(
+                                color: active ? AppColors.primary : Colors.white.withOpacity(0.5),
+                                borderRadius: BorderRadius.circular(4),
+                              ),
+                            );
+                          }),
+                        ),
+                      ),
                   ],
                 ),
               ),
@@ -245,52 +363,116 @@ class _ProductDetailScreenState extends ConsumerState<ProductDetailScreen> {
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        Text('Cotisation journalière souhaitée',
-                          style: GoogleFonts.manrope(fontWeight: FontWeight.w700, color: AppColors.secondary, fontSize: 14)),
-                        const SizedBox(height: 16),
-
-                        // Slider
-                        SliderTheme(
-                          data: SliderTheme.of(context).copyWith(
-                            activeTrackColor: AppColors.primary,
-                            inactiveTrackColor: AppColors.primary.withOpacity(0.2),
-                            thumbColor: AppColors.secondary,
-                            overlayColor: AppColors.secondary.withOpacity(0.1),
-                            trackHeight: 4,
-                          ),
-                          child: Slider(
-                            value: _dailyAmount.clamp(100, widget.product.price),
-                            min: 100,
-                            max: widget.product.price > 10000 ? widget.product.price / 2 : widget.product.price,
-                            divisions: 50,
-                            onChanged: (v) {
-                              setState(() { _dailyAmount = v; });
-                              _calculateDays();
-                            },
+                        Text(
+                          'Cotisation journalière souhaitée',
+                          style: GoogleFonts.manrope(fontWeight: FontWeight.w700, color: AppColors.secondary, fontSize: 14),
+                        ),
+                        const SizedBox(height: 6),
+                        Text(
+                          'Minimum imposé pour ce produit : ${product.dailyMin.round()} FCFA/j. Vous pouvez augmenter jusqu’au prix total (${product.price.round()} FCFA/j).',
+                          style: GoogleFonts.inter(
+                            fontSize: 11,
+                            height: 1.35,
+                            color: AppColors.secondary.withOpacity(0.55),
                           ),
                         ),
-
-                        // Valeur du slider
+                        const SizedBox(height: 16),
+                        if (_ceilDaily(product) > _floorDaily(product) + 0.01)
+                          SliderTheme(
+                            data: SliderTheme.of(context).copyWith(
+                              activeTrackColor: AppColors.primary,
+                              inactiveTrackColor: AppColors.primary.withOpacity(0.2),
+                              thumbColor: AppColors.secondary,
+                              overlayColor: AppColors.secondary.withOpacity(0.1),
+                              trackHeight: 4,
+                            ),
+                            child: Slider(
+                              value: _dailyAmount.clamp(_floorDaily(product), _ceilDaily(product)),
+                              min: _floorDaily(product),
+                              max: _ceilDaily(product),
+                              divisions: _sliderDivisions(_floorDaily(product), _ceilDaily(product)),
+                              onChanged: _setDaily,
+                            ),
+                          )
+                        else
+                          Padding(
+                            padding: const EdgeInsets.symmetric(vertical: 8),
+                            child: Text(
+                              'Montant unique : ${_floorDaily(product).round()} FCFA / jour (égal au prix catalogue).',
+                              style: GoogleFonts.inter(fontSize: 13, color: AppColors.secondary.withOpacity(0.75)),
+                            ),
+                          ),
                         Center(
                           child: Text(
-                            '${_dailyAmount.toInt()} FCFA / jour',
+                            '${_dailyAmount.round()} FCFA / jour',
                             style: GoogleFonts.manrope(
-                              fontSize: 20, fontWeight: FontWeight.w900, color: AppColors.secondary,
+                              fontSize: 20,
+                              fontWeight: FontWeight.w900,
+                              color: AppColors.secondary,
                             ),
                           ),
                         ),
-
+                        const SizedBox(height: 14),
+                        Row(
+                          crossAxisAlignment: CrossAxisAlignment.end,
+                          children: [
+                            Expanded(
+                              child: TextField(
+                                controller: _amountController,
+                                keyboardType: TextInputType.number,
+                                inputFormatters: [FilteringTextInputFormatter.digitsOnly],
+                                style: GoogleFonts.manrope(
+                                  fontSize: 16,
+                                  fontWeight: FontWeight.w800,
+                                  color: AppColors.secondary,
+                                ),
+                                cursorColor: AppColors.secondary,
+                                decoration: InputDecoration(
+                                  labelText: 'Saisie manuelle (FCFA)',
+                                  hintText: '≥ ${_floorDaily(product).round()}',
+                                  labelStyle: GoogleFonts.manrope(
+                                    color: AppColors.secondary.withValues(alpha: 0.75),
+                                    fontWeight: FontWeight.w600,
+                                  ),
+                                  hintStyle: GoogleFonts.manrope(
+                                    color: AppColors.secondary.withValues(alpha: 0.45),
+                                  ),
+                                  filled: true,
+                                  fillColor: Colors.white,
+                                  contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+                                  border: OutlineInputBorder(borderRadius: BorderRadius.circular(14)),
+                                  enabledBorder: OutlineInputBorder(
+                                    borderRadius: BorderRadius.circular(14),
+                                    borderSide: BorderSide(color: AppColors.secondary.withValues(alpha: 0.2)),
+                                  ),
+                                  focusedBorder: OutlineInputBorder(
+                                    borderRadius: BorderRadius.circular(14),
+                                    borderSide: const BorderSide(color: AppColors.primary, width: 2),
+                                  ),
+                                ),
+                                onSubmitted: (_) => _commitManualDaily(),
+                              ),
+                            ),
+                            const SizedBox(width: 8),
+                            TextButton(
+                              onPressed: _commitManualDaily,
+                              child: Text('Appliquer', style: GoogleFonts.manrope(fontWeight: FontWeight.w800)),
+                            ),
+                          ],
+                        ),
                         const SizedBox(height: 20),
                         Container(height: 1, color: AppColors.primary.withOpacity(0.1)),
                         const SizedBox(height: 20),
-
-                        // Résultats du calcul
                         Row(
                           mainAxisAlignment: MainAxisAlignment.spaceAround,
                           children: [
                             _infoTile('Durée estimée', '$_daysToFinish jours', Icons.calendar_month_outlined),
                             _infoTile('Par mois', '${(_dailyAmount * 30).toInt()} FCFA', Icons.account_balance_wallet_outlined),
-                            _infoTile('Progression /mois', '${((_dailyAmount * 30 / product.price) * 100).toStringAsFixed(0)}%', Icons.trending_up_rounded),
+                            _infoTile(
+                              'Progression /mois',
+                              product.price > 0 ? '${((_dailyAmount * 30 / product.price) * 100).toStringAsFixed(0)}%' : '—',
+                              Icons.trending_up_rounded,
+                            ),
                           ],
                         ),
                       ],

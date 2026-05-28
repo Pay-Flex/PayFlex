@@ -1,0 +1,387 @@
+<!doctype html>
+<html lang="fr" xmlns:th="http://www.thymeleaf.org">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Admin — Cotisations</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.2/css/all.min.css">
+  <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
+  <link rel="stylesheet" href="/css/admin-wow.css">
+</head>
+<body class="pf-admin bg-slate-100 min-h-screen">
+<th:block th:replace="~{fragments/admin-chrome :: startMain('space-y-4')}"/>
+<th:block th:replace="~{fragments/admin-chrome :: pageHeader('Gestion des cotisations','Rapprochement fin de journée : les collectes espèces agent et les déclarations client restent en attente jusqu’à validation ici.')}"/>
+
+    <div class="bg-blue-50 border border-blue-200 rounded-xl p-4 text-sm text-blue-900">
+      <p class="font-semibold mb-1"><i class="fa-solid fa-circle-info mr-2"></i>Processus centre</p>
+      <p class="text-blue-800/95 leading-relaxed">Les <strong>clients smartphone</strong> peuvent payer via <strong>FedaPay</strong> (sandbox) : validation automatique à la confirmation du paiement. Sinon déclaration classique → agent ou validation auto après <strong>24 h</strong> sans réponse.</p>
+      <p class="text-blue-800/95 leading-relaxed mt-1">Les <strong>espèces saisies par l'agent</strong> sur mobile sont <strong>confirmées immédiatement</strong>. Les espèces saisies au centre restent à confirmer manuellement (Actions : Confirmer / Refuser).</p>
+      <p class="text-blue-800/95 leading-relaxed mt-1">Le client reçoit une <strong>notification</strong> dans l'app dès qu'une cotisation est confirmée ou refusée. Utilisez le bouton <strong>Espèces en attente</strong> au-dessus du tableau pour le rapprochement caisse.</p>
+    </div>
+
+    <div th:if="${contributionAlerts != null && !contributionAlerts.isEmpty()}"
+         class="bg-amber-50 border border-amber-200 rounded-xl p-4 shadow-sm">
+      <div class="flex flex-wrap items-start justify-between gap-3">
+        <div>
+          <p class="font-semibold text-amber-900 text-sm mb-2">
+            <i class="fa-solid fa-bell mr-2"></i>Alertes automatisation
+            <span class="pf-nav-badge ml-1" th:text="${navContributionAlerts}">0</span>
+          </p>
+          <ul class="text-sm text-amber-900/90 space-y-1 list-disc pl-5">
+            <li th:each="a : ${contributionAlerts}" th:text="${a.message}">Alerte</li>
+          </ul>
+        </div>
+        <form method="post" action="/admin/contributions/alerts/dismiss">
+          <input type="hidden" th:name="${_csrf.parameterName}" th:value="${_csrf.token}">
+          <button type="submit" class="pf-btn pf-btn-secondary text-xs">Marquer comme lues</button>
+        </form>
+      </div>
+    </div>
+
+    <form th:if="${navPendingContributions > 0}" method="post" action="/admin/contributions/bulk-validate"
+          class="bg-emerald-50 border border-emerald-200 rounded-xl p-4 shadow-sm flex flex-wrap items-center justify-between gap-3 pf-confirm-submit"
+          data-confirm-title="Valider les cotisations"
+          data-confirm-text="Confirmer toutes les cotisations en attente après rapprochement caisse / app ?"
+          data-confirm-icon="warning"
+          data-confirm-yes="Oui, tout valider">
+      <p class="text-sm text-emerald-900">
+        <i class="fa-solid fa-clock mr-2"></i>
+        <span th:text="${navPendingContributions}">0</span> cotisation(s) en attente. Le bouton ci-dessous valide les déclarations smartphone (hors espèces terrain).
+      </p>
+      <input type="hidden" th:name="${_csrf.parameterName}" th:value="${_csrf.token}">
+      <div class="flex flex-wrap gap-2">
+        <button type="submit" class="pf-btn pf-btn-primary text-sm">Valider toutes les en attente</button>
+        <form method="post" action="/admin/contributions/run-auto-validate" class="inline pf-confirm-submit"
+              data-confirm-title="Validation automatique"
+              data-confirm-text="Appliquer la règle des 24 h maintenant sur les mobile money sans réponse agent ?"
+              data-confirm-icon="question"
+              data-confirm-yes="Oui, lancer">
+          <input type="hidden" th:name="${_csrf.parameterName}" th:value="${_csrf.token}">
+          <button type="submit" class="pf-btn pf-btn-secondary text-sm">Forcer validation auto (24 h)</button>
+        </form>
+      </div>
+    </form>
+
+    <form method="get" action="/admin/contributions" class="bg-white rounded-xl p-4 shadow-sm grid grid-cols-1 md:grid-cols-12 gap-3 items-end">
+      <div class="md:col-span-4">
+        <label class="block text-xs font-medium text-slate-600 mb-1">Recherche</label>
+        <input name="q" th:value="${q}" placeholder="Nom de client, produit ou référence" class="border rounded-lg px-3 py-2 w-full text-sm">
+      </div>
+      <div class="md:col-span-3">
+        <label class="block text-xs font-medium text-slate-600 mb-1">État du versement</label>
+        <select name="status" class="border rounded-lg px-3 py-2 w-full text-sm bg-white">
+          <option value="" th:selected="${status == null || status == ''}">Tous les états</option>
+          <option value="pending" th:selected="${status == 'pending'}">En attente de confirmation</option>
+          <option value="validated" th:selected="${status == 'validated'}">Confirmé</option>
+          <option value="rejected" th:selected="${status == 'rejected'}">Refusé</option>
+        </select>
+      </div>
+      <div class="md:col-span-3">
+        <label class="block text-xs font-medium text-slate-600 mb-1">Moyen de paiement</label>
+        <select name="paymentMode" class="border rounded-lg px-3 py-2 w-full text-sm bg-white">
+          <option value="" th:selected="${paymentMode == null || paymentMode == ''}">Tous les moyens</option>
+          <option value="mobile_money" th:selected="${paymentMode == 'mobile_money'}">Mobile money</option>
+          <option value="cash" th:selected="${paymentMode == 'cash'}">Espèces</option>
+          <option value="agent" th:selected="${paymentMode == 'agent'}">Remis à un agent</option>
+        </select>
+      </div>
+      <div class="md:col-span-2">
+        <button type="submit" class="pf-btn pf-btn-primary w-full py-2 px-4 text-sm">Filtrer</button>
+      </div>
+    </form>
+
+    <section class="bg-white rounded-xl p-4 shadow-sm">
+      <h3 class="font-semibold text-slate-800 mb-4">Enregistrer une cotisation</h3>
+      <form method="post" action="/admin/contributions" class="grid grid-cols-1 md:grid-cols-4 gap-x-4 gap-y-3">
+        <input type="hidden" th:name="${_csrf.parameterName}" th:value="${_csrf.token}">
+        <div>
+          <label class="block text-xs font-medium text-slate-600 mb-1">Client</label>
+          <select name="userId" required class="border rounded-lg px-3 py-2 w-full text-sm">
+            <option value="">Choisir…</option>
+            <option th:each="u : ${users}" th:value="${u.id()}" th:text="${u.fullName()}"></option>
+          </select>
+        </div>
+        <div>
+          <label class="block text-xs font-medium text-slate-600 mb-1">Produit</label>
+          <select name="productId" class="border rounded-lg px-3 py-2 w-full text-sm">
+            <option value="">— Optionnel —</option>
+            <option th:each="p : ${products}" th:value="${p.id()}" th:text="${p.name()}"></option>
+          </select>
+        </div>
+        <div>
+          <label class="block text-xs font-medium text-slate-600 mb-1">Agent</label>
+          <select name="agentId" class="border rounded-lg px-3 py-2 w-full text-sm">
+            <option value="">— Optionnel —</option>
+            <option th:each="a : ${agents}" th:value="${a.id()}" th:text="${a.fullName()}"></option>
+          </select>
+        </div>
+        <div>
+          <label class="block text-xs font-medium text-slate-600 mb-1">Montant (FCFA)</label>
+          <input name="amount" type="number" step="0.01" required class="border rounded-lg px-3 py-2 w-full text-sm">
+        </div>
+        <div>
+          <label class="block text-xs font-medium text-slate-600 mb-1">Mode de paiement</label>
+          <select name="paymentMode" class="border rounded-lg px-3 py-2 w-full text-sm">
+            <option value="mobile_money">Mobile money</option>
+            <option value="cash">Espèces</option>
+            <option value="agent">Via agent</option>
+          </select>
+        </div>
+        <div>
+          <label class="block text-xs font-medium text-slate-600 mb-1">Statut</label>
+          <select name="status" class="border rounded-lg px-3 py-2 w-full text-sm">
+            <option value="pending">En attente</option>
+            <option value="validated">Validée</option>
+            <option value="rejected">Rejetée</option>
+          </select>
+        </div>
+        <div>
+          <label class="block text-xs font-medium text-slate-600 mb-1">Référence</label>
+          <input name="referenceCode" class="border rounded-lg px-3 py-2 w-full text-sm">
+        </div>
+        <div class="md:col-span-4 pt-2">
+          <button type="submit" class="pf-btn pf-btn-primary py-2 px-4 text-sm">Enregistrer la cotisation</button>
+        </div>
+      </form>
+    </section>
+
+    <section class="bg-white rounded-xl p-4 shadow-sm overflow-auto">
+      <div class="flex flex-wrap items-center justify-between gap-3 mb-4">
+        <div class="flex flex-wrap items-center gap-2 min-w-0">
+          <h3 class="font-semibold text-slate-800 text-base shrink-0">Liste des cotisations</h3>
+          <a th:href="@{/admin/contributions(status='pending',paymentMode='cash')}"
+             th:classappend="${status == 'pending' && paymentMode == 'cash'} ? ' ring-2 ring-amber-400 ring-offset-1' : ''"
+             class="pf-btn inline-flex items-center gap-2 text-sm font-semibold shrink-0"
+             style="background:linear-gradient(135deg,#f59e0b,#d97706);color:#fff;border:none;">
+            <i class="fa-solid fa-money-bill-wave"></i>
+            <span>Espèces en attente</span>
+            <span th:if="${navPendingCashContributions > 0}"
+                  class="inline-flex min-w-[1.35rem] h-5 px-1.5 items-center justify-center rounded-full bg-white/25 text-[11px] font-bold"
+                  th:text="${navPendingCashContributions}">0</span>
+          </a>
+          <a th:if="${status == 'pending' && paymentMode == 'cash'}"
+             href="/admin/contributions"
+             class="pf-btn pf-btn-secondary text-sm shrink-0">
+            <i class="fa-solid fa-list mr-1"></i>Toutes les cotisations
+          </a>
+          <p th:if="${status == 'pending' && paymentMode == 'cash'}"
+             class="text-xs text-amber-800 bg-amber-50 border border-amber-200 rounded-lg px-2 py-1 w-full sm:w-auto">
+            Filtre actif : espèces en attente de confirmation au centre.
+          </p>
+        </div>
+        <div class="flex flex-wrap gap-2 shrink-0">
+          <a href="/admin/export/contributions.csv" class="pf-btn pf-btn-secondary text-sm">Export CSV</a>
+          <a href="/admin/export/contributions.pdf" class="pf-btn pf-btn-secondary text-sm">Export PDF</a>
+        </div>
+      </div>
+      <table class="w-full text-sm">
+        <thead class="bg-slate-100">
+        <tr>
+          <th class="text-left py-2 px-2">Client</th>
+          <th class="text-left py-2 px-2">Produit</th>
+          <th class="text-left py-2 px-2">Agent</th>
+          <th class="text-right py-2 px-2">Montant</th>
+          <th class="text-left py-2 px-2">Paiement</th>
+          <th class="text-left py-2 px-2">Statut</th>
+          <th class="text-left py-2 px-2">Réf.</th>
+          <th class="text-left py-2 px-2">Actions</th>
+        </tr>
+        </thead>
+        <tbody>
+        <tr th:each="c : ${contributionsPage.items()}">
+          <td class="py-2 px-2 align-top font-medium" th:text="${c.userName()}"></td>
+          <td class="py-2 px-2 align-top text-slate-600" th:text="${c.productName()}"></td>
+          <td class="py-2 px-2 align-top text-slate-600" th:text="${c.agentName()}"></td>
+          <td class="py-2 px-2 align-top text-right whitespace-nowrap" th:text="${#numbers.formatInteger(c.amount(), 0, 'POINT')} + ' FCFA'"></td>
+          <td class="py-2 px-2 align-top" th:text="${c.paymentMode() == 'mobile_money' ? 'Mobile money' : (c.paymentMode() == 'cash' ? 'Espèces' : (c.paymentMode() == 'agent' ? 'Via agent' : c.paymentMode()))}"></td>
+          <td class="py-2 px-2 align-top">
+            <span th:if="${c.status() == 'pending'}" class="inline-flex px-2 py-1 rounded-full text-xs font-semibold bg-amber-100 text-amber-900">En attente</span>
+            <span th:if="${c.status() == 'validated'}" class="inline-flex px-2 py-1 rounded-full text-xs font-semibold bg-emerald-100 text-emerald-800">Validée</span>
+            <span th:if="${c.status() == 'rejected'}" class="inline-flex px-2 py-1 rounded-full text-xs font-semibold bg-red-100 text-red-800">Rejetée</span>
+          </td>
+          <td class="py-2 px-2 align-top font-mono text-xs" th:text="${c.referenceCode()}"></td>
+          <td class="py-2 px-2 align-top">
+            <div class="flex flex-wrap gap-1.5 items-center">
+              <th:block th:if="${c.status() == 'pending'}">
+                <form method="post" action="/admin/contributions/status" class="inline pf-contrib-status-form"
+                      data-action="validate"
+                      th:attr="data-client=${c.userName()},data-amount=${c.amount()}"
+                      onsubmit="return pfConfirmContributionStatus(event, this);">
+                  <input type="hidden" th:name="${_csrf.parameterName}" th:value="${_csrf.token}">
+                  <input type="hidden" name="id" th:value="${c.id()}">
+                  <input type="hidden" name="status" value="validated">
+                  <button type="submit" class="pf-btn pf-btn-success text-xs py-1.5 px-2.5">
+                    <i class="fa-solid fa-circle-check mr-1"></i>Confirmer
+                  </button>
+                </form>
+                <form method="post" action="/admin/contributions/status" class="inline pf-contrib-status-form"
+                      data-action="reject"
+                      th:attr="data-client=${c.userName()},data-amount=${c.amount()}"
+                      onsubmit="return pfConfirmContributionStatus(event, this);">
+                  <input type="hidden" th:name="${_csrf.parameterName}" th:value="${_csrf.token}">
+                  <input type="hidden" name="id" th:value="${c.id()}">
+                  <input type="hidden" name="status" value="rejected">
+                  <button type="submit" class="pf-btn pf-btn-secondary text-xs py-1.5 px-2.5 border-red-200 text-red-700 hover:bg-red-50">
+                    <i class="fa-solid fa-xmark mr-1"></i>Refuser
+                  </button>
+                </form>
+              </th:block>
+              <button type="button" class="pf-btn pf-btn-primary text-xs py-1.5 px-2.5"
+                      th:attr="data-id=${c.id()},data-amount=${c.amount()},data-mode=${c.paymentMode()},data-status=${c.status()},data-ref=${c.referenceCode()}"
+                      onclick="openEditContribModal(this)"><i class="fa-regular fa-pen-to-square mr-1"></i>Modifier</button>
+              <form th:if="${adminFullAccess || adminIsGestionnaire}" method="post" action="/admin/contributions/delete" class="inline"
+                    th:attr="data-admin-full=${adminFullAccess}"
+                    onsubmit="return pfConfirmDeleteWithReason(event, this.dataset.adminFull === 'true' ? 'Supprimer cette cotisation ?' : 'Demander la suppression de cette cotisation ?', this.dataset.adminFull === 'true');">
+                <input type="hidden" th:name="${_csrf.parameterName}" th:value="${_csrf.token}">
+                <input type="hidden" name="id" th:value="${c.id()}">
+                <button type="submit" class="pf-btn pf-btn-danger text-xs py-1.5 px-2.5"><i class="fa-regular fa-trash-can mr-1"></i>Supprimer</button>
+              </form>
+            </div>
+          </td>
+        </tr>
+        </tbody>
+      </table>
+      <th:block th:replace="~{fragments/admin-chrome :: pagination(${contributionsPage}, '/admin/contributions', ${filterQuery})}"/>
+    </section>
+
+<th:block th:replace="~{fragments/admin-chrome :: endMain}"/>
+
+<div id="editContribModal" class="hidden fixed inset-0 bg-black/40 items-center justify-center z-50 p-4">
+  <div class="bg-white w-full max-w-xl rounded-xl p-6 border border-slate-200 shadow-lg">
+    <h3 class="font-semibold text-lg text-slate-800 mb-4">Modifier la cotisation</h3>
+    <form method="post" action="/admin/contributions/update" class="grid grid-cols-1 md:grid-cols-2 gap-x-4 gap-y-3">
+      <input type="hidden" th:name="${_csrf.parameterName}" th:value="${_csrf.token}">
+      <input type="hidden" id="editContribId" name="id">
+      <div>
+        <label class="block text-xs font-medium text-slate-600 mb-1">Montant (FCFA)</label>
+        <input id="editContribAmount" name="amount" type="number" step="0.01" required class="border rounded-lg px-3 py-2 w-full text-sm">
+      </div>
+      <div>
+        <label class="block text-xs font-medium text-slate-600 mb-1">Mode de paiement</label>
+        <select id="editContribMode" name="paymentMode" class="border rounded-lg px-3 py-2 w-full text-sm">
+          <option value="mobile_money">Mobile money</option>
+          <option value="cash">Espèces</option>
+          <option value="agent">Via agent</option>
+        </select>
+      </div>
+      <div>
+        <label class="block text-xs font-medium text-slate-600 mb-1">Statut</label>
+        <select id="editContribStatus" name="status" class="border rounded-lg px-3 py-2 w-full text-sm">
+          <option value="pending">En attente</option>
+          <option value="validated">Validée</option>
+          <option value="rejected">Rejetée</option>
+        </select>
+      </div>
+      <div>
+        <label class="block text-xs font-medium text-slate-600 mb-1">Référence</label>
+        <input id="editContribRef" name="referenceCode" class="border rounded-lg px-3 py-2 w-full text-sm">
+      </div>
+      <div class="md:col-span-2 flex justify-end gap-2 pt-2">
+        <button type="button" onclick="closeEditContribModal()" class="pf-btn pf-btn-secondary py-2 px-4 text-sm">Annuler</button>
+        <button type="submit" class="pf-btn pf-btn-primary py-2 px-4 text-sm">Enregistrer</button>
+      </div>
+    </form>
+  </div>
+</div>
+<script th:inline="javascript">
+  const successParam = [[${param.success}]];
+  const errorParam = [[${param.error}]];
+  if (successParam) {
+    const p = new URLSearchParams(window.location.search);
+    const bulk = p.get('success') === 'bulk';
+    const count = p.get('count');
+    Swal.fire({
+      icon:'success',
+      title: bulk ? 'Rapprochement validé' : 'Succès',
+      text: bulk && count ? count + ' cotisation(s) confirmée(s) après contrôle.' : 'Cotisation enregistrée.',
+      timer: bulk ? 2200 : 1600,
+      showConfirmButton: false
+    });
+  }
+  if (errorParam) {
+    Swal.fire({icon:'error',title:'Données incomplètes',text:'Merci de vérifier les informations saisies.'});
+  }
+  function openEditContribModal(btn) {
+    document.getElementById('editContribId').value = btn.dataset.id || '';
+    document.getElementById('editContribAmount').value = btn.dataset.amount || '';
+    document.getElementById('editContribMode').value = btn.dataset.mode || 'mobile_money';
+    document.getElementById('editContribStatus').value = btn.dataset.status || 'pending';
+    document.getElementById('editContribRef').value = btn.dataset.ref || '';
+    const modal = document.getElementById('editContribModal');
+    modal.classList.remove('hidden');
+    modal.classList.add('flex');
+  }
+  function closeEditContribModal() {
+    const modal = document.getElementById('editContribModal');
+    modal.classList.remove('flex');
+    modal.classList.add('hidden');
+  }
+  function pfConfirmContributionStatus(event, form) {
+    event.preventDefault();
+    const action = form.dataset.action || 'validate';
+    const client = form.dataset.client || 'ce client';
+    const amount = form.dataset.amount || '';
+    const amountLabel = amount ? Math.round(parseFloat(amount)).toLocaleString('fr-FR') + ' FCFA' : '';
+    if (typeof Swal === 'undefined') {
+      if (window.confirm(action === 'reject' ? 'Refuser cette cotisation ?' : 'Confirmer cette cotisation ?')) {
+        form.submit();
+      }
+      return false;
+    }
+    if (action === 'reject') {
+      Swal.fire({
+        icon: 'warning',
+        title: 'Refuser la cotisation',
+        html:
+          '<p class="text-sm text-slate-600 mb-3">Refus pour <strong>' + client + '</strong>'
+          + (amountLabel ? ' — ' + amountLabel : '')
+          + '. Le client sera notifié dans l\'app.</p>'
+          + '<textarea id="pf-reject-reason" class="swal2-textarea w-full text-sm" rows="2" placeholder="Motif (optionnel)…"></textarea>',
+        showCancelButton: true,
+        confirmButtonText: 'Oui, refuser',
+        cancelButtonText: 'Annuler',
+        confirmButtonColor: '#dc2626',
+      }).then((r) => {
+        if (!r.isConfirmed) return;
+        let input = form.querySelector('input[name="rejectionReason"]');
+        if (!input) {
+          input = document.createElement('input');
+          input.type = 'hidden';
+          input.name = 'rejectionReason';
+          form.appendChild(input);
+        }
+        input.value = document.getElementById('pf-reject-reason')?.value?.trim() || '';
+        form.submit();
+      });
+      return false;
+    }
+    Swal.fire({
+      icon: 'question',
+      title: 'Confirmer la cotisation',
+      text:
+        'Valider le versement de ' + client
+        + (amountLabel ? ' (' + amountLabel + ')' : '')
+        + ' ? Le client recevra une notification.',
+      showCancelButton: true,
+      confirmButtonText: 'Oui, confirmer',
+      cancelButtonText: 'Annuler',
+      confirmButtonColor: 'var(--pf-admin-blue, #1d4ed8)',
+    }).then((r) => {
+      if (r.isConfirmed) form.submit();
+    });
+    return false;
+  }
+  (() => {
+    const qInput = document.querySelector('form[action="/admin/contributions"] input[name="q"]');
+    if (!qInput) return;
+    let t;
+    qInput.addEventListener('input', () => {
+      clearTimeout(t);
+      t = setTimeout(() => qInput.form.submit(), 450);
+    });
+  })();
+</script>
+<script src="/js/admin-wow.js"></script>
+</body>
+</html>

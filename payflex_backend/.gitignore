@@ -1,0 +1,14 @@
+# Secrets locaux — ne jamais committer
+.env
+.env.*
+!.env.example
+application-local.yml
+application-local.properties
+secrets/
+*.pem
+*.key
+
+# Build / logs
+target/
+erreur.log
+*.log

@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:ui';
 import 'package:flutter/material.dart';
 import 'package:flutter_animate/flutter_animate.dart';
@@ -5,9 +6,14 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:google_fonts/google_fonts.dart';
 import '../../core/constants/app_colors.dart';
 import '../../core/models/product_model.dart';
+import '../../core/providers/auth_provider.dart';
 import '../../core/providers/catalogue_provider.dart';
+import '../../core/providers/client_inbox_provider.dart';
+import '../../core/providers/navigation_provider.dart';
+import '../../core/widgets/count_badge.dart';
 import 'product_detail_screen.dart';
-import '../chat/chat_screen.dart'; // Import ChatScreen
+import '../auth/widgets/registration_feature_guard.dart';
+import '../chat/chat_screen.dart';
 
 class CatalogueScreen extends ConsumerStatefulWidget {
   const CatalogueScreen({super.key});
@@ -18,9 +24,35 @@ class CatalogueScreen extends ConsumerStatefulWidget {
 
 class _CatalogueScreenState extends ConsumerState<CatalogueScreen> {
   final _searchController = TextEditingController();
+  Timer? _cataloguePollTimer;
+
+  static const Map<String, IconData> _categoryIcons = {
+    'Tous': Icons.dashboard_customize_rounded,
+    'Couture': Icons.content_cut_rounded,
+    'Coiffure': Icons.face_retouching_natural_rounded,
+    'Mécanique': Icons.settings_suggest_rounded,
+    'Menuiserie': Icons.carpenter_rounded,
+    'Maçonnerie': Icons.construction_rounded,
+    'Soudure': Icons.bolt_rounded,
+    'Électricité bâtiment': Icons.electrical_services_rounded,
+    'Plomberie': Icons.plumbing_rounded,
+    'Froid et climatisation': Icons.ac_unit_rounded,
+  };
+
+  @override
+  void initState() {
+    super.initState();
+    _cataloguePollTimer = Timer.periodic(const Duration(seconds: 10), (_) {
+      if (!mounted) return;
+      // IndexedStack garde les écrans montés : ne poll que si l’onglet Catalogue est visible (index 1).
+      if (ref.read(navigationIndexProvider) != 1) return;
+      ref.read(catalogueProvider.notifier).loadProducts(silent: true);
+    });
+  }
 
   @override
   void dispose() {
+    _cataloguePollTimer?.cancel();
     _searchController.dispose();
     super.dispose();
   }
@@ -28,6 +60,8 @@ class _CatalogueScreenState extends ConsumerState<CatalogueScreen> {
   @override
   Widget build(BuildContext context) {
     final catalogue = ref.watch(catalogueProvider);
+    final auth = ref.watch(authProvider);
+    final inbox = auth.role == 'client' ? ref.watch(clientInboxProvider) : null;
     
     return GestureDetector(
       onTap: () => FocusScope.of(context).unfocus(),
@@ -42,12 +76,16 @@ class _CatalogueScreenState extends ConsumerState<CatalogueScreen> {
             ),
             Positioned(
               bottom: -50, left: -50,
-              child: _buildBlob(AppColors.primary.withOpacity(0.3), 200),
+              child: _buildBlob(AppColors.primary.withValues(alpha: 0.3), 200),
             ),
 
-            // Contenu principal
-            CustomScrollView(
-              slivers: [
+            // Contenu principal (tirer pour actualiser + polling silencieux toutes les 10 s)
+            RefreshIndicator(
+              color: AppColors.secondary,
+              onRefresh: () => ref.read(catalogueProvider.notifier).loadProducts(silent: true),
+              child: CustomScrollView(
+                physics: const AlwaysScrollableScrollPhysics(),
+                slivers: [
                 // AppBar
                 SliverAppBar(
                   expandedHeight: 70,
@@ -55,7 +93,7 @@ class _CatalogueScreenState extends ConsumerState<CatalogueScreen> {
                   pinned: true,
                   elevation: 0,
                   automaticallyImplyLeading: false,
-                  backgroundColor: Colors.white.withOpacity(0.95),
+                  backgroundColor: Colors.white.withValues(alpha: 0.95),
                   surfaceTintColor: Colors.transparent,
                   title: Text(
                     'Catalogue',
@@ -69,29 +107,34 @@ class _CatalogueScreenState extends ConsumerState<CatalogueScreen> {
                   actions: [
                     // Support Chat au lieu du Panier
                     GestureDetector(
-                      onTap: () => Navigator.push(
-                        context,
-                        MaterialPageRoute(builder: (_) => const ChatScreen()),
-                      ),
+                      onTap: () {
+                        if (!auth.canUseAppFeatures) {
+                          showRegistrationFeatureLockedSnackBar(context, 'Discussion support');
+                          return;
+                        }
+                        Navigator.push(
+                          context,
+                          MaterialPageRoute(builder: (_) => const ChatScreen()),
+                        );
+                      },
                       child: Container(
-                        margin: const EdgeInsets.only(right: 8),
-                        child: Container(
-                          padding: const EdgeInsets.all(7),
-                          decoration: BoxDecoration(
-                            color: AppColors.primary.withOpacity(0.1),
-                            shape: BoxShape.circle,
-                            border: Border.all(color: AppColors.primary.withOpacity(0.2)),
-                          ),
-                          child: const Icon(Icons.chat_bubble_outline_rounded, color: AppColors.secondary, size: 20),
+                        margin: const EdgeInsets.only(right: 16),
+                        child: Stack(
+                          clipBehavior: Clip.none,
+                          children: [
+                            Container(
+                              padding: const EdgeInsets.all(7),
+                              decoration: BoxDecoration(
+                                color: AppColors.primary.withValues(alpha: 0.1),
+                                shape: BoxShape.circle,
+                                border: Border.all(color: AppColors.primary.withValues(alpha: 0.2)),
+                              ),
+                              child: const Icon(Icons.chat_bubble_outline_rounded, color: AppColors.secondary, size: 20),
+                            ),
+                            if (inbox != null && inbox.chatUnread > 0)
+                              CountBadge(count: inbox.chatUnread, top: -2, right: -2),
+                          ],
                         ),
-                      ),
-                    ),
-                    // Icone utilisateur
-                    Container(
-                      margin: const EdgeInsets.only(right: 16),
-                      child: const CircleAvatar(
-                        radius: 18,
-                        backgroundImage: NetworkImage('https://i.pravatar.cc/150?u=payflex'),
                       ),
                     ),
                   ],
@@ -113,7 +156,7 @@ class _CatalogueScreenState extends ConsumerState<CatalogueScreen> {
                               borderRadius: BorderRadius.circular(18),
                               boxShadow: [
                                 BoxShadow(
-                                  color: AppColors.secondary.withOpacity(0.3),
+                                  color: AppColors.secondary.withValues(alpha: 0.3),
                                   blurRadius: 15,
                                   offset: const Offset(0, 8),
                                 ),
@@ -127,7 +170,7 @@ class _CatalogueScreenState extends ConsumerState<CatalogueScreen> {
                               decoration: InputDecoration(
                                 filled: false, // Forcer à false pour éviter les fonds gris auto
                                 hintText: 'Rechercher un article ou une catégorie...',
-                                hintStyle: GoogleFonts.manrope(color: Colors.white.withOpacity(0.4), fontSize: 13, fontWeight: FontWeight.w500),
+                                hintStyle: GoogleFonts.manrope(color: Colors.white.withValues(alpha: 0.4), fontSize: 13, fontWeight: FontWeight.w500),
                                 prefixIcon: Icon(Icons.search_rounded, color: AppColors.primary, size: 22),
                                 suffixIcon: catalogue.searchQuery.isNotEmpty
                                   ? IconButton(
@@ -140,8 +183,8 @@ class _CatalogueScreenState extends ConsumerState<CatalogueScreen> {
                                   : Container(
                                       margin: const EdgeInsets.all(10),
                                       padding: const EdgeInsets.all(4),
-                                      decoration: BoxDecoration(color: Colors.white.withOpacity(0.1), borderRadius: BorderRadius.circular(8)),
-                                      child: Icon(Icons.tune_rounded, size: 14, color: Colors.white.withOpacity(0.6)),
+                                      decoration: BoxDecoration(color: Colors.white.withValues(alpha: 0.1), borderRadius: BorderRadius.circular(8)),
+                                      child: Icon(Icons.tune_rounded, size: 14, color: Colors.white.withValues(alpha: 0.6)),
                                     ),
                                 border: InputBorder.none,
                                 enabledBorder: InputBorder.none,
@@ -155,19 +198,19 @@ class _CatalogueScreenState extends ConsumerState<CatalogueScreen> {
 
                           // Catégories
                           SizedBox(
-                            height: 42,
+                            height: 48,
                             child: ListView.builder(
                               scrollDirection: Axis.horizontal,
-                              itemCount: catalogueCategories.length,
+                              itemCount: catalogue.categoryFilterOptions.length,
                               itemBuilder: (_, i) {
-                                final cat = catalogueCategories[i];
+                                final cat = catalogue.categoryFilterOptions[i];
                                 final isActive = catalogue.selectedCategory == cat;
                                 return GestureDetector(
                                   onTap: () => ref.read(catalogueProvider.notifier).filterByCategory(cat),
                                   child: AnimatedContainer(
                                     duration: const Duration(milliseconds: 200),
                                     margin: const EdgeInsets.only(right: 10),
-                                    padding: const EdgeInsets.symmetric(horizontal: 18),
+                                    padding: const EdgeInsets.symmetric(horizontal: 14),
                                     decoration: BoxDecoration(
                                       color: isActive ? AppColors.secondary : Colors.white,
                                       borderRadius: BorderRadius.circular(12),
@@ -176,13 +219,23 @@ class _CatalogueScreenState extends ConsumerState<CatalogueScreen> {
                                       ),
                                     ),
                                     child: Center(
-                                      child: Text(
-                                        cat,
-                                        style: GoogleFonts.manrope(
-                                          color: isActive ? Colors.white : AppColors.secondary,
-                                          fontWeight: FontWeight.bold,
-                                          fontSize: 12,
-                                        ),
+                                      child: Row(
+                                        children: [
+                                          Icon(
+                                            _categoryIcons[cat] ?? Icons.category_rounded,
+                                            size: 15,
+                                            color: isActive ? Colors.white : AppColors.secondary.withValues(alpha: 0.8),
+                                          ),
+                                          const SizedBox(width: 6),
+                                          Text(
+                                            cat,
+                                            style: GoogleFonts.manrope(
+                                              color: isActive ? Colors.white : AppColors.secondary,
+                                              fontWeight: FontWeight.bold,
+                                              fontSize: 12,
+                                            ),
+                                          ),
+                                        ],
                                       ),
                                     ),
                                   ),
@@ -194,10 +247,16 @@ class _CatalogueScreenState extends ConsumerState<CatalogueScreen> {
                           const SizedBox(height: 32),
 
                           // Section Vedette
-                          if (catalogue.selectedCategory == 'Tous' && catalogue.searchQuery.isEmpty && catalogue.featuredProduct != null) ...[
+                          if (catalogue.selectedCategory == 'Tous' && catalogue.searchQuery.isEmpty && catalogue.featuredProducts.isNotEmpty) ...[
                             _buildSectionHeader('⭐ SÉLECTION VEDETTE', 'À la une'),
                             const SizedBox(height: 16),
-                            _buildFeaturedCard(context, catalogue.featuredProduct!),
+                            if (catalogue.featuredProducts.length == 1)
+                              _buildFeaturedCard(context, catalogue.featuredProducts.first)
+                            else
+                              _FeaturedTicker(
+                                products: catalogue.featuredProducts,
+                                itemBuilder: (p) => _carouselFeaturedTile(context, p),
+                              ),
                             const SizedBox(height: 32),
                           ],
 
@@ -235,7 +294,7 @@ class _CatalogueScreenState extends ConsumerState<CatalogueScreen> {
                     sliver: SliverGrid(
                       gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
                         crossAxisCount: 2,
-                        childAspectRatio: 0.68,
+                        childAspectRatio: 0.57,
                         crossAxisSpacing: 14,
                         mainAxisSpacing: 14,
                       ),
@@ -252,6 +311,7 @@ class _CatalogueScreenState extends ConsumerState<CatalogueScreen> {
                 const SliverToBoxAdapter(child: SizedBox(height: 120)),
               ],
             ),
+            ),
           ],
         ),
       ),
@@ -263,7 +323,7 @@ class _CatalogueScreenState extends ConsumerState<CatalogueScreen> {
       width: size,
       height: size,
       decoration: BoxDecoration(
-        color: color.withOpacity(0.12),
+        color: color.withValues(alpha: 0.12),
         shape: BoxShape.circle,
       ),
       child: BackdropFilter(
@@ -292,6 +352,49 @@ class _CatalogueScreenState extends ConsumerState<CatalogueScreen> {
     );
   }
 
+  Widget _carouselFeaturedTile(BuildContext context, Product product) {
+    return GestureDetector(
+      onTap: () => Navigator.push(context, MaterialPageRoute(builder: (_) => ProductDetailScreen(product: product))),
+      child: ClipRRect(
+        borderRadius: BorderRadius.circular(20),
+        child: SizedBox(
+          height: 200,
+          child: Stack(
+            fit: StackFit.expand,
+            children: [
+              Image.network(product.displayImageUrl, fit: BoxFit.cover),
+              Container(
+                decoration: BoxDecoration(
+                  gradient: LinearGradient(
+                    begin: Alignment.topCenter,
+                    end: Alignment.bottomCenter,
+                    colors: [Colors.transparent, Colors.black.withValues(alpha: 0.82)],
+                  ),
+                ),
+              ),
+              Padding(
+                padding: const EdgeInsets.all(14),
+                child: Column(
+                  mainAxisAlignment: MainAxisAlignment.end,
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      product.name,
+                      maxLines: 2,
+                      overflow: TextOverflow.ellipsis,
+                      style: GoogleFonts.manrope(color: Colors.white, fontSize: 15, fontWeight: FontWeight.w800),
+                    ),
+                    Text('Dès ${product.formattedDaily}', style: GoogleFonts.inter(color: Colors.white70, fontSize: 11)),
+                  ],
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
   Widget _buildFeaturedCard(BuildContext context, Product product) {
     return GestureDetector(
       onTap: () => Navigator.push(context, MaterialPageRoute(builder: (_) => ProductDetailScreen(product: product))),
@@ -301,9 +404,9 @@ class _CatalogueScreenState extends ConsumerState<CatalogueScreen> {
           height: 220,
           decoration: BoxDecoration(
             borderRadius: BorderRadius.circular(24),
-            image: DecorationImage(image: NetworkImage(product.imageUrl), fit: BoxFit.cover),
+            image: DecorationImage(image: NetworkImage(product.displayImageUrl), fit: BoxFit.cover),
             boxShadow: [
-              BoxShadow(color: AppColors.secondary.withOpacity(0.2), blurRadius: 20, offset: const Offset(0, 10)),
+              BoxShadow(color: AppColors.secondary.withValues(alpha: 0.2), blurRadius: 20, offset: const Offset(0, 10)),
             ],
           ),
           child: Stack(
@@ -313,7 +416,7 @@ class _CatalogueScreenState extends ConsumerState<CatalogueScreen> {
                   borderRadius: BorderRadius.circular(24),
                   gradient: LinearGradient(
                     begin: Alignment.topCenter, end: Alignment.bottomCenter,
-                    colors: [Colors.transparent, Colors.black.withOpacity(0.8)],
+                    colors: [Colors.transparent, Colors.black.withValues(alpha: 0.8)],
                   ),
                 ),
               ),
@@ -349,7 +452,7 @@ class _CatalogueScreenState extends ConsumerState<CatalogueScreen> {
           color: Colors.white,
           borderRadius: BorderRadius.circular(20),
           boxShadow: [
-            BoxShadow(color: Colors.black.withOpacity(0.04), blurRadius: 15, offset: const Offset(0, 8)),
+            BoxShadow(color: Colors.black.withValues(alpha: 0.04), blurRadius: 15, offset: const Offset(0, 8)),
           ],
         ),
         child: Column(
@@ -361,7 +464,7 @@ class _CatalogueScreenState extends ConsumerState<CatalogueScreen> {
                 child: Container(
                   decoration: BoxDecoration(
                     borderRadius: const BorderRadius.vertical(top: Radius.circular(20)),
-                    image: DecorationImage(image: NetworkImage(product.imageUrl), fit: BoxFit.cover),
+                    image: DecorationImage(image: NetworkImage(product.displayImageUrl), fit: BoxFit.cover),
                   ),
                 ),
               ),
@@ -376,16 +479,39 @@ class _CatalogueScreenState extends ConsumerState<CatalogueScreen> {
                   const SizedBox(height: 2),
                   Text(product.category, style: GoogleFonts.inter(color: Colors.grey, fontSize: 10)),
                   const SizedBox(height: 8),
-                  Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                    children: [
-                      Text(product.formattedPrice, style: GoogleFonts.manrope(fontWeight: FontWeight.w900, color: AppColors.primary, fontSize: 12)),
-                      Container(
-                        padding: const EdgeInsets.all(4),
-                        decoration: BoxDecoration(color: AppColors.secondary.withOpacity(0.05), shape: BoxShape.circle),
-                        child: Icon(Icons.add_rounded, size: 16, color: AppColors.secondary),
+                  Text(
+                    product.description,
+                    maxLines: 2,
+                    overflow: TextOverflow.ellipsis,
+                    style: GoogleFonts.inter(
+                      color: AppColors.secondary.withValues(alpha: 0.55),
+                      fontSize: 10,
+                      height: 1.3,
+                    ),
+                  ),
+                  const SizedBox(height: 10),
+                  Text(product.formattedPrice, style: GoogleFonts.manrope(fontWeight: FontWeight.w900, color: AppColors.primary, fontSize: 12)),
+                  const SizedBox(height: 8),
+                  SizedBox(
+                    width: double.infinity,
+                    height: 30,
+                    child: ElevatedButton(
+                      onPressed: () => Navigator.push(
+                        context,
+                        MaterialPageRoute(builder: (_) => ProductDetailScreen(product: product)),
                       ),
-                    ],
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: AppColors.secondary,
+                        foregroundColor: Colors.white,
+                        elevation: 0,
+                        padding: EdgeInsets.zero,
+                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                      ),
+                      child: Text(
+                        'Voir détail',
+                        style: GoogleFonts.manrope(fontSize: 11, fontWeight: FontWeight.w800),
+                      ),
+                    ),
                   ),
                 ],
               ),
@@ -407,6 +533,76 @@ class _CatalogueScreenState extends ConsumerState<CatalogueScreen> {
           Text('Aucun résultat trouvé', style: GoogleFonts.manrope(fontWeight: FontWeight.bold, color: Colors.grey.shade400)),
           Text('Essayez d\'autres mots clés ou catégories', style: GoogleFonts.inter(fontSize: 12, color: Colors.grey.shade400)),
         ],
+      ),
+    );
+  }
+}
+
+/// Défilement horizontal continu pour plusieurs produits « vedette ».
+class _FeaturedTicker extends StatefulWidget {
+  final List<Product> products;
+  final Widget Function(Product) itemBuilder;
+
+  const _FeaturedTicker({required this.products, required this.itemBuilder});
+
+  @override
+  State<_FeaturedTicker> createState() => _FeaturedTickerState();
+}
+
+class _FeaturedTickerState extends State<_FeaturedTicker> {
+  final ScrollController _controller = ScrollController();
+  Timer? _timer;
+  static const double _cardW = 268;
+  static const double _gap = 12;
+
+  @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted || widget.products.length < 2) return;
+      _timer = Timer.periodic(const Duration(milliseconds: 28), (_) {
+        if (!mounted || !_controller.hasClients) return;
+        final loop = (_cardW + _gap) * widget.products.length;
+        if (loop <= 0) return;
+        final next = _controller.offset + 1.1;
+        if (next >= loop) {
+          _controller.jumpTo(next - loop);
+        } else {
+          _controller.jumpTo(next);
+        }
+      });
+    });
+  }
+
+  @override
+  void dispose() {
+    _timer?.cancel();
+    _controller.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final p = widget.products;
+    if (p.isEmpty) return const SizedBox.shrink();
+    return SizedBox(
+      height: 200,
+      child: ListView.builder(
+        controller: _controller,
+        scrollDirection: Axis.horizontal,
+        physics: const NeverScrollableScrollPhysics(),
+        padding: const EdgeInsets.symmetric(horizontal: 4),
+        itemExtent: _cardW + _gap,
+        itemCount: p.length * 800,
+        itemBuilder: (context, i) {
+          return Padding(
+            padding: const EdgeInsets.only(right: _gap),
+            child: SizedBox(
+              width: _cardW,
+              child: widget.itemBuilder(p[i % p.length]),
+            ),
+          );
+        },
       ),
     );
   }

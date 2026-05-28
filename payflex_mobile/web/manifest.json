@@ -1,6 +1,6 @@
 {
-    "name": "payflex_mobile",
-    "short_name": "payflex_mobile",
+    "name": "PayFlex",
+    "short_name": "PayFlex",
     "start_url": ".",
     "display": "standalone",
     "background_color": "#0175C2",

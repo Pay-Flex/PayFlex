@@ -10,6 +10,7 @@ class AgentProfileScreen extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
+    final auth = ref.watch(authProvider);
     return Scaffold(
       backgroundColor: const Color(0xFFF8FAFC),
       body: CustomScrollView(
@@ -45,13 +46,21 @@ class AgentProfileScreen extends ConsumerWidget {
                       mainAxisAlignment: MainAxisAlignment.center,
                       children: [
                         const SizedBox(height: 40),
-                        const CircleAvatar(
+                        CircleAvatar(
                           radius: 50,
-                          backgroundImage: NetworkImage('https://i.pravatar.cc/150?u=agent1'),
+                          backgroundColor: Colors.white24,
+                          child: Text(
+                            auth.avatarLetter,
+                            style: GoogleFonts.manrope(
+                              fontSize: 32,
+                              fontWeight: FontWeight.w900,
+                              color: Colors.white,
+                            ),
+                          ),
                         ),
                         const SizedBox(height: 16),
                         Text(
-                          'Jean Dupont',
+                          auth.name?.trim().isNotEmpty == true ? auth.name!.trim() : 'Agent PayFlex',
                           style: GoogleFonts.manrope(
                             fontSize: 24,
                             fontWeight: FontWeight.w800,
@@ -59,7 +68,7 @@ class AgentProfileScreen extends ConsumerWidget {
                           ),
                         ),
                         Text(
-                          'Agent Senior ID: PF-AG-001',
+                          '${auth.statusLabelFr()} · ${auth.roleLabelFr()}',
                           style: GoogleFonts.inter(
                             fontSize: 14,
                             color: Colors.white.withOpacity(0.7),

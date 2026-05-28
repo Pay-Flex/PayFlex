@@ -1,0 +1,176 @@
+<!doctype html>
+<html lang="fr" xmlns:th="http://www.thymeleaf.org">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Admin — Inscriptions</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.2/css/all.min.css">
+  <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
+  <link rel="stylesheet" href="/css/admin-wow.css">
+</head>
+<body class="pf-admin bg-slate-100 min-h-screen">
+<th:block th:replace="~{fragments/admin-chrome :: startMain('space-y-4')}"/>
+<th:block th:replace="~{fragments/admin-chrome :: pageHeader('Validation des inscriptions','Demandes en attente et historique')}"/>
+
+    <div class="flex flex-wrap gap-2 text-xs">
+      <a th:href="@{/admin/registrations(status='pending')}"
+         class="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full font-medium border transition-colors"
+         th:classappend="${status == 'pending'} ? ' bg-amber-100 border-amber-300 text-amber-950' : ' bg-white border-slate-200 text-slate-700 hover:bg-amber-50'">
+        <i class="fa-solid fa-hourglass-half"></i>
+        En attente
+        <span class="font-bold" th:text="${regCountPending}">0</span>
+      </a>
+      <a th:href="@{/admin/registrations(status='approved')}"
+         class="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full font-medium border transition-colors"
+         th:classappend="${status == 'approved'} ? ' bg-emerald-100 border-emerald-300 text-emerald-900' : ' bg-white border-slate-200 text-slate-700 hover:bg-emerald-50'">
+        <i class="fa-solid fa-circle-check"></i>
+        Approuvées
+        <span class="font-bold" th:text="${regCountApproved}">0</span>
+      </a>
+      <a th:href="@{/admin/registrations(status='rejected')}"
+         class="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full font-medium border transition-colors"
+         th:classappend="${status == 'rejected'} ? ' bg-red-100 border-red-300 text-red-900' : ' bg-white border-slate-200 text-slate-700 hover:bg-red-50'">
+        <i class="fa-solid fa-ban"></i>
+        Refusées
+        <span class="font-bold" th:text="${regCountRejected}">0</span>
+      </a>
+      <a th:href="@{/admin/registrations}"
+         class="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full font-medium border bg-white border-slate-200 text-slate-600 hover:bg-slate-50"
+         th:classappend="${status == null || status == ''} ? ' ring-2 ring-slate-300' : ''">
+        <i class="fa-solid fa-list"></i> Toutes
+      </a>
+    </div>
+
+    <form method="get" action="/admin/registrations" class="bg-white rounded-xl p-4 shadow-sm grid grid-cols-1 md:grid-cols-12 gap-3 items-end">
+      <div class="md:col-span-5">
+        <label class="block text-xs font-medium text-slate-600 mb-1">Recherche</label>
+        <input name="q" th:value="${q}" placeholder="Nom, téléphone ou métier" class="border rounded-lg px-3 py-2 w-full text-sm">
+      </div>
+      <div class="md:col-span-5">
+        <label class="block text-xs font-medium text-slate-600 mb-1">État du dossier</label>
+        <select name="status" class="border rounded-lg px-3 py-2 w-full text-sm bg-white">
+          <option value="" th:selected="${status == null || status == ''}">Toutes les demandes</option>
+          <option value="pending" th:selected="${status == 'pending'}">En attente de votre décision</option>
+          <option value="approved" th:selected="${status == 'approved'}">Déjà acceptées</option>
+          <option value="rejected" th:selected="${status == 'rejected'}">Déjà refusées</option>
+        </select>
+      </div>
+      <div class="md:col-span-2 flex gap-2">
+        <button type="submit" class="pf-btn pf-btn-primary flex-1 py-2 px-4 text-sm">Filtrer</button>
+        <a th:href="@{/admin/registrations}" class="pf-btn pf-btn-secondary py-2 px-3 text-sm" title="Réinitialiser"><i class="fa-solid fa-rotate-left"></i></a>
+      </div>
+    </form>
+
+    <section class="bg-white rounded-xl p-4 shadow-sm overflow-auto">
+      <p class="text-sm text-slate-600 mb-3">
+        Ouvrez le <strong>dossier détaillé</strong> pour consulter les pièces, assigner un agent ou refuser un dossier si besoin. Les comptes clients sont activés automatiquement à l’inscription.
+        <span th:if="${adminFullAccess || adminIsGestionnaire}" class="text-slate-500">
+          — <strong>Supprimer</strong> retire le dossier de cette liste (le compte client reste actif si déjà approuvé).
+        </span>
+      </p>
+      <table class="w-full text-sm">
+        <thead class="bg-slate-100">
+        <tr>
+          <th class="text-left py-2 px-2">Nom</th>
+          <th class="text-left py-2 px-2">Téléphone</th>
+          <th class="text-left py-2 px-2">Ville</th>
+          <th class="text-left py-2 px-2">Date</th>
+          <th class="text-left py-2 px-2">Profil</th>
+          <th class="text-left py-2 px-2 font-mono text-xs">Code</th>
+          <th class="text-left py-2 px-2">État</th>
+          <th class="text-right py-2 px-2 min-w-[14rem]">Actions</th>
+        </tr>
+        </thead>
+        <tbody>
+        <tr th:if="${registrationsPage.items().isEmpty()}">
+          <td colspan="8" class="py-10 text-center text-slate-500">
+            <i class="fa-regular fa-folder-open text-2xl mb-2 block opacity-50"></i>
+            Aucune demande ne correspond à vos critères.
+          </td>
+        </tr>
+        <tr th:each="r : ${registrationsPage.items()}" class="border-t border-slate-100 hover:bg-slate-50/80">
+          <td class="py-2 px-2 align-top font-medium" th:text="${r.fullName()}"></td>
+          <td class="py-2 px-2 align-top font-mono text-xs" th:text="${r.phone()}"></td>
+          <td class="py-2 px-2 align-top text-slate-600" th:text="${r.city() != null && !r.city().isBlank() ? r.city() : '—'}"></td>
+          <td class="py-2 px-2 align-top text-slate-600 text-xs whitespace-nowrap" th:text="${r.createdAt()}"></td>
+          <td class="py-2 px-2 align-top text-slate-600 text-xs" th:text="${r.requestedRole() != null ? r.requestedRole() : '—'}"></td>
+          <td class="py-2 px-2 align-top text-slate-500 font-mono text-xs" th:text="${r.uniqueCode()}"></td>
+          <td class="py-2 px-2 align-top">
+            <span class="inline-flex px-2 py-0.5 rounded-full text-xs font-medium"
+                  th:classappend="${r.status() == 'pending'} ? ' bg-amber-100 text-amber-900' : (${r.status() == 'approved'} ? ' bg-emerald-100 text-emerald-800' : ' bg-red-100 text-red-800')"
+                  th:text="${r.status() == 'pending' ? 'En attente' : (r.status() == 'approved' ? 'Approuvée' : (r.status() == 'rejected' ? 'Refusée' : r.status()))}"></span>
+          </td>
+          <td class="py-2 px-2 align-top text-right">
+            <div class="flex flex-wrap gap-1 justify-end items-center">
+              <a th:href="@{/admin/registrations/{id}(id=${r.id()})}" class="pf-btn pf-btn-secondary text-xs">
+                <i class="fa-regular fa-eye mr-1"></i>Détails
+              </a>
+              <a th:if="${r.status() == 'pending'}" th:href="@{/admin/registrations/{id}(id=${r.id()})} + '#modifier'" class="pf-btn pf-btn-primary text-xs">
+                <i class="fa-regular fa-pen-to-square mr-1"></i>Modifier
+              </a>
+              <a th:if="${r.status() == 'approved' && r.linkedClientUserId() != null}"
+                 th:href="@{/admin/clients/{id}(id=${r.linkedClientUserId()})}"
+                 class="pf-btn pf-btn-secondary text-xs" title="Fiche client créée">
+                <i class="fa-solid fa-user mr-1"></i>Compte
+              </a>
+              <form th:if="${adminFullAccess || adminIsGestionnaire}"
+                    method="post"
+                    action="/admin/registrations/delete"
+                    class="inline"
+                    th:attr="data-status=${r.status()}, data-admin-full=${adminFullAccess}"
+                    onsubmit="return pfConfirmRegistrationDelete(event, this);">
+                <input type="hidden" th:name="${_csrf.parameterName}" th:value="${_csrf.token}">
+                <input type="hidden" name="id" th:value="${r.id()}">
+                <button type="submit" class="pf-btn pf-btn-danger text-xs" title="Supprimer ce dossier">
+                  <i class="fa-regular fa-trash-can mr-1"></i>Supprimer
+                </button>
+              </form>
+            </div>
+          </td>
+        </tr>
+        </tbody>
+      </table>
+      <th:block th:replace="~{fragments/admin-chrome :: pagination(${registrationsPage}, '/admin/registrations', ${filterQuery})}"/>
+    </section>
+
+<th:block th:replace="~{fragments/admin-chrome :: endMain}"/>
+<script>
+  function pfConfirmRegistrationDelete(event, form) {
+    const st = form.dataset.status || '';
+    const full = form.dataset.adminFull === 'true';
+    let text;
+    if (st === 'approved') {
+      text = full
+        ? 'Retirer ce dossier de l\'historique ? Le compte client PayFlex restera actif.'
+        : 'Demander le retrait de ce dossier de l\'historique ? Le compte client ne sera pas supprimé.';
+    } else if (st === 'pending') {
+      text = full
+        ? 'Supprimer définitivement cette demande en attente ?'
+        : 'Demander la suppression de cette demande en attente ?';
+    } else {
+      text = full
+        ? 'Supprimer définitivement ce dossier refusé ?'
+        : 'Demander la suppression de ce dossier refusé ?';
+    }
+    return pfConfirmDeleteWithReason(event, text, full);
+  }
+  (() => {
+    const p = new URLSearchParams(window.location.search);
+    const s = p.get('success');
+    const e = p.get('error');
+    const msg = {
+      '1': { title: 'Enregistré', t: 'Décision ou action enregistrée.' },
+      'approved': { title: 'Inscription approuvée', t: 'Le compte client a été créé et le dossier est clos.' },
+      'rejected': { title: 'Demande refusée', t: 'Le statut a été mis à jour.' },
+      'deleted': { title: 'Suppression effectuée', t: 'Le dossier a été retiré de la liste.' },
+      'archived': { title: 'Dossier retiré', t: 'L\'historique a été supprimé. Le compte client reste actif.' }
+    };
+    if (s && msg[s]) Swal.fire({icon:'success', title: msg[s].title, text: msg[s].t, timer: 2200, showConfirmButton: false});
+    else if (s) Swal.fire({icon:'success', title: 'OK', timer: 1500, showConfirmButton: false});
+    if (e) Swal.fire({icon:'error', title: 'Action impossible', text: decodeURIComponent(e)});
+  })();
+</script>
+<script src="/js/admin-wow.js"></script>
+</body>
+</html>

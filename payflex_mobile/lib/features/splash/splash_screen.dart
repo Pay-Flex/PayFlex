@@ -5,6 +5,7 @@ import 'package:google_fonts/google_fonts.dart';
 import '../../core/constants/app_colors.dart';
 import '../../core/providers/auth_provider.dart';
 import '../auth/welcome_screen.dart';
+import '../auth/widgets/payflex_logo.dart';
 import '../agent/agent_main_navigation_screen.dart';
 import '../main_navigation_screen.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -22,13 +23,12 @@ class _SplashScreenState extends ConsumerState<SplashScreen> {
     super.initState();
     Timer(const Duration(seconds: 3), () {
       final auth = ref.read(authProvider);
-      
+
       Widget nextScreen;
       if (auth.isAuthenticated) {
         if (auth.role == 'agent') {
           nextScreen = const AgentMainNavigationScreen();
         } else {
-          // Import dynamic for Client Nav if needed
           nextScreen = const MainNavigationScreen();
         }
       } else {
@@ -53,27 +53,12 @@ class _SplashScreenState extends ConsumerState<SplashScreen> {
       backgroundColor: Colors.white,
       body: Stack(
         children: [
-          // Center Logo
           Center(
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                const PayFlexLogo(size: 100),
-                const SizedBox(height: 16),
-                Text(
-                  'PayFlex',
-                  style: GoogleFonts.manrope(
-                    fontSize: 32,
-                    fontWeight: FontWeight.w900,
-                    color: AppColors.secondary,
-                    letterSpacing: -1,
-                  ),
-                ),
-              ],
-            ).animate().fadeIn(duration: 800.ms).scale(begin: const Offset(0.8, 0.8), curve: Curves.easeOutBack),
+            child: const PayFlexLogo(size: 120)
+                .animate()
+                .fadeIn(duration: 800.ms)
+                .scale(begin: const Offset(0.8, 0.8), curve: Curves.easeOutBack),
           ),
-          
-          // Bottom Tagline
           Positioned(
             bottom: 60,
             left: 40,
@@ -88,55 +73,6 @@ class _SplashScreenState extends ConsumerState<SplashScreen> {
                 fontWeight: FontWeight.w500,
               ),
             ).animate().fadeIn(delay: 1.seconds),
-          ),
-        ],
-      ),
-    );
-  }
-}
-
-class PayFlexLogo extends StatelessWidget {
-  final double size;
-  const PayFlexLogo({super.key, required this.size});
-
-  @override
-  Widget build(BuildContext context) {
-    return SizedBox(
-      width: size,
-      height: size,
-      child: Stack(
-        children: [
-          // Top Yellow Shape
-          Positioned(
-            top: 0,
-            left: 0,
-            child: Container(
-              width: size * 0.6,
-              height: size * 0.4,
-              decoration: const BoxDecoration(
-                color: AppColors.primary,
-                borderRadius: BorderRadius.only(
-                  topLeft: Radius.circular(8),
-                  bottomRight: Radius.circular(24),
-                ),
-              ),
-            ),
-          ),
-          // Bottom Blue Shape
-          Positioned(
-            bottom: 0,
-            right: 0,
-            child: Container(
-              width: size * 0.6,
-              height: size * 0.6,
-              decoration: const BoxDecoration(
-                color: AppColors.secondary,
-                borderRadius: BorderRadius.only(
-                  topLeft: Radius.circular(24),
-                  bottomRight: Radius.circular(8),
-                ),
-              ),
-            ),
           ),
         ],
       ),

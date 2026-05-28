@@ -1,0 +1,97 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org">
+<body>
+<th:block th:fragment="startMain(mainClass)">
+  <div class="pf-admin-top-strip fixed inset-x-0 top-0 h-36 -z-10 opacity-95" aria-hidden="true"></div>
+  <button type="button" id="pf-nav-toggle"
+          class="pf-nav-toggle lg:hidden fixed top-4 left-4 z-[60] inline-flex items-center justify-center w-11 h-11 rounded-xl text-white shadow-lg"
+          style="background:var(--pf-admin-blue)" aria-label="Ouvrir le menu">
+    <i class="fa-solid fa-bars"></i>
+  </button>
+  <div id="pf-nav-overlay" class="pf-nav-overlay hidden fixed inset-0 bg-black/50 z-40 lg:hidden" aria-hidden="true"></div>
+  <div class="pf-admin-layout-grid grid grid-cols-1 lg:grid-cols-[260px_1fr] min-h-screen"
+       th:attr="data-admin-gestionnaire=${adminIsGestionnaire},data-admin-full=${adminFullAccess},data-adhesion-urgencies=${navAdhesionUrgencies}">
+    <aside th:replace="~{fragments/admin-sidebar :: sidebar}"></aside>
+    <main class="p-4 md:p-6 lg:pt-6" th:classappend="${mainClass != null && !mainClass.isEmpty()} ? ' ' + mainClass : ' space-y-4'">
+</th:block>
+
+<th:block th:fragment="endMain">
+    </main>
+  </div>
+</th:block>
+
+<th:block th:fragment="pageHeader(title, subtitle)">
+  <header class="pf-admin-page-header items-center mb-4">
+    <div>
+      <h2 class="pf-admin-page-title text-2xl font-bold" th:text="${title}">Titre</h2>
+      <p th:if="${subtitle != null && !subtitle.isEmpty()}" class="pf-admin-page-sub text-sm mt-0.5" th:text="${subtitle}"></p>
+    </div>
+    <div th:if="${adminIsGestionnaire}" class="w-full basis-full text-xs bg-amber-100 border border-amber-200 text-amber-950 rounded-lg px-3 py-2 mb-0">
+      <i class="fa-solid fa-user-lock mr-1"></i>
+      Mode gestionnaire : vous supervisez l’activité (agents, clients, inscriptions) comme l’administrateur, avec quelques actions soumises à validation.
+      Complétez votre <a href="/admin/mon-profil" class="underline font-semibold">dossier RH</a> ;
+      modifications avec motif obligatoire ; suppressions soumises à validation de l'administrateur principal.
+      <a href="/admin/audit?profil=gestionnaire" class="underline font-semibold ml-1">Voir mon journal</a>
+    </div>
+    <div class="pf-admin-user-chip" role="status" aria-label="Session administrateur">
+      <span class="pf-admin-user-chip-badge" aria-hidden="true"><i class="fa-solid fa-shield-halved"></i></span>
+      <div>
+        <span class="pf-admin-user-chip-name" th:text="${adminPrincipalName}">admin</span>
+        <span class="pf-admin-user-chip-role" th:text="${adminRoleLabel}">Administrateur</span>
+      </div>
+    </div>
+  </header>
+</th:block>
+
+<th:block th:fragment="pagination(page, basePath, filterQuery)">
+  <footer class="pf-admin-pagination flex flex-wrap justify-between items-center gap-3 mt-4 pt-4 border-t border-slate-200 text-sm text-slate-700"
+          th:if="${page != null}">
+    <span class="tabular-nums"
+          th:text="|${page.rangeStart()}–${page.rangeEnd()} sur ${page.total()} · page ${page.displayPage()}/${page.displayTotalPages()}|">
+      1–80 sur 0 · page 1/1
+    </span>
+    <div class="flex flex-wrap gap-2">
+      <a th:if="${page.hasPrevious()}"
+         th:href="${page.linkFor(basePath, filterQuery, page.page() - 1)}"
+         class="px-3 py-1.5 bg-slate-200 text-slate-800 rounded-lg hover:bg-slate-300 font-medium">Précédent</a>
+      <a th:if="${page.hasNext()}"
+         th:href="${page.linkFor(basePath, filterQuery, page.page() + 1)}"
+         class="px-3 py-1.5 bg-slate-800 text-white rounded-lg hover:bg-slate-900 font-medium">Suivant</a>
+    </div>
+  </footer>
+</th:block>
+
+<th:block th:fragment="recordBack(backUrl, backLabel)">
+  <a th:href="${backUrl}"
+     class="inline-flex items-center gap-2 text-sm font-semibold hover:underline"
+     style="color:var(--pf-admin-blue)">
+    <i class="fa-solid fa-arrow-left"></i>
+    <span th:text="${backLabel}">Retour</span>
+  </a>
+</th:block>
+
+<th:block th:fragment="hrReferentHelp">
+  <p class="text-xs text-slate-500 mb-3 leading-relaxed bg-slate-50 border border-slate-100 rounded-lg px-3 py-2">
+    <i class="fa-solid fa-circle-info mr-1 text-slate-400"></i>
+    <strong>Contact RH seulement</strong> — ces champs ne créent pas de compte PayFlex.
+    La supervision des agents (inscriptions, clients, cotisations) est assurée par les comptes
+    <strong>Administrateur</strong> et <strong>Gestionnaire</strong> sur l’espace admin.
+  </p>
+</th:block>
+
+<th:block th:fragment="phoneInputHead">
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/intl-tel-input@24.6.0/build/css/intlTelInput.css">
+</th:block>
+
+<th:block th:fragment="phoneInputFoot">
+  <script src="https://cdn.jsdelivr.net/npm/intl-tel-input@24.6.0/build/js/intlTelInput.min.js"></script>
+  <script src="/js/admin-phone-input.js"></script>
+</th:block>
+
+<th:block th:fragment="statusBadge(status)">
+  <span class="inline-flex px-2 py-1 rounded-full text-xs font-medium"
+        th:classappend="${status == 'pending'} ? ' bg-amber-100 text-amber-900' : (${status == 'adhere'} ? ' bg-blue-100 text-blue-900' : (${status == 'valide'} ? ' bg-emerald-100 text-emerald-800' : (${status == 'bloque'} ? ' bg-red-100 text-red-800' : ' bg-slate-100 text-slate-700')))"
+        th:text="${status == 'pending' ? 'En attente' : (status == 'adhere' ? 'Adhérent' : (status == 'valide' ? 'En attente adhésion' : (status == 'bloque' ? 'Bloqué' : status)))}"></span>
+</th:block>
+</body>
+</html>

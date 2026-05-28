@@ -1,0 +1,194 @@
+<!doctype html>
+<html lang="fr" xmlns:th="http://www.thymeleaf.org">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Admin — Rôles et permissions</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.2/css/all.min.css">
+  <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
+  <link rel="stylesheet" href="/css/admin-wow.css">
+</head>
+<body class="pf-admin bg-slate-100 min-h-screen">
+<th:block th:replace="~{fragments/admin-chrome :: startMain('relative p-0 min-h-0')}"/>
+
+    <div class="pf-rp-main-bg" aria-hidden="true"></div>
+    <div class="relative z-[1] max-w-[1680px] mx-auto w-full px-4 md:px-6 lg:px-8 py-6 lg:py-8 space-y-6 pb-16">
+
+      <header class="pf-rp-hero">
+        <div class="pf-rp-hero-content">
+          <p class="pf-rp-hero-kicker text-[11px] uppercase tracking-[0.14em] mb-2">Administration PayFlex</p>
+          <h2 class="pf-rp-hero-title">Profils métier et autorisations</h2>
+          <p class="pf-rp-hero-sub">
+            Définissez les <strong class="font-semibold text-white">profils</strong> utilisés dans l’application mobile (ex. client, agent) et les actions autorisées pour chacun.
+            Les comptes qui ouvrent ce tableau de bord ne sont pas concernés par cette page.
+          </p>
+        </div>
+      </header>
+
+      <section th:if="${editRole != null}" class="pf-rp-edit-card p-5 md:p-6">
+        <div class="flex flex-wrap items-center justify-between gap-2 mb-4">
+          <h3 class="text-lg font-bold text-slate-900 flex items-center gap-2"><i class="fa-solid fa-pen-to-square text-amber-700"></i>Modifier le profil</h3>
+          <a href="/admin/roles-permissions" class="text-sm font-medium text-slate-600 hover:text-slate-900 underline underline-offset-2">Fermer sans enregistrer</a>
+        </div>
+        <form method="post" th:action="@{/admin/roles/update}" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 items-start">
+          <input type="hidden" th:name="${_csrf.parameterName}" th:value="${_csrf.token}">
+          <input type="hidden" name="id" th:value="${editRole.id()}">
+          <div class="md:col-span-2 lg:col-span-2 rounded-xl bg-white/70 border border-amber-200/60 px-4 py-3">
+            <label class="block text-xs font-semibold text-slate-600 mb-1">Référence automatique du profil</label>
+            <input type="text" readonly class="border border-slate-200 rounded-lg px-3 py-2 w-full text-sm bg-slate-50 text-slate-700 font-mono tracking-tight" th:value="${editRole.code()}">
+            <p class="text-[11px] text-slate-600 mt-2 leading-snug">Créée une fois pour le système (filtres, liaisons techniques). Elle reste stable même si vous changez le nom affiché ci‑dessous.</p>
+          </div>
+          <div class="md:col-span-2 lg:col-span-2">
+            <label class="block text-xs font-semibold text-slate-600 mb-1">Nom affiché dans les listes</label>
+            <input name="label" required class="border rounded-lg px-3 py-2.5 w-full text-sm" th:value="${editRole.label()}">
+          </div>
+          <div class="md:col-span-2 lg:col-span-4">
+            <label class="block text-xs font-semibold text-slate-600 mb-1">Description</label>
+            <textarea name="description" rows="3" class="border rounded-lg px-3 py-2 w-full text-sm" th:text="${editRole.description() != null ? editRole.description() : ''}"></textarea>
+          </div>
+          <div class="md:col-span-2 lg:col-span-4 pt-1">
+            <button type="submit" class="pf-btn pf-btn-primary text-sm py-2.5 px-5 rounded-lg shadow-sm">Enregistrer les modifications</button>
+          </div>
+        </form>
+      </section>
+
+      <section class="pf-detail-panel p-5 md:p-6">
+        <div class="flex flex-wrap items-end justify-between gap-3 mb-5">
+          <div>
+            <h3 class="pf-detail-section-head mb-1"><i class="fa-solid fa-users-gear"></i>Liste des profils</h3>
+            <p class="text-sm text-slate-600 max-w-3xl leading-relaxed">Les profils <strong>Client</strong> et <strong>Agent terrain</strong> sont nécessaires au fonctionnement : vous pouvez adapter leur nom et leur description, mais pas les supprimer.</p>
+          </div>
+        </div>
+        <div class="pf-detail-table-card overflow-x-auto">
+          <table class="w-full text-sm border-collapse min-w-[760px]">
+            <thead>
+            <tr>
+              <th class="text-left py-3 px-3 border-b border-slate-200">Nom affiché</th>
+              <th class="text-left py-3 px-3 border-b border-slate-200 whitespace-nowrap">Référence auto</th>
+              <th class="text-left py-3 px-3 border-b border-slate-200 min-w-[200px]">Description</th>
+              <th class="text-right py-3 px-3 border-b border-slate-200 whitespace-nowrap">Utilisateurs</th>
+              <th class="text-right py-3 px-3 border-b border-slate-200 whitespace-nowrap">Actions</th>
+            </tr>
+            </thead>
+            <tbody>
+            <tr th:each="ro : ${roles}" class="border-b border-slate-100 hover:bg-slate-50/80 transition-colors">
+              <td class="py-3 px-3 font-semibold text-slate-800" th:text="${ro.label()}"></td>
+              <td class="py-3 px-3 font-mono text-xs text-slate-600 tabular-nums" th:text="${ro.code()}"></td>
+              <td class="py-3 px-3 text-slate-600 leading-snug max-w-md">
+                <span th:if="${ro.description() != null and !ro.description().isBlank()}" th:text="${ro.description()}"></span>
+                <span th:if="${ro.description() == null or ro.description().isBlank()}" class="text-slate-400">—</span>
+              </td>
+              <td class="py-3 px-3 text-right font-medium tabular-nums" th:text="${roleUserCounts.get(ro.id())}"></td>
+              <td class="py-3 px-3 text-right whitespace-nowrap space-x-1">
+                <a th:href="@{/admin/roles-permissions(edit=${ro.id()})}" class="pf-btn pf-btn-secondary text-xs rounded-lg">Modifier</a>
+                <form th:if="${ro.code() != 'client' and ro.code() != 'agent'}" method="post" th:action="@{/admin/roles/delete}" class="inline"
+                      onsubmit="return confirm('Supprimer ce profil ? Les autorisations liées seront effacées. Aucun utilisateur ne doit encore être sur ce profil.');">
+                  <input type="hidden" th:name="${_csrf.parameterName}" th:value="${_csrf.token}">
+                  <input type="hidden" name="id" th:value="${ro.id()}">
+                  <button type="submit" class="pf-btn pf-btn-danger text-xs rounded-lg"
+                          th:disabled="${roleUserCounts.get(ro.id()) > 0}"
+                          th:classappend="${roleUserCounts.get(ro.id()) > 0} ? ' opacity-40 cursor-not-allowed pointer-events-none' : ''">Supprimer</button>
+                </form>
+                <span th:if="${ro.code() == 'client' or ro.code() == 'agent'}" class="text-[11px] text-slate-400 align-middle ml-1">Système</span>
+              </td>
+            </tr>
+            </tbody>
+          </table>
+        </div>
+
+        <div class="mt-8 pt-8 border-t border-slate-100">
+          <h4 class="pf-detail-section-head mb-4"><i class="fa-solid fa-circle-plus"></i>Ajouter un profil</h4>
+          <div class="rounded-xl pf-rp-info-box px-4 py-3 mb-5 text-sm leading-relaxed">
+            <p class="font-semibold text-slate-900 mb-1"><i class="fa-solid fa-wand-magic-sparkles mr-2" style="color:var(--pf-admin-gold)"></i>Rien à saisir « en langage technique »</p>
+            <p class="text-slate-700">Indiquez seulement un <strong>nom compréhensible</strong> pour votre équipe. Le système crée tout seul la <strong>référence courte</strong> et l’<strong>ordre d’affichage</strong> — vous n’avez rien à saisir manuellement.</p>
+          </div>
+          <form method="post" th:action="@{/admin/roles}" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 items-start">
+            <input type="hidden" th:name="${_csrf.parameterName}" th:value="${_csrf.token}">
+            <div class="md:col-span-2 lg:col-span-2">
+              <label class="block text-xs font-semibold text-slate-600 mb-1">Nom du profil <span class="text-red-600">*</span></label>
+              <input name="label" required placeholder="Ex. Superviseur terrain, Partenaire associatif…" class="border rounded-lg px-3 py-2.5 w-full text-sm shadow-sm">
+            </div>
+            <div class="md:col-span-2 lg:col-span-4">
+              <label class="block text-xs font-semibold text-slate-600 mb-1">Description</label>
+              <textarea name="description" rows="3" placeholder="En une ou deux phrases : à qui correspond ce profil et dans quel cas l’utiliser ?" class="border rounded-lg px-3 py-2 w-full text-sm"></textarea>
+            </div>
+            <div class="md:col-span-2 lg:col-span-4 pt-1">
+              <button type="submit" class="pf-btn pf-btn-primary text-sm py-2.5 px-5 rounded-lg shadow-md shadow-blue-900/10"><i class="fa-solid fa-plus mr-2"></i>Créer le profil</button>
+            </div>
+          </form>
+        </div>
+      </section>
+
+      <section class="pf-detail-panel p-5 md:p-6">
+        <h3 class="pf-detail-section-head mb-2"><i class="fa-solid fa-shield-halved"></i>Autorisations par profil</h3>
+        <p class="text-sm text-slate-600 mb-5 max-w-4xl leading-relaxed">Pour chaque ligne, choisissez si le profil a le droit d’effectuer l’action décrite dans l’application mobile.</p>
+        <div class="pf-detail-table-card overflow-x-auto">
+          <table class="w-full text-sm border-collapse min-w-[680px]">
+            <thead>
+            <tr>
+              <th class="text-left py-3 px-3 border-b border-slate-200">Autorisation</th>
+              <th class="text-left py-3 px-3 border-b border-slate-200 min-w-[240px]">Ce que ça permet</th>
+              <th th:each="r : ${roles}" class="text-center py-3 px-3 border-b border-slate-200 whitespace-nowrap font-semibold text-slate-700" th:text="${r.label()}"></th>
+            </tr>
+            </thead>
+            <tbody>
+            <tr th:each="p : ${permissions}" class="border-b border-slate-100 hover:bg-slate-50/70 transition-colors">
+              <td class="py-4 px-3 align-top">
+                <div class="font-semibold text-slate-800" th:text="${p.label()}"></div>
+                <div class="text-[11px] font-mono text-slate-500 mt-0.5" th:text="${p.code()}"></div>
+              </td>
+              <td class="py-4 px-3 align-top text-slate-600 leading-snug">
+                <span th:if="${p.description() != null and !p.description().isBlank()}" th:text="${p.description()}"></span>
+                <span th:if="${p.description() == null or p.description().isBlank()}" class="text-slate-400 italic">—</span>
+              </td>
+              <td th:each="r : ${roles}" class="py-3 px-2 text-center align-middle">
+                <span th:with="granted=${permissionMatrix.get(r.id()).get(p.id())}">
+                  <form method="post" th:action="@{/admin/roles-permissions/toggle}" class="inline">
+                    <input type="hidden" th:name="${_csrf.parameterName}" th:value="${_csrf.token}">
+                    <input type="hidden" name="roleId" th:value="${r.id()}">
+                    <input type="hidden" name="permissionId" th:value="${p.id()}">
+                    <input type="hidden" name="grant" th:value="${granted ? 'false' : 'true'}">
+                    <button type="submit"
+                            th:class="${granted} ? 'pf-btn pf-btn-success text-xs rounded-lg min-w-[5.25rem]' : 'pf-btn pf-btn-secondary text-xs rounded-lg min-w-[5.25rem]'"
+                            th:text="${granted} ? 'Retirer' : 'Accorder'"></button>
+                  </form>
+                </span>
+              </td>
+            </tr>
+            </tbody>
+          </table>
+        </div>
+      </section>
+
+      <input type="hidden" id="pf-role-flash-success" th:if="${param.success != null && !#lists.isEmpty(param.success)}" th:value="${param.success[0]}">
+      <input type="hidden" id="pf-role-flash-error" th:if="${param.roleError != null && !#lists.isEmpty(param.roleError)}" th:value="${param.roleError[0]}">
+    </div>
+
+<th:block th:replace="~{fragments/admin-chrome :: endMain}"/>
+<script>
+  const successEl = document.getElementById('pf-role-flash-success');
+  const roleErrorEl = document.getElementById('pf-role-flash-error');
+  const successParam = successEl ? successEl.value : null;
+  const roleErrorParam = roleErrorEl ? roleErrorEl.value : null;
+  const errMap = {
+    'ROLE_CODE_REQUIRED': 'Une référence technique est nécessaire : utilisez un nom de profil clair pour que le système puisse la fabriquer automatiquement.',
+    'ROLE_CODE_INVALID': 'La référence technique générée est invalide : modifiez légèrement le nom affiché.',
+    'ROLE_LABEL_REQUIRED': 'Indiquez un nom de profil lisible pour votre équipe.',
+    'ROLE_DUPLICATE': 'Un profil avec une référence trop proche existe déjà. Changez un peu le nom affiché (un mot en plus ou différent suffit souvent).',
+    'ROLE_NOT_FOUND': 'Ce profil n’existe pas ou a été supprimé.',
+    'ROLE_PROTECTED': 'Ce profil système ne peut pas être supprimé.',
+    'ROLE_IN_USE': 'Des utilisateurs sont encore sur ce profil : attribuez-leur un autre profil avant de supprimer.',
+    'ROLE_INVALID_ID': 'Action invalide.'
+  };
+  if (successParam) {
+    const okTitles = { 'role_created': 'Profil créé', 'role_updated': 'Profil mis à jour', 'role_deleted': 'Profil supprimé', '1': 'Enregistré' };
+    Swal.fire({ icon: 'success', title: okTitles[successParam] || 'Enregistré', timer: successParam === '1' ? 1400 : 1800, showConfirmButton: false });
+  }
+  if (roleErrorParam) {
+    Swal.fire({ icon: 'error', title: 'Action impossible', text: errMap[roleErrorParam] || roleErrorParam });
+  }
+</script>
+<script src="/js/admin-wow.js"></script>
+</body>
+</html>

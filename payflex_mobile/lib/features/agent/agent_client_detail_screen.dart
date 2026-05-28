@@ -5,6 +5,7 @@ import '../../core/constants/app_colors.dart';
 import 'agent_collect_screen.dart';
 
 class AgentClientDetailScreen extends StatelessWidget {
+  final int? clientId;
   final String name;
   final String zone;
   final String img;
@@ -12,6 +13,7 @@ class AgentClientDetailScreen extends StatelessWidget {
 
   const AgentClientDetailScreen({
     super.key,
+    this.clientId,
     required this.name,
     required this.zone,
     required this.img,
@@ -276,7 +278,9 @@ class AgentClientDetailScreen extends StatelessWidget {
               onPressed: () {
                 Navigator.push(
                   context,
-                  MaterialPageRoute(builder: (context) => AgentCollectScreen(clientName: name)),
+                  MaterialPageRoute(
+                    builder: (context) => AgentCollectScreen(clientName: name, clientId: clientId),
+                  ),
                 );
               },
               icon: const Icon(Icons.qr_code_scanner_rounded, color: Colors.white),

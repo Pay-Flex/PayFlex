@@ -1,0 +1,99 @@
+<!doctype html>
+<html lang="fr" xmlns:th="http://www.thymeleaf.org">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Admin — Demandes de suppression</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.2/css/all.min.css">
+  <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
+  <link rel="stylesheet" href="/css/admin-wow.css">
+</head>
+<body class="pf-admin bg-slate-100 min-h-screen">
+<th:block th:replace="~{fragments/admin-chrome :: startMain('space-y-6')}"/>
+<th:block th:replace="~{fragments/admin-chrome :: pageHeader(${pageTitle}, ${pageSubtitle})}"/>
+
+    <div class="bg-amber-50 border border-amber-200 rounded-xl p-4 text-sm text-amber-950">
+      <p class="font-semibold mb-1"><i class="fa-solid fa-user-shield mr-2"></i>Rôle administrateur</p>
+      <p>Les gestionnaires peuvent demander une suppression (avec motif). Rien n'est effacé définitivement tant que vous n'avez pas approuvé ici. Toutes leurs actions sont visibles dans le <a href="/admin/audit?profil=gestionnaire" class="underline font-semibold">journal (filtre Gestionnaire)</a>.</p>
+    </div>
+
+    <section class="bg-white rounded-xl p-4 shadow-sm overflow-auto border border-slate-200">
+      <table class="w-full text-sm" th:if="${!pendingRequests.isEmpty()}">
+        <thead class="bg-slate-100">
+        <tr>
+          <th class="text-left py-2 px-2">Date</th>
+          <th class="text-left py-2 px-2">Demandeur</th>
+          <th class="text-left py-2 px-2">Élément</th>
+          <th class="text-left py-2 px-2">Motif</th>
+          <th class="text-right py-2 px-2">Décision</th>
+        </tr>
+        </thead>
+        <tbody>
+        <tr th:each="r : ${pendingRequests}" class="border-t border-slate-100 align-top">
+          <td class="py-3 px-2 text-slate-600 whitespace-nowrap" th:text="${r.requestedAt()}"></td>
+          <td class="py-3 px-2 font-medium" th:text="${r.requestedBy()}"></td>
+          <td class="py-3 px-2">
+            <span class="text-xs text-slate-500 block" th:text="${r.entityTypeLabel()}"></span>
+            <span th:text="${r.entityLabel()}"></span>
+            <span class="font-mono text-xs text-slate-400">#<span th:text="${r.entityId()}"></span></span>
+          </td>
+          <td class="py-3 px-2 text-slate-700 max-w-md" th:text="${r.reason()}"></td>
+          <td class="py-3 px-2 text-right whitespace-nowrap">
+            <form method="post" th:action="@{/admin/deletion-requests/approve}" class="inline mb-1">
+              <input type="hidden" th:name="${_csrf.parameterName}" th:value="${_csrf.token}">
+              <input type="hidden" name="id" th:value="${r.id()}">
+              <button type="submit" class="pf-btn pf-btn-primary text-xs py-1 px-3"
+                      onclick="return confirm('Confirmer la suppression définitive ?');">Approuver</button>
+            </form>
+            <button type="button" class="pf-btn pf-btn-secondary text-xs py-1 px-3 block mt-1 ml-auto"
+                    th:attr="data-id=${r.id()}"
+                    onclick="rejectDeletionRequest(this)">Refuser</button>
+          </td>
+        </tr>
+        </tbody>
+      </table>
+      <p th:if="${pendingRequests.isEmpty()}" class="text-slate-600 text-sm py-8 text-center">Aucune demande en attente.</p>
+    </section>
+
+<th:block th:replace="~{fragments/admin-chrome :: endMain}"/>
+<script th:inline="javascript">
+  const p = new URLSearchParams(window.location.search);
+  if (p.get('success') === 'approved') Swal.fire({icon:'success',title:'Suppression effectuée',timer:1600,showConfirmButton:false});
+  if (p.get('success') === 'rejected') Swal.fire({icon:'info',title:'Demande refusée',timer:1600,showConfirmButton:false});
+  if (p.get('error')) Swal.fire({icon:'error',title:'Erreur',text:decodeURIComponent(p.get('error').replace(/\+/g,' '))});
+
+  function rejectDeletionRequest(btn) {
+    const id = btn.dataset.id;
+    Swal.fire({
+      title: 'Refuser la demande',
+      input: 'textarea',
+      inputLabel: 'Commentaire pour le gestionnaire (optionnel)',
+      showCancelButton: true,
+      confirmButtonText: 'Refuser',
+      cancelButtonText: 'Annuler'
+    }).then((r) => {
+      if (!r.isConfirmed) return;
+      const form = document.createElement('form');
+      form.method = 'post';
+      form.action = '/admin/deletion-requests/reject';
+      const csrf = document.querySelector('input[name="_csrf"]');
+      if (csrf) {
+        const c = document.createElement('input');
+        c.type = 'hidden'; c.name = csrf.name; c.value = csrf.value;
+        form.appendChild(c);
+      }
+      const i1 = document.createElement('input');
+      i1.type = 'hidden'; i1.name = 'id'; i1.value = id;
+      form.appendChild(i1);
+      const i2 = document.createElement('input');
+      i2.type = 'hidden'; i2.name = 'reviewNote'; i2.value = r.value || '';
+      form.appendChild(i2);
+      document.body.appendChild(form);
+      form.submit();
+    });
+  }
+</script>
+<script src="/js/admin-wow.js"></script>
+</body>
+</html>

@@ -1,0 +1,112 @@
+<!doctype html>
+<html lang="fr" xmlns:th="http://www.thymeleaf.org">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Admin — Fiche produit</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.2/css/all.min.css">
+  <link rel="stylesheet" href="/css/admin-wow.css">
+</head>
+<body class="pf-admin bg-slate-100 min-h-screen">
+<th:block th:replace="~{fragments/admin-chrome :: startMain('space-y-4')}"/>
+
+  <div class="bg-white rounded-xl shadow-sm border border-slate-200/80 p-4 md:p-5">
+    <th:block th:replace="~{fragments/admin-chrome :: recordBack('/admin/products', 'Retour au catalogue')}"/>
+    <div class="mt-1">
+      <h2 class="text-xl md:text-2xl font-bold text-slate-900" th:text="${product.name()}"></h2>
+      <p class="text-sm text-slate-600 mt-1 flex flex-wrap items-center gap-x-2">
+        <span class="font-mono" th:text="${product.code()}"></span>
+        <span class="text-slate-300">·</span>
+        <span th:text="${product.category()}"></span>
+        <span class="text-slate-300">·</span>
+        <span th:text="${product.availability() == 'in_stock' ? 'En stock' : (product.availability() == 'on_order' ? 'Sur commande' : product.availability())}"></span>
+        <span th:if="${product.featured()}" class="text-amber-700 font-semibold"><i class="fa-solid fa-star mr-1"></i>À la une</span>
+      </p>
+    </div>
+  </div>
+
+  <section class="pf-detail-panel">
+    <div class="grid md:grid-cols-[minmax(240px,320px)_1fr] gap-8 items-start">
+      <div class="space-y-3 flex-shrink-0 md:w-[min(100%,320px)]">
+        <div class="pf-detail-product-img aspect-square md:aspect-auto md:h-72 rounded-xl overflow-hidden border border-slate-200 bg-slate-100">
+          <img th:if="${!#strings.isEmpty(product.mainImageHref())}" th:src="${product.mainImageHref()}" alt="" class="w-full h-full object-cover"/>
+          <div th:if="${#strings.isEmpty(product.mainImageHref())}" class="w-full h-full flex items-center justify-center text-slate-400"><i class="fa-regular fa-image text-4xl"></i></div>
+        </div>
+        <div class="grid grid-cols-2 gap-2" th:if="${!#strings.isEmpty(product.detail1Href()) || !#strings.isEmpty(product.detail2Href())}">
+          <div class="aspect-square rounded-lg overflow-hidden border border-slate-200 bg-slate-50" th:if="${!#strings.isEmpty(product.detail1Href())}">
+            <img th:src="${product.detail1Href()}" alt="" class="w-full h-full object-cover"/>
+          </div>
+          <div class="aspect-square rounded-lg overflow-hidden border border-slate-200 bg-slate-50" th:if="${!#strings.isEmpty(product.detail2Href())}">
+            <img th:src="${product.detail2Href()}" alt="" class="w-full h-full object-cover"/>
+          </div>
+        </div>
+      </div>
+      <div class="space-y-5">
+        <div>
+          <h2 class="pf-detail-section-head mb-2"><i class="fa-solid fa-align-left"></i>Description</h2>
+          <p class="text-slate-700 leading-relaxed text-[15px]" th:text="${product.description()}"></p>
+        </div>
+        <div>
+          <h2 class="pf-detail-section-head mb-3"><i class="fa-solid fa-layer-group"></i>Indicateurs</h2>
+          <div class="grid grid-cols-2 lg:grid-cols-5 gap-3">
+            <article class="pf-stat-tile pf-stat-tile--gold">
+              <p class="pf-stat-label">Prix catalogue</p>
+              <p class="pf-stat-value" th:text="${#numbers.formatInteger(product.price(),0,'POINT')} + ' FCFA'"></p>
+            </article>
+            <article class="pf-stat-tile pf-stat-tile--slate">
+              <p class="pf-stat-label">Cotisation min. / jour</p>
+              <p class="pf-stat-value" th:text="${#numbers.formatInteger(product.minDailyContribution(),0,'POINT')} + ' FCFA'"></p>
+            </article>
+            <article class="pf-stat-tile">
+              <p class="pf-stat-label">Clients intéressés</p>
+              <p class="pf-stat-value" th:text="${product.selectedByClients()}"></p>
+            </article>
+            <article class="pf-stat-tile pf-stat-tile--emerald">
+              <p class="pf-stat-label">Nombre de versements</p>
+              <p class="pf-stat-value" th:text="${product.contributionsCount()}"></p>
+            </article>
+            <article class="pf-stat-tile pf-stat-tile--amber">
+              <p class="pf-stat-label">Montant total collecté</p>
+              <p class="pf-stat-value" th:text="${#numbers.formatInteger(product.totalAmount(),0,'POINT')} + ' FCFA'"></p>
+            </article>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <section class="pf-detail-panel">
+    <h2 class="pf-detail-section-head"><i class="fa-solid fa-clock-rotate-left"></i>Historique des versements sur ce produit</h2>
+    <div class="pf-detail-table-card">
+      <table class="w-full text-sm">
+        <thead>
+        <tr>
+          <th class="text-left py-3 px-3">Client</th>
+          <th class="text-left py-3 px-3">Agent</th>
+          <th class="text-right py-3 px-3">Montant</th>
+          <th class="text-left py-3 px-3">Suivi</th>
+          <th class="text-left py-3 px-3">Date</th>
+        </tr>
+        </thead>
+        <tbody>
+        <tr th:each="c : ${productContributions}" class="border-t border-slate-100">
+          <td class="py-3 px-3 font-medium text-slate-800" th:text="${c.userName()}"></td>
+          <td class="py-3 px-3 text-slate-600" th:text="${c.agentName()}"></td>
+          <td class="py-3 px-3 text-right font-medium tabular-nums" th:text="${#numbers.formatInteger(c.amount(),0,'POINT')} + ' FCFA'"></td>
+          <td class="py-3 px-3">
+            <span class="pf-badge-soft text-xs font-semibold"
+                  th:classappend="${c.status() == 'pending'} ? ' pf-badge-soft--amber' : (${c.status() == 'validated'} ? ' pf-badge-soft--emerald' : (${c.status() == 'rejected'} ? ' pf-badge-soft--red' : ' pf-badge-soft--slate'))"
+                  th:text="${c.status() == 'pending' ? 'En attente' : (c.status() == 'validated' ? 'Confirmé' : (c.status() == 'rejected' ? 'Refusé' : c.status()))}"></span>
+          </td>
+          <td class="py-3 px-3 text-slate-500 text-xs" th:text="${c.createdAt()}"></td>
+        </tr>
+        </tbody>
+      </table>
+    </div>
+  </section>
+
+<th:block th:replace="~{fragments/admin-chrome :: endMain}"/>
+<script src="/js/admin-wow.js"></script>
+</body>
+</html>

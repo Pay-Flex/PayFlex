@@ -38,29 +38,25 @@ class _RoleSelectionScreenState extends ConsumerState<RoleSelectionScreen> {
       'color': Color(0xFFF1F8E9),
       'iconColor': Color(0xFF7CB342),
     },
-    // {
-    //   'id': 'agent',
-    //   'title': 'Agent de collecte',
-    //   'icon': Icons.support_agent_rounded,
-    //   'color': Color(0xFFF3E5F5),
-    //   'iconColor': Color(0xFF8E24AA),
-    // },
   ];
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: Colors.white,
+      backgroundColor: const Color.fromARGB(255, 250, 246, 246),
       appBar: AppBar(
+        backgroundColor: AppColors.secondary,
+        foregroundColor: Colors.white,
+        elevation: 0,
         leading: IconButton(
           onPressed: () => Navigator.pop(context),
-          icon: const Icon(Icons.arrow_back_ios_new_rounded, color: AppColors.secondary),
+          icon: const Icon(Icons.arrow_back_ios_new_rounded, color: Colors.white),
         ),
         title: Text(
           'Quel est votre profil ?',
           style: GoogleFonts.manrope(
             fontWeight: FontWeight.w800,
-            color: AppColors.secondary,
+            color: Colors.white,
             fontSize: 18,
           ),
         ),
@@ -68,8 +64,47 @@ class _RoleSelectionScreenState extends ConsumerState<RoleSelectionScreen> {
       ),
       body: Stack(
         children: [
+          Padding(
+            padding: const EdgeInsets.fromLTRB(24, 16, 24, 8),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
+                  children: [
+                    Icon(Icons.content_cut_rounded, size: 16, color: AppColors.secondary.withOpacity(0.6)),
+                    const SizedBox(width: 6),
+                    Icon(Icons.face_retouching_natural_rounded, size: 16, color: AppColors.secondary.withOpacity(0.6)),
+                    const SizedBox(width: 6),
+                    Icon(Icons.carpenter_rounded, size: 16, color: AppColors.secondary.withOpacity(0.6)),
+                    const SizedBox(width: 6),
+                    Icon(Icons.construction_rounded, size: 16, color: AppColors.secondary.withOpacity(0.6)),
+                    const SizedBox(width: 10),
+                    Expanded(
+                      child: Text(
+                        'Métiers concernés : couture, coiffure, menuiserie, maçonnerie…',
+                        style: GoogleFonts.inter(
+                          fontSize: 12,
+                          color: AppColors.secondary.withOpacity(0.6),
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 10),
+                Text(
+                  'Vous êtes agent PayFlex (employé) ? Ne créez pas de compte ici : votre administrateur ou gestionnaire vous enregistre, puis vous vous connectez avec votre téléphone et votre code PIN.',
+                  style: GoogleFonts.inter(
+                    fontSize: 11,
+                    height: 1.35,
+                    color: AppColors.secondary.withOpacity(0.75),
+                    fontWeight: FontWeight.w500,
+                  ),
+                ),
+              ],
+            ),
+          ),
           ListView.builder(
-            padding: const EdgeInsets.fromLTRB(24, 24, 24, 120),
+            padding: const EdgeInsets.fromLTRB(24, 8, 24, 120),
             itemCount: _roles.length,
             itemBuilder: (context, index) {
               final role = _roles[index];
@@ -140,8 +175,9 @@ class _RoleSelectionScreenState extends ConsumerState<RoleSelectionScreen> {
                 ? null 
                 : () {
                     // Sauvegarde du rôle dans le provider temporaire
-                    ref.read(tempRoleProvider.notifier).setRole(_selectedRole);
-                    
+                    ref.read(tempRoleProvider.notifier).setRole('client');
+                    ref.read(tempClientProfileProvider.notifier).setProfile(_selectedRole);
+
                     Navigator.push(
                       context,
                       MaterialPageRoute(builder: (context) => const RegistrationScreen()),

@@ -1,0 +1,161 @@
+<!doctype html>
+<html lang="fr" xmlns:th="http://www.thymeleaf.org">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Admin — Agents</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.2/css/all.min.css">
+  <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
+  <link rel="stylesheet" href="/css/admin-wow.css">
+</head>
+<body class="pf-admin bg-slate-100 min-h-screen">
+<th:block th:replace="~{fragments/admin-chrome :: startMain('space-y-4')}"/>
+<th:block th:replace="~{fragments/admin-chrome :: pageHeader('Gestion des agents','Équipe terrain et zones d’affectation')}"/>
+
+    <form method="get" action="/admin/agents" class="bg-white rounded-xl p-4 shadow-sm grid grid-cols-1 md:grid-cols-6 gap-3 items-end">
+      <div class="md:col-span-2">
+        <label class="block text-xs font-medium text-slate-600 mb-1">Recherche</label>
+        <input name="q" th:value="${q}" placeholder="Nom ou ville" class="border rounded-lg px-3 py-2 w-full text-sm">
+      </div>
+      <div>
+        <label class="block text-xs font-medium text-slate-600 mb-1">Zone</label>
+        <input name="zone" th:value="${zone}" placeholder="Zone" class="border rounded-lg px-3 py-2 w-full text-sm">
+      </div>
+      <div>
+        <label class="block text-xs font-medium text-slate-600 mb-1">Actif</label>
+        <select name="active" class="border rounded-lg px-3 py-2 w-full text-sm bg-white">
+          <option value="">Tous</option>
+          <option value="true" th:selected="${active != null && active}">Oui</option>
+          <option value="false" th:selected="${active != null && !active}">Non</option>
+        </select>
+      </div>
+      <div>
+        <button type="submit" class="pf-btn pf-btn-primary w-full md:w-auto py-2 px-4 text-sm">Filtrer</button>
+      </div>
+    </form>
+
+    <section class="pf-admin-banner rounded-xl p-5 shadow-lg text-white">
+      <div class="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
+        <div>
+          <h3 class="text-lg font-bold">Embaucher un nouvel employé (agent)</h3>
+          <p class="text-sm text-white/85 mt-1 max-w-xl">Dossier RH complet : identité, contacts d’urgence, référents, preuves (CNI, contrat, photo), création du compte mobile.</p>
+        </div>
+        <a href="/admin/agents/nouveau" class="inline-flex items-center justify-center gap-2 bg-white font-bold rounded-xl px-5 py-3 text-sm shadow shrink-0 border border-slate-200 hover:bg-slate-50" style="color:var(--pf-admin-blue)">
+          <i class="fa-solid fa-user-plus"></i> Nouvelle fiche employé
+        </a>
+      </div>
+    </section>
+
+    <section class="bg-white rounded-xl p-4 shadow-sm">
+      <h3 class="font-semibold text-slate-800 mb-1">Affecter un profil agent existant</h3>
+      <p class="text-xs text-slate-500 mb-4">Compte <strong>agent</strong> sans fiche terrain, ou <strong>client validé</strong> à promouvoir — choisis la zone référencée (créée sous <a href="/admin/zones" class="text-blue-700 underline">Zones</a>). L’objectif terrain est calculé automatiquement.</p>
+      <form method="post" action="/admin/agents" class="grid grid-cols-1 md:grid-cols-2 gap-x-4 gap-y-3 items-end">
+        <input type="hidden" th:name="${_csrf.parameterName}" th:value="${_csrf.token}">
+        <div>
+          <label class="block text-xs font-medium text-slate-600 mb-1">Utilisateur</label>
+          <select name="userId" class="border rounded-lg px-3 py-2 w-full text-sm" required>
+            <option value="">Choisir…</option>
+            <option th:each="c : ${agentCandidates}" th:value="${c.userId()}"
+                    th:text="${c.fullName() + ' — ' + (c.city() != null ? c.city() : '') + (c.promoteFromClient() ? ' (client → agent)' : '')}"></option>
+          </select>
+        </div>
+        <div>
+          <label class="block text-xs font-medium text-slate-600 mb-1">Zone d’affectation</label>
+          <select name="zoneId" required class="border rounded-lg px-3 py-2 w-full text-sm">
+            <option value="">Choisir une zone…</option>
+            <option th:each="z : ${zoneChoices}" th:value="${z.id()}" th:text="${z.name()}"></option>
+          </select>
+        </div>
+        <div class="md:col-span-2 pt-2">
+          <button type="submit" class="pf-btn pf-btn-primary py-2 px-4 text-sm">Créer l’agent</button>
+        </div>
+      </form>
+    </section>
+
+    <section class="bg-white rounded-xl p-4 shadow-sm overflow-auto">
+      <div class="flex justify-end gap-2 mb-3">
+        <a href="/admin/export/agents.csv" class="pf-btn pf-btn-secondary text-sm">Export CSV</a>
+        <a href="/admin/export/agents.pdf" class="pf-btn pf-btn-secondary text-sm">Export PDF</a>
+      </div>
+      <table class="w-full text-sm">
+        <thead class="bg-slate-100">
+        <tr>
+          <th class="text-left py-2 px-2">Nom</th>
+          <th class="text-left py-2 px-2">Ville</th>
+          <th class="text-left py-2 px-2">Zone</th>
+          <th class="text-right py-2 px-2">Total collecté (FCFA)</th>
+          <th class="text-center py-2 px-2">Actif</th>
+          <th class="text-right py-2 px-2">Actions</th>
+        </tr>
+        </thead>
+        <tbody>
+        <tr th:each="a : ${agentsPage.items()}">
+          <td class="py-2 px-2 align-middle font-medium" th:text="${a.fullName()}"></td>
+          <td class="py-2 px-2 align-middle" th:text="${a.city()}"></td>
+          <td class="py-2 px-2 align-middle text-slate-700">
+            <form th:id="'agent-upd-' + ${a.id()}" method="post" action="/admin/agents/update">
+              <input type="hidden" th:name="${_csrf.parameterName}" th:value="${_csrf.token}">
+              <input type="hidden" name="id" th:value="${a.id()}">
+              <input type="hidden" name="zoneId" th:if="${a.zoneId() != null}" th:value="${a.zoneId()}">
+              <input type="hidden" name="zone" th:value="${a.zone()}">
+            </form>
+            <span th:text="${a.zone() != null && !a.zone().isBlank() ? a.zone() : '—'}"></span>
+          </td>
+          <td class="py-2 px-2 align-middle text-right font-semibold tabular-nums text-slate-800"
+              th:text="${#numbers.formatInteger(a.collectedTotal(),0,'POINT')}"></td>
+          <td class="py-2 px-2 align-middle text-center">
+            <label class="inline-flex items-center gap-1 text-xs text-slate-600 cursor-pointer justify-center">
+              <input th:form="'agent-upd-' + ${a.id()}" type="checkbox" name="active" value="true" th:checked="${a.active()}">
+              Oui
+            </label>
+          </td>
+          <td class="py-2 px-2 align-middle">
+            <div class="flex flex-wrap gap-2 justify-end">
+              <button type="submit" th:form="'agent-upd-' + ${a.id()}" class="pf-btn pf-btn-primary"><i class="fa-regular fa-pen-to-square"></i> Modifier</button>
+              <a th:href="@{/admin/agents/{id}(id=${a.id()})}" class="pf-btn pf-btn-secondary"><i class="fa-regular fa-chart-bar"></i> Fiche</a>
+              <form th:if="${adminFullAccess || adminIsGestionnaire}" method="post" action="/admin/agents/delete" class="inline"
+                    th:attr="data-admin-full=${adminFullAccess}"
+                    onsubmit="return pfConfirmDeleteWithReason(event, this.dataset.adminFull === 'true' ? 'Supprimer cet agent ?' : 'Demander la suppression de cet agent ?', this.dataset.adminFull === 'true');">
+                <input type="hidden" th:name="${_csrf.parameterName}" th:value="${_csrf.token}">
+                <input type="hidden" name="id" th:value="${a.id()}">
+                <button type="submit" class="pf-btn pf-btn-danger"><i class="fa-regular fa-trash-can"></i></button>
+              </form>
+            </div>
+          </td>
+        </tr>
+        </tbody>
+      </table>
+      <th:block th:replace="~{fragments/admin-chrome :: pagination(${agentsPage}, '/admin/agents', ${filterQuery})}"/>
+    </section>
+
+<th:block th:replace="~{fragments/admin-chrome :: endMain}"/>
+<script th:inline="javascript">
+  const successParam = [[${param.success}]];
+  const errorParam = [[${param.error}]];
+  if (successParam) {
+    Swal.fire({icon:'success',title:'Succès',text:'Agent créé',timer:1600,showConfirmButton:false});
+  }
+  if (errorParam) {
+    Swal.fire({icon:'error',title:'Erreur validation',text:'Vérifie les champs saisis'});
+  }
+  function confirmDelete(event, text) {
+    event.preventDefault();
+    const form = event.target;
+    Swal.fire({icon:'warning',title:'Confirmation',text,showCancelButton:true,confirmButtonText:'Oui',cancelButtonText:'Annuler'})
+      .then((r) => { if (r.isConfirmed) form.submit(); });
+    return false;
+  }
+  (() => {
+    const qInput = document.querySelector('form[action="/admin/agents"] input[name="q"]');
+    if (!qInput) return;
+    let t;
+    qInput.addEventListener('input', () => {
+      clearTimeout(t);
+      t = setTimeout(() => qInput.form.submit(), 450);
+    });
+  })();
+</script>
+<script src="/js/admin-wow.js"></script>
+</body>
+</html>

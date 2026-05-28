@@ -1,0 +1,146 @@
+<!doctype html>
+<html lang="fr" xmlns:th="http://www.thymeleaf.org">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Admin — Clients</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.2/css/all.min.css">
+  <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
+  <link rel="stylesheet" href="/css/admin-wow.css">
+</head>
+<body class="pf-admin bg-slate-100 min-h-screen">
+<th:block th:replace="~{fragments/admin-chrome :: startMain('space-y-4')}"/>
+    <th:block th:replace="~{fragments/admin-chrome :: pageHeader('Espace clients', 'Adhésion 250 FCFA espèces · badges assiduité · litiges')}"/>
+
+    <div th:if="${navAdhesionUrgencies > 0}" class="rounded-xl border-2 border-red-300 bg-red-50 px-4 py-3 text-sm text-red-900 flex flex-wrap items-center justify-between gap-2">
+      <span><i class="fa-solid fa-triangle-exclamation mr-2"></i><strong th:text="${navAdhesionUrgencies}">0</strong> urgence(s) adhésion — paiement signalé sans statut adhérent.</span>
+      <a href="/admin/clients?adhesion=dispute" class="pf-btn pf-btn-danger text-xs">Traiter</a>
+    </div>
+
+    <form method="get" action="/admin/clients" class="bg-white rounded-xl p-4 shadow-sm grid grid-cols-1 md:grid-cols-12 gap-3 items-end">
+      <div class="md:col-span-3">
+        <label class="block text-xs font-medium text-slate-600 mb-1">Recherche</label>
+        <input name="q" th:value="${q}" placeholder="Nom, téléphone, métier" class="border rounded-lg px-3 py-2 w-full text-sm">
+      </div>
+      <div class="md:col-span-2">
+        <label class="block text-xs font-medium text-slate-600 mb-1">Ville</label>
+        <input name="city" th:value="${city}" class="border rounded-lg px-3 py-2 w-full text-sm">
+      </div>
+      <div class="md:col-span-2">
+        <label class="block text-xs font-medium text-slate-600 mb-1">Statut compte</label>
+        <select name="status" class="border rounded-lg px-3 py-2 w-full text-sm bg-white">
+          <option value="">Tous</option>
+          <option value="valide" th:selected="${status == 'valide'}">En attente adhésion</option>
+          <option value="adhere" th:selected="${status == 'adhere'}">Adhérent</option>
+          <option value="bloque" th:selected="${status == 'bloque'}">Bloqué</option>
+        </select>
+      </div>
+      <div class="md:col-span-2">
+        <label class="block text-xs font-medium text-slate-600 mb-1">Adhésion (250 FCFA)</label>
+        <select name="adhesion" class="border rounded-lg px-3 py-2 w-full text-sm bg-white">
+          <option value="">Tous</option>
+          <option value="unpaid" th:selected="${adhesion == 'unpaid'}">Non payée</option>
+          <option value="paid" th:selected="${adhesion == 'paid'}">Payée</option>
+          <option value="dispute" th:selected="${adhesion == 'dispute'}">Litige ouvert</option>
+        </select>
+      </div>
+      <div class="md:col-span-2">
+        <label class="block text-xs font-medium text-slate-600 mb-1">Badge assiduité</label>
+        <select name="assiduity" class="border rounded-lg px-3 py-2 w-full text-sm bg-white">
+          <option value="">Tous</option>
+          <option value="or" th:selected="${assiduity == 'or'}">Or</option>
+          <option value="argent" th:selected="${assiduity == 'argent'}">Argent</option>
+          <option value="bronze" th:selected="${assiduity == 'bronze'}">Bronze</option>
+          <option value="standard" th:selected="${assiduity == 'standard'}">Standard</option>
+        </select>
+      </div>
+      <div class="md:col-span-1">
+        <button type="submit" class="pf-btn pf-btn-primary w-full py-2 px-4 text-sm">Filtrer</button>
+      </div>
+    </form>
+
+    <section class="bg-white rounded-xl p-4 shadow-sm overflow-auto">
+      <div class="flex flex-wrap justify-end gap-2 mb-3">
+        <a th:href="@{/admin/clients/assiduous-print(badge=${'or'})}" target="_blank" rel="noopener" class="pf-btn pf-btn-secondary text-sm"><i class="fa-solid fa-print mr-1"></i>Imprimer clients Or</a>
+        <a th:href="@{/admin/clients/assiduous-print(badge=${'argent'})}" target="_blank" rel="noopener" class="pf-btn pf-btn-secondary text-sm"><i class="fa-solid fa-print mr-1"></i>Imprimer clients Argent</a>
+        <a href="/admin/export/users.csv" class="pf-btn pf-btn-secondary text-sm">Export CSV</a>
+      </div>
+      <table class="w-full text-sm">
+        <thead class="bg-slate-100">
+        <tr>
+          <th class="text-left py-2 px-2">Nom</th>
+          <th class="text-left py-2 px-2">Téléphone</th>
+          <th class="text-left py-2 px-2">Ville</th>
+          <th class="text-left py-2 px-2">Statut</th>
+          <th class="text-left py-2 px-2">Adhésion</th>
+          <th class="text-left py-2 px-2">Assiduité</th>
+          <th class="text-left py-2 px-2">Agent</th>
+          <th class="text-right py-2 px-2">Actions</th>
+        </tr>
+        </thead>
+        <tbody>
+        <tr th:each="c : ${clientsPage.items()}" class="border-t border-slate-100"
+            th:classappend="${c.adhesionDisputeOpen()} ? ' bg-red-50' : ''">
+          <td class="py-2 px-2 font-medium" th:text="${c.fullName()}"></td>
+          <td class="py-2 px-2" th:text="${c.phone()}"></td>
+          <td class="py-2 px-2 text-slate-600" th:text="${c.city() != null && !c.city().isBlank() ? c.city() : '—'}"></td>
+          <td class="py-2 px-2"><th:block th:replace="~{fragments/admin-chrome :: statusBadge(${c.status()})}"/></td>
+          <td class="py-2 px-2">
+            <span th:if="${c.adhesionFeePaid()}" class="text-emerald-700 text-xs font-semibold"><i class="fa-solid fa-circle-check mr-1"></i>Payée</span>
+            <span th:if="${!c.adhesionFeePaid()}" class="text-amber-800 text-xs font-semibold">250 FCFA due</span>
+            <span th:if="${c.adhesionDisputeOpen()}" class="ml-1 inline-flex px-1.5 py-0.5 rounded bg-red-600 text-white text-[10px] font-bold">URGENCE</span>
+          </td>
+          <td class="py-2 px-2">
+            <span th:if="${c.assiduityBadge() == 'or'}" class="text-xs font-bold text-amber-700">★ Or</span>
+            <span th:if="${c.assiduityBadge() == 'argent'}" class="text-xs font-bold text-slate-600">◆ Argent</span>
+            <span th:if="${c.assiduityBadge() == 'bronze'}" class="text-xs font-bold text-orange-800">● Bronze</span>
+            <span th:if="${c.assiduityBadge() == 'standard' || c.assiduityBadge() == null}" class="text-xs text-slate-500">—</span>
+          </td>
+          <td class="py-2 px-2 text-xs text-slate-600">
+            <span th:if="${c.selfManaged()}">Autonome</span>
+            <span th:if="${!c.selfManaged() and c.agentName() != null and !#strings.isEmpty(c.agentName())}" th:text="${c.agentName()}"></span>
+            <span th:if="${!c.selfManaged() and (c.agentName() == null or #strings.isEmpty(c.agentName()))}">—</span>
+          </td>
+          <td class="py-2 px-2 text-right">
+            <div class="flex flex-wrap gap-1 justify-end">
+              <a th:href="@{/admin/clients/{id}(id=${c.id()})}" class="pf-btn pf-btn-secondary text-xs"><i class="fa-regular fa-eye mr-1"></i>Fiche</a>
+              <a th:href="@{/admin/support-chat(open=${c.id()})}" class="pf-btn pf-btn-primary text-xs"><i class="fa-solid fa-comments mr-1"></i>Chat</a>
+              <form th:if="${adminFullAccess || adminIsGestionnaire}" method="post" action="/admin/clients/delete" class="inline"
+                    th:attr="data-admin-full=${adminFullAccess}"
+                    onsubmit="return pfConfirmDeleteWithReason(event, this.dataset.adminFull === 'true' ? 'Supprimer définitivement ce client ?' : 'Demander la suppression de ce client ?', false);">
+                <input type="hidden" th:name="${_csrf.parameterName}" th:value="${_csrf.token}">
+                <input type="hidden" name="id" th:value="${c.id()}">
+                <button type="submit" class="pf-btn pf-btn-danger text-xs"><i class="fa-regular fa-trash-can mr-1"></i>Supprimer</button>
+              </form>
+            </div>
+          </td>
+        </tr>
+        </tbody>
+      </table>
+      <th:block th:replace="~{fragments/admin-chrome :: pagination(${clientsPage}, '/admin/clients', ${filterQuery})}"/>
+    </section>
+<th:block th:replace="~{fragments/admin-chrome :: endMain}"/>
+<script th:inline="javascript">
+  document.addEventListener('DOMContentLoaded', () => {
+    const p = new URLSearchParams(window.location.search);
+    if (p.get('success') === '1' && typeof Swal !== 'undefined') {
+      Swal.fire({ icon: 'success', title: 'Client supprimé', timer: 1600, showConfirmButton: false });
+    }
+    if (p.get('success') === 'delete_requested' && typeof Swal !== 'undefined') {
+      Swal.fire({
+        icon: 'info',
+        title: 'Demande envoyée',
+        text: 'La suppression sera effective après validation par l\'administrateur principal.',
+        confirmButtonText: 'OK',
+      });
+    }
+    const err = p.get('error');
+    if (err && typeof Swal !== 'undefined') {
+      Swal.fire({ icon: 'error', title: 'Erreur', text: decodeURIComponent(err) });
+    }
+  });
+</script>
+<script src="/js/admin-wow.js"></script>
+</body>
+</html>

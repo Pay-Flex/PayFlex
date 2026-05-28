@@ -1,50 +1,23 @@
 import 'package:flutter/material.dart';
-import '../../../core/constants/app_colors.dart';
 
+/// Logo officiel PayFlex (icône + wordmark).
 class PayFlexLogo extends StatelessWidget {
   final double size;
   const PayFlexLogo({super.key, this.size = 100});
 
+  static const String assetPath = 'assets/icons/logo.png';
+
   @override
   Widget build(BuildContext context) {
-    return SizedBox(
-      width: size,
+    return Image.asset(
+      assetPath,
       height: size,
-      child: Stack(
-        children: [
-          // Top Yellow Shape
-          Positioned(
-            top: 0,
-            left: 0,
-            child: Container(
-              width: size * 0.6,
-              height: size * 0.4,
-              decoration: const BoxDecoration(
-                color: AppColors.primary,
-                borderRadius: BorderRadius.only(
-                  topLeft: Radius.circular(8),
-                  bottomRight: Radius.circular(24),
-                ),
-              ),
-            ),
-          ),
-          // Bottom Blue Shape
-          Positioned(
-            bottom: 0,
-            right: 0,
-            child: Container(
-              width: size * 0.6,
-              height: size * 0.6,
-              decoration: const BoxDecoration(
-                color: AppColors.secondary,
-                borderRadius: BorderRadius.only(
-                  topLeft: Radius.circular(24),
-                  bottomRight: Radius.circular(8),
-                ),
-              ),
-            ),
-          ),
-        ],
+      fit: BoxFit.contain,
+      semanticLabel: 'PayFlex',
+      errorBuilder: (context, error, stackTrace) => Icon(
+        Icons.image_not_supported_outlined,
+        size: size * 0.5,
+        color: Colors.grey,
       ),
     );
   }

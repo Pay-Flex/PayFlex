@@ -1,34 +1,42 @@
 import 'package:flutter/material.dart';
-import 'package:flutter_animate/flutter_animate.dart';
 import '../../../core/constants/app_colors.dart';
 
 class AuthWaveBackground extends StatelessWidget {
   final Widget child;
   const AuthWaveBackground({super.key, required this.child});
 
+  static const double decorHeight = 110;
+
   @override
   Widget build(BuildContext context) {
+    final keyboardBottom = MediaQuery.viewInsetsOf(context).bottom;
+
     return Scaffold(
-      backgroundColor: const Color(0xFFFAFAFA), // Blanc premium, zéro éblouissement
+      backgroundColor: const Color(0xFFFAFAFA),
+      // Le body garde la hauteur plein écran : le décor reste collé au bas physique.
+      resizeToAvoidBottomInset: false,
       body: Stack(
-        clipBehavior: Clip.none,
+        fit: StackFit.expand,
+        clipBehavior: Clip.hardEdge,
         children: [
-          // 1. Contenu principal
-          child,
-          
-          // 2. Fintech Flat Vectors (Design exact de votre image)
-          Positioned(
-            bottom: -50, // Immersion totale pour garantir 0 pixel d'espace blanc 
+          // Contenu scrollable : seul lui remonte quand le clavier s'ouvre.
+          Padding(
+            padding: EdgeInsets.only(bottom: keyboardBottom),
+            child: child,
+          ),
+          // Vagues toujours visibles, position fixe en bas de l'écran.
+          const Positioned(
             left: 0,
             right: 0,
+            bottom: 0,
             child: IgnorePointer(
               child: SizedBox(
-                width: MediaQuery.of(context).size.width,
-                height: 200, // Top 150px est visible, Bottom 50px est caché
+                height: decorHeight,
+                width: double.infinity,
                 child: CustomPaint(
                   painter: FintechCurvesPainter(),
                 ),
-              ).animate().fadeIn(duration: 800.ms).slideY(begin: 0.1, curve: Curves.easeOutQuart),
+              ),
             ),
           ),
         ],
@@ -37,41 +45,46 @@ class AuthWaveBackground extends StatelessWidget {
   }
 }
 
+/// Bandeau décoratif bas : une seule courbe supérieure lisse, sans « pointe » verticale.
 class FintechCurvesPainter extends CustomPainter {
+  const FintechCurvesPainter();
+
   @override
   void paint(Canvas canvas, Size size) {
-    final width = size.width;
-    final height = size.height; // Vaut 200 (les 50 derniers pixels sont invisibles en bas)
+    final w = size.width;
+    final h = size.height;
 
-    // 1. Grande courbe jaune (comme l'image)
-    final paintYellow = Paint()
-      ..color = AppColors.primary
-      ..style = PaintingStyle.fill;
+    // Bleu nuit (arrière-plan)
+    final pathBlue = Path()
+      ..moveTo(0, h)
+      ..lineTo(w, h)
+      ..lineTo(w, h - 36)
+      ..quadraticBezierTo(w * 0.72, h - 8, w * 0.28, h - 32)
+      ..quadraticBezierTo(w * 0.06, h - 48, 0, h - 28)
+      ..close();
 
-    final pathYellow = Path();
-    pathYellow.moveTo(-10, height); 
-    pathYellow.lineTo(-10, 50); // Départ en haut à gauche
-    // Plongeon majestueux au milieu repiquant vers le haut droit
-    pathYellow.quadraticBezierTo(width * 0.45, 160, width + 10, 20); 
-    pathYellow.lineTo(width + 10, height);
-    pathYellow.close();
-    
-    canvas.drawPath(pathYellow, paintYellow);
+    canvas.drawPath(
+      pathBlue,
+      Paint()
+        ..color = AppColors.secondary
+        ..style = PaintingStyle.fill,
+    );
 
-    // 2. Coin biseauté bleu nuit (comme l'image)
-    final paintBlue = Paint()
-      ..color = AppColors.secondary
-      ..style = PaintingStyle.fill;
+    // Orange (devant) — bord supérieur = une courbe, pas de trait vertical à gauche
+    final pathYellow = Path()
+      ..moveTo(0, h)
+      ..lineTo(w, h)
+      ..lineTo(w, h - 48)
+      ..quadraticBezierTo(w * 0.58, h - 62, w * 0.14, h - 40)
+      ..quadraticBezierTo(0, h - 44, 0, h - 24)
+      ..close();
 
-    final pathBlue = Path();
-    pathBlue.moveTo(width * 0.20, 170); // Départ plus bas et plus à gauche
-    // Creux plus prononcé : point de contrôle tiré vers le bas
-    pathBlue.quadraticBezierTo(width * 0.55, 200, width + 10, 30); 
-    pathBlue.lineTo(width + 10, height); // Plonge en bas à droite
-    pathBlue.lineTo(width * 0.20, height); // Retourne au point X de départ
-    pathBlue.close();
-
-    canvas.drawPath(pathBlue, paintBlue);
+    canvas.drawPath(
+      pathYellow,
+      Paint()
+        ..color = AppColors.primary
+        ..style = PaintingStyle.fill,
+    );
   }
 
   @override

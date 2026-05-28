@@ -1,0 +1,199 @@
+<!doctype html>
+<html lang="fr" xmlns:th="http://www.thymeleaf.org">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>PayFlex Admin — Tableau de bord</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.2/css/all.min.css">
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
+    <link rel="stylesheet" href="/css/admin-wow.css">
+</head>
+<body class="pf-admin bg-slate-100 min-h-screen text-slate-800">
+<th:block th:replace="~{fragments/admin-chrome :: startMain('space-y-4')}"/>
+
+        <th:block th:replace="~{fragments/admin-chrome :: pageHeader('Tableau de bord PayFlex', 'Vue globale de la plateforme')}"/>
+
+        <section class="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-7 gap-3 mb-4">
+            <article class="bg-white rounded-xl p-4 shadow-sm border-l-4 pf-admin-stat-accent">
+                <h3 class="text-xs text-slate-500"><i class="fa-solid fa-users mr-1" style="color:var(--pf-admin-blue)"></i>Comptes</h3>
+                <strong class="text-2xl text-slate-800" th:text="${dashboard.metrics.totalUsers()}">0</strong>
+            </article>
+            <article class="bg-white rounded-xl p-4 shadow-sm border-l-4 pf-admin-stat-accent">
+                <h3 class="text-xs text-slate-500"><i class="fa-solid fa-user-tie mr-1" style="color:var(--pf-admin-blue)"></i>Agents actifs</h3>
+                <strong class="text-2xl text-slate-800" th:text="${dashboard.metrics.activeAgents()}">0</strong>
+            </article>
+            <a href="/admin/clients" class="pf-dash-kpi-link bg-white rounded-xl p-4 shadow-sm border-l-4 pf-admin-stat-accent">
+                <h3 class="text-xs text-slate-500"><i class="fa-solid fa-user-group mr-1" style="color:var(--pf-admin-blue)"></i>Clients</h3>
+                <strong class="text-2xl text-slate-800" th:text="${dashboard.metrics.totalClients()}">0</strong>
+            </a>
+            <article class="bg-white rounded-xl p-4 shadow-sm border-l-4 pf-admin-stat-accent">
+                <h3 class="text-xs text-slate-500"><i class="fa-solid fa-box-open mr-1" style="color:var(--pf-admin-blue)"></i>Produits</h3>
+                <strong class="text-2xl text-slate-800" th:text="${dashboard.metrics.totalProducts()}">0</strong>
+            </article>
+            <article class="bg-white rounded-xl p-4 shadow-sm border-l-4 pf-admin-stat-accent">
+                <h3 class="text-xs text-slate-500"><i class="fa-solid fa-coins mr-1" style="color:var(--pf-admin-blue)"></i>Collecte confirmée</h3>
+                <strong class="text-2xl text-slate-800" th:text="${#numbers.formatInteger(dashboard.metrics.totalCollected(), 0, 'POINT')} + ' FCFA'">0</strong>
+            </article>
+            <a href="/admin/contributions?status=pending" class="pf-dash-kpi-link bg-white rounded-xl p-4 shadow-sm border-l-4 border-amber-500">
+                <h3 class="text-xs text-slate-500"><i class="fa-solid fa-hourglass-half mr-1 text-amber-600"></i>Cotisations en attente</h3>
+                <strong class="text-2xl text-amber-800" th:text="${dashboard.metrics.pendingContributions()}">0</strong>
+            </a>
+            <a href="/admin/registrations?status=pending" class="pf-dash-kpi-link bg-white rounded-xl p-4 shadow-sm border-l-4 border-amber-500">
+                <h3 class="text-xs text-slate-500"><i class="fa-solid fa-user-check mr-1 text-amber-600"></i>Inscriptions en attente</h3>
+                <strong class="text-2xl text-amber-800" th:text="${dashboard.metrics.pendingRegistrations()}">0</strong>
+            </a>
+        </section>
+
+        <section th:if="${catchupAlerts != null && !catchupAlerts.isEmpty()}" class="pf-dash-alert mb-4">
+            <div class="flex flex-wrap items-start justify-between gap-3">
+                <div>
+                    <h3 class="font-semibold text-amber-900 flex items-center gap-2"><i class="fa-solid fa-triangle-exclamation"></i> Clients avec carnet en retard</h3>
+                    <p class="text-sm text-amber-800/90 mt-1">Signalés par l’application mobile (seuil ≥ 5 jours de rattrapage).</p>
+                </div>
+                <a href="/admin/clients" class="pf-btn pf-btn-secondary text-xs shrink-0">Voir les clients</a>
+            </div>
+            <ul class="mt-3 max-h-40 overflow-y-auto text-sm divide-y divide-amber-200/80">
+                <li th:each="c : ${catchupAlerts}" class="py-2 flex flex-wrap justify-between gap-2">
+                    <span><strong th:text="${c.full_name}">Client</strong> — <span th:text="${c.phone}"></span></span>
+                    <span class="text-amber-900 font-medium" th:text="${c.orange_days} + ' j. (' + ${c.snapshot_month} + ')'"></span>
+                </li>
+            </ul>
+        </section>
+
+        <section class="grid grid-cols-1 md:grid-cols-4 gap-3 mb-4">
+            <a href="/admin/clients" class="pf-admin-action-tile rounded-xl p-4 shadow hover:scale-[1.01] transition">
+                <i class="fa-solid fa-user-plus"></i>
+                <p class="mt-2 font-semibold">Espace clients</p>
+            </a>
+            <a href="/admin/products" class="pf-admin-action-tile rounded-xl p-4 shadow hover:scale-[1.01] transition">
+                <i class="fa-solid fa-cart-plus"></i>
+                <p class="mt-2 font-semibold">Catalogue produits</p>
+            </a>
+            <a href="/admin/agents/nouveau" class="pf-admin-action-tile rounded-xl p-4 shadow hover:scale-[1.01] transition">
+                <i class="fa-solid fa-user-tie"></i>
+                <p class="mt-2 font-semibold">Embaucher un agent</p>
+            </a>
+            <a href="/admin/contributions" class="pf-admin-action-tile rounded-xl p-4 shadow hover:scale-[1.01] transition">
+                <i class="fa-solid fa-money-check-dollar"></i>
+                <p class="mt-2 font-semibold">Cotisations</p>
+            </a>
+        </section>
+        <section class="grid grid-cols-1 md:grid-cols-4 gap-3 mb-4">
+            <a href="/admin/export/users.csv" class="bg-white rounded-xl p-3 shadow text-sm hover:shadow-md transition"><i class="fa-solid fa-file-csv mr-2 text-emerald-600"></i>Export comptes (CSV)</a>
+            <a href="/admin/export/products.csv" class="bg-white rounded-xl p-3 shadow text-sm hover:shadow-md transition"><i class="fa-solid fa-file-csv mr-2 text-emerald-600"></i>Export produits (CSV)</a>
+            <a href="/admin/export/contributions.pdf" class="bg-white rounded-xl p-3 shadow text-sm hover:shadow-md transition"><i class="fa-solid fa-file-pdf mr-2 text-red-600"></i>Export cotisations (PDF)</a>
+            <a href="/admin/export/audit.pdf" class="bg-white rounded-xl p-3 shadow text-sm hover:shadow-md transition"><i class="fa-solid fa-file-pdf mr-2 text-red-600"></i>Journal (PDF)</a>
+        </section>
+
+        <section class="grid grid-cols-1 xl:grid-cols-2 gap-3 mb-3">
+            <article class="bg-white rounded-xl p-4 shadow-sm">
+                <h3 class="text-lg font-semibold text-slate-800 mb-3">Collecte hebdomadaire</h3>
+                <div class="h-[320px] relative"><canvas id="paymentsChart"></canvas></div>
+            </article>
+            <article class="bg-white rounded-xl p-4 shadow-sm overflow-auto">
+                <h3 class="text-lg font-semibold text-slate-800 mb-3">Top agents</h3>
+                <table class="w-full text-sm">
+                    <thead class="text-slate-500">
+                    <tr><th class="text-left py-2">Agent</th><th class="text-left py-2">Clients</th><th class="text-left py-2">Collecte</th><th class="text-left py-2">Objectif</th></tr></thead>
+                    <tbody>
+                    <tr th:each="a : ${dashboard.topAgents()}">
+                        <td class="py-2" th:text="${a.agentName()}"></td>
+                        <td class="py-2" th:text="${a.clientsCount()}"></td>
+                        <td class="py-2" th:text="${#numbers.formatInteger(a.collectedAmount(), 0, 'POINT')} + ' FCFA'"></td>
+                        <td class="py-2" th:text="${a.objectivePercent()} + '%'"></td>
+                    </tr>
+                    </tbody>
+                </table>
+            </article>
+        </section>
+
+        <section class="grid grid-cols-1 xl:grid-cols-2 gap-3 mb-3">
+            <article class="bg-white rounded-xl p-4 shadow-sm">
+                <h3 class="text-lg font-semibold text-slate-800 mb-3">Produits les plus choisis</h3>
+                <div class="h-[280px] relative"><canvas id="topProductsChart"></canvas></div>
+            </article>
+            <article class="bg-white rounded-xl p-4 shadow-sm">
+                <h3 class="text-lg font-semibold text-slate-800 mb-3">Clients les plus actifs</h3>
+                <div class="h-[280px] relative"><canvas id="topClientsChart"></canvas></div>
+            </article>
+        </section>
+
+        <section class="grid grid-cols-1 gap-3">
+            <article class="bg-white rounded-xl p-4 shadow-sm">
+                <h3 class="text-lg font-semibold text-slate-800 mb-3">Évolution mensuelle de collecte</h3>
+                <div class="h-[260px] relative"><canvas id="monthlyCollectionsChart"></canvas></div>
+            </article>
+        </section>
+
+        <section class="grid grid-cols-1 gap-3 mt-3">
+            <article class="bg-white rounded-xl p-4 shadow-sm overflow-auto">
+                <h3 class="text-lg font-semibold text-slate-800 mb-3">Dernières activités</h3>
+                <table class="w-full text-sm">
+                    <thead class="text-slate-500"><tr><th class="text-left py-2">Quand</th><th class="text-left py-2">Origine</th><th class="text-left py-2">Qui</th><th class="text-left py-2">Résumé</th></tr></thead>
+                    <tbody>
+                    <tr th:each="a : ${latestAudit}" class="border-t">
+                        <td class="py-2 whitespace-nowrap text-slate-600" th:text="${a.createdAt()}"></td>
+                        <td class="py-2 font-medium" th:text="${a.profileLabel()}"></td>
+                        <td class="py-2" th:text="${a.actorDisplay()}"></td>
+                        <td class="py-2 text-slate-700" th:text="${a.message()}"></td>
+                    </tr>
+                    </tbody>
+                </table>
+                <p class="text-xs text-slate-500 mt-2"><a href="/admin/audit" class="text-blue-800 font-medium hover:underline">Voir tout le journal</a></p>
+            </article>
+        </section>
+
+        <section class="grid grid-cols-1 xl:grid-cols-2 gap-3">
+            <article class="bg-white rounded-xl p-4 shadow-sm overflow-auto">
+                <h3 class="text-lg font-semibold text-slate-800 mb-3">Comptes récents</h3>
+                <table class="w-full text-sm">
+                    <thead class="text-slate-500"><tr><th class="text-left py-2">Nom</th><th class="text-left py-2">Profil</th><th class="text-left py-2">Ville</th><th class="text-left py-2">Statut</th></tr></thead>
+                    <tbody>
+                    <tr th:each="u : ${dashboard.recentUsers()}">
+                        <td class="py-2" th:text="${u.fullName()}"></td>
+                        <td class="py-2" th:text="${u.role() == 'client' ? 'Client' : (u.role() == 'agent' ? 'Agent terrain' : u.role())}"></td>
+                        <td class="py-2" th:text="${u.city()}"></td>
+                        <td class="py-2"><th:block th:replace="~{fragments/admin-chrome :: statusBadge(${u.status()})}"/></td>
+                    </tr>
+                    </tbody>
+                </table>
+            </article>
+            <article class="bg-white rounded-xl p-4 shadow-sm overflow-auto">
+                <h3 class="text-lg font-semibold text-slate-800 mb-3">Catalogue produits</h3>
+                <table class="w-full text-sm">
+                    <thead class="text-slate-500"><tr><th class="text-left py-2">Nom</th><th class="text-left py-2">Famille</th><th class="text-left py-2">Prix</th><th class="text-left py-2">Stock</th></tr></thead>
+                    <tbody>
+                    <tr th:each="p : ${dashboard.products()}">
+                        <td class="py-2" th:text="${p.name()}"></td>
+                        <td class="py-2" th:text="${p.category()}"></td>
+                        <td class="py-2" th:text="${#numbers.formatInteger(p.price(), 0, 'POINT')} + ' FCFA'"></td>
+                        <td class="py-2" th:text="${p.availability() == 'in_stock' ? 'Disponible' : (p.availability() == 'on_order' ? 'Sur commande' : p.availability())}"></td>
+                    </tr>
+                    </tbody>
+                </table>
+            </article>
+        </section>
+
+<th:block th:replace="~{fragments/admin-chrome :: endMain}"/>
+
+<script th:inline="javascript">
+    const weekly = [[${dashboard.weeklyPayments()}]];
+    const topProducts = [[${topProducts}]];
+    const topClients = [[${topClients}]];
+    const monthlyCollections = [[${monthlyCollections}]];
+</script>
+<script src="/js/chart-palette.js"></script>
+<script src="/js/dashboard.js"></script>
+<script src="/js/admin-wow.js"></script>
+<script th:inline="javascript">
+    pfFlashFromParams({
+      success: /*[[${param.success != null && !#lists.isEmpty(param.success)}]]*/ false,
+      successText: 'Mise à jour effectuée avec succès.',
+      error: /*[[${param.error != null && !#lists.isEmpty(param.error)}]]*/ false,
+      forbidden: /*[[${param.forbidden != null && !#lists.isEmpty(param.forbidden) ? 'Cette fonctionnalité est réservée au compte administrateur principal.' : null}]]*/ null
+    });
+</script>
+</body>
+</html>

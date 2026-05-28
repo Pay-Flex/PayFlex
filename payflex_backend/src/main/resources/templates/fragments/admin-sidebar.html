@@ -1,0 +1,111 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org">
+<body>
+<aside th:fragment="sidebar" id="pf-admin-sidebar"
+       class="pf-admin-sidebar fixed lg:static inset-y-0 left-0 z-50 w-[260px] max-w-[85vw] -translate-x-full lg:translate-x-0 transition-[transform,width,padding] duration-300 ease-in-out text-white p-6 overflow-y-auto overflow-x-hidden">
+  <div class="pf-sidebar-header flex items-center justify-between gap-2 mb-6">
+    <a href="/admin" class="flex items-center gap-2 min-w-0 flex-1 pf-sidebar-brand" title="PayFlex Admin">
+      <img th:src="@{/img/logo.png}" src="/img/logo.png" alt="PayFlex" class="pf-brand-logo pf-brand-logo--sidebar shrink-0">
+      <span class="text-sm font-bold leading-tight truncate pf-sidebar-brand-text">Admin</span>
+    </a>
+    <button type="button" id="pf-sidebar-collapse-toggle"
+            class="pf-sidebar-collapse-btn hidden lg:inline-flex shrink-0 items-center justify-center w-9 h-9 rounded-lg bg-white/10 hover:bg-white/20 text-white"
+            aria-label="Réduire le menu" title="Réduire le menu">
+      <i class="fa-solid fa-chevron-left" aria-hidden="true"></i>
+    </button>
+    <button type="button" id="pf-nav-close" class="lg:hidden p-2 rounded-lg hover:bg-white/10 shrink-0" aria-label="Fermer le menu">
+      <i class="fa-solid fa-xmark"></i>
+    </button>
+  </div>
+  <nav class="space-y-1 text-sm pf-sidebar-nav" aria-label="Navigation principale">
+    <a href="/admin" th:classappend="${activePage == 'dashboard'} ? ' pf-admin-nav-active' : ' pf-admin-nav-idle'"
+       class="pf-admin-nav-link px-3 py-2 rounded-lg" title="Tableau de bord">
+      <i class="fa-solid fa-chart-line pf-nav-icon" aria-hidden="true"></i>
+      <span class="pf-nav-text">Tableau de bord</span>
+    </a>
+    <a href="/admin/registrations" th:classappend="${activePage == 'registrations'} ? ' pf-admin-nav-active' : ' pf-admin-nav-idle'"
+       class="pf-admin-nav-link px-3 py-2 rounded-lg" title="Inscriptions">
+      <i class="fa-solid fa-user-check pf-nav-icon" aria-hidden="true"></i>
+      <span class="pf-nav-text">Inscriptions</span>
+      <span th:if="${navPendingRegistrations > 0}" class="pf-nav-badge" th:text="${navPendingRegistrations}">0</span>
+    </a>
+    <a href="/admin/users" th:classappend="${activePage == 'users'} ? ' pf-admin-nav-active' : ' pf-admin-nav-idle'"
+       class="pf-admin-nav-link px-3 py-2 rounded-lg" title="Comptes">
+      <i class="fa-solid fa-users pf-nav-icon" aria-hidden="true"></i>
+      <span class="pf-nav-text">Comptes</span>
+    </a>
+    <a href="/admin/clients" th:classappend="${activePage == 'clients'} ? ' pf-admin-nav-active' : ' pf-admin-nav-idle'"
+       class="pf-admin-nav-link px-3 py-2 rounded-lg" title="Clients">
+      <i class="fa-solid fa-address-card pf-nav-icon" aria-hidden="true"></i>
+      <span class="pf-nav-text">Clients</span>
+      <span th:if="${navAdhesionUrgencies > 0}" class="pf-nav-badge pf-nav-badge--urgent" th:text="${navAdhesionUrgencies}">0</span>
+    </a>
+    <a href="/admin/products" th:classappend="${activePage == 'products'} ? ' pf-admin-nav-active' : ' pf-admin-nav-idle'"
+       class="pf-admin-nav-link px-3 py-2 rounded-lg" title="Produits">
+      <i class="fa-solid fa-toolbox pf-nav-icon" aria-hidden="true"></i>
+      <span class="pf-nav-text">Produits</span>
+    </a>
+    <a href="/admin/product-categories" th:classappend="${activePage == 'product-categories'} ? ' pf-admin-nav-active' : ' pf-admin-nav-idle'"
+       class="pf-admin-nav-link pf-admin-nav-link--nested px-3 py-2 rounded-lg pl-8 text-white/85" title="Catégories">
+      <i class="fa-solid fa-tags pf-nav-icon" aria-hidden="true"></i>
+      <span class="pf-nav-text">Catégories</span>
+    </a>
+    <a href="/admin/contributions" th:classappend="${activePage == 'contributions'} ? ' pf-admin-nav-active' : ' pf-admin-nav-idle'"
+       class="pf-admin-nav-link px-3 py-2 rounded-lg" title="Cotisations">
+      <i class="fa-solid fa-money-bill-wave pf-nav-icon" aria-hidden="true"></i>
+      <span class="pf-nav-text">Cotisations</span>
+      <span th:if="${navPendingContributions > 0}" class="pf-nav-badge" th:text="${navPendingContributions}">0</span>
+    </a>
+    <a href="/admin/agents" th:classappend="${activePage == 'agents'} ? ' pf-admin-nav-active' : ' pf-admin-nav-idle'"
+       class="pf-admin-nav-link px-3 py-2 rounded-lg" title="Agents">
+      <i class="fa-solid fa-user-tie pf-nav-icon" aria-hidden="true"></i>
+      <span class="pf-nav-text">Agents</span>
+    </a>
+    <a th:if="${adminFullAccess}" href="/admin/gestionnaires" th:classappend="${activePage == 'gestionnaires'} ? ' pf-admin-nav-active' : ' pf-admin-nav-idle'"
+       class="pf-admin-nav-link px-3 py-2 rounded-lg" title="Gestionnaires">
+      <i class="fa-solid fa-user-gear pf-nav-icon" aria-hidden="true"></i>
+      <span class="pf-nav-text">Gestionnaires</span>
+    </a>
+    <a th:if="${adminIsGestionnaire}" href="/admin/mon-profil" th:classappend="${activePage == 'mon-profil'} ? ' pf-admin-nav-active' : ' pf-admin-nav-idle'"
+       class="pf-admin-nav-link px-3 py-2 rounded-lg" title="Mon profil">
+      <i class="fa-solid fa-id-badge pf-nav-icon" aria-hidden="true"></i>
+      <span class="pf-nav-text">Mon profil</span>
+    </a>
+    <a href="/admin/zones" th:classappend="${activePage == 'zones'} ? ' pf-admin-nav-active' : ' pf-admin-nav-idle'"
+       class="pf-admin-nav-link px-3 py-2 rounded-lg" title="Zones">
+      <i class="fa-solid fa-map-location-dot pf-nav-icon" aria-hidden="true"></i>
+      <span class="pf-nav-text">Zones</span>
+    </a>
+    <a href="/admin/support-chat" th:classappend="${activePage == 'support-chat'} ? ' pf-admin-nav-active' : ' pf-admin-nav-idle'"
+       class="pf-admin-nav-link px-3 py-2 rounded-lg" title="Chat support">
+      <i class="fa-solid fa-comments pf-nav-icon" aria-hidden="true"></i>
+      <span class="pf-nav-text">Chat support</span>
+      <span th:if="${navSupportThreads > 0}" class="pf-nav-badge pf-nav-badge--muted" th:text="${navSupportThreads}">0</span>
+    </a>
+    <a th:if="${adminFullAccess}" href="/admin/roles-permissions" th:classappend="${activePage == 'roles-permissions'} ? ' pf-admin-nav-active' : ' pf-admin-nav-idle'"
+       class="pf-admin-nav-link px-3 py-2 rounded-lg" title="Rôles &amp; permissions">
+      <i class="fa-solid fa-key pf-nav-icon" aria-hidden="true"></i>
+      <span class="pf-nav-text">Rôles &amp; permissions</span>
+    </a>
+    <a th:if="${adminFullAccess}" href="/admin/deletion-requests" th:classappend="${activePage == 'deletion-requests'} ? ' pf-admin-nav-active' : ' pf-admin-nav-idle'"
+       class="pf-admin-nav-link px-3 py-2 rounded-lg" title="Suppressions à valider">
+      <i class="fa-solid fa-trash-arrow-up pf-nav-icon" aria-hidden="true"></i>
+      <span class="pf-nav-text">Suppressions à valider</span>
+      <span th:if="${navPendingDeletionRequests > 0}" class="pf-nav-badge" th:text="${navPendingDeletionRequests}">0</span>
+    </a>
+    <a href="/admin/audit" th:classappend="${activePage == 'audit'} ? ' pf-admin-nav-active' : ' pf-admin-nav-idle'"
+       class="pf-admin-nav-link px-3 py-2 rounded-lg" title="Journal d'activité">
+      <i class="fa-solid fa-clock-rotate-left pf-nav-icon" aria-hidden="true"></i>
+      <span class="pf-nav-text">Journal d'activité</span>
+    </a>
+  </nav>
+  <form method="post" action="/logout" class="mt-8 pt-6 border-t border-white/15 pf-sidebar-footer">
+    <input type="hidden" th:name="${_csrf.parameterName}" th:value="${_csrf.token}">
+    <button type="submit" class="w-full bg-white/10 hover:bg-red-500/80 rounded-lg px-3 py-2 text-left text-sm" title="Déconnexion">
+      <i class="fa-solid fa-right-from-bracket pf-nav-icon" aria-hidden="true"></i>
+      <span class="pf-nav-text">Déconnexion</span>
+    </button>
+  </form>
+</aside>
+</body>
+</html>

@@ -4,16 +4,45 @@ import 'package:flutter_animate/flutter_animate.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:google_fonts/google_fonts.dart';
 import '../../core/constants/app_colors.dart';
+import '../../core/providers/auth_provider.dart';
+import '../../core/providers/client_inbox_provider.dart';
+import '../../core/providers/client_notifications_provider.dart';
+import '../../core/widgets/count_badge.dart';
+import '../../core/widgets/payflex_profile_avatar.dart';
+import '../auth/widgets/registration_feature_guard.dart';
 import '../../core/providers/finance_provider.dart';
 import '../../core/providers/navigation_provider.dart';
+import '../chat/chat_screen.dart';
+import '../notifications/client_notifications_screen.dart';
+import '../payment/adhesion_payment_screen.dart';
+import 'dashboard_project_detail_screen.dart';
 
 class DashboardScreen extends ConsumerWidget {
   const DashboardScreen({super.key});
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
+    final auth = ref.watch(authProvider);
     final financeState = ref.watch(financeProvider);
-    final screenW = MediaQuery.of(context).size.width - 80;
+    final notifState = auth.role == 'client' ? ref.watch(clientNotificationsProvider) : null;
+    final inboxState = auth.role == 'client' ? ref.watch(clientInboxProvider) : null;
+
+    if (auth.role == 'client') {
+      ref.listen<ClientNotificationsState>(clientNotificationsProvider, (prev, next) {
+        final msg = next.lastSnackMessage;
+        if (msg != null && msg != prev?.lastSnackMessage) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text(msg, style: GoogleFonts.manrope(fontWeight: FontWeight.w600)),
+              behavior: SnackBarBehavior.floating,
+              backgroundColor: const Color(0xFF38A169),
+            ),
+          );
+          ref.read(clientNotificationsProvider.notifier).clearSnack();
+        }
+      });
+    }
+
     final now = DateTime.now();
     final hour = now.hour;
     final greeting = hour < 12 ? 'Bonjour' : hour < 18 ? 'Bon après-midi' : 'Bonsoir';
@@ -25,7 +54,7 @@ class DashboardScreen extends ConsumerWidget {
           // Blobs décoratifs
           Positioned(
             top: 180, right: -80,
-            child: _blob(AppColors.primary, 280),
+            child: _blob(const Color.fromARGB(255, 202, 127, 6), 280),
           ).animate(onPlay: (c) => c.repeat(reverse: true))
            .move(duration: 10.seconds, begin: const Offset(-20, -20), end: const Offset(20, 20)),
 
@@ -39,92 +68,214 @@ class DashboardScreen extends ConsumerWidget {
           CustomScrollView(
             slivers: [
 
-              // === TOP BAR PREMIUM ===
-              SliverAppBar(
-                expandedHeight: 160,
-                pinned: true,
-                elevation: 0,
-                automaticallyImplyLeading: false,
-                backgroundColor: Colors.transparent,
-                surfaceTintColor: Colors.transparent,
-                flexibleSpace: FlexibleSpaceBar(
-                  background: Container(
-                    decoration: const BoxDecoration(
-                      gradient: LinearGradient(
-                        begin: Alignment.topLeft,
-                        end: Alignment.bottomRight,
-                        colors: [AppColors.secondary, Color(0xFF1A2E5A)],
-                      ),
+              // En-tête bleu : défile en bloc (évite que le solde soit coupé par le SliverAppBar)
+              SliverToBoxAdapter(
+                child: Container(
+                  width: double.infinity,
+                  decoration: const BoxDecoration(
+                    gradient: LinearGradient(
+                      begin: Alignment.topLeft,
+                      end: Alignment.bottomRight,
+                      colors: [AppColors.secondary, Color(0xFF1A2E5A)],
                     ),
-                    child: SafeArea(
-                      child: Padding(
-                        padding: const EdgeInsets.fromLTRB(24, 16, 24, 0),
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            // User Row
-                            Row(
-                              children: [
-                                const CircleAvatar(
-                                  radius: 22,
-                                  backgroundImage: NetworkImage('https://i.pravatar.cc/150?u=payflex'),
-                                ),
-                                const SizedBox(width: 12),
-                                Expanded(
-                                  child: Column(
-                                    crossAxisAlignment: CrossAxisAlignment.start,
-                                    children: [
-                                      Text('$greeting 👋',
-                                        style: GoogleFonts.manrope(
-                                          color: Colors.white.withOpacity(0.7), fontSize: 13,
-                                        )),
-                                      Text('Mon Espace PayFlex',
-                                        style: GoogleFonts.manrope(
-                                          color: Colors.white, fontSize: 18, fontWeight: FontWeight.w800,
-                                        )),
-                                    ],
-                                  ),
-                                ),
-                                IconButton(
-                                  icon: const Icon(Icons.notifications_none_rounded, color: Colors.white),
-                                  onPressed: () {},
-                                ),
-                              ],
-                            ),
-
-                            const SizedBox(height: 16),
-
-                            // Solde total
-                            Text('SOLDE TOTAL ÉPARGNÉ',
-                              style: GoogleFonts.manrope(
-                                color: Colors.white.withOpacity(0.5), fontSize: 10,
-                                fontWeight: FontWeight.w700, letterSpacing: 2,
-                              )),
-                            const SizedBox(height: 4),
-                            Text(
-                              '${financeState.balance.toStringAsFixed(0).replaceAllMapped(RegExp(r"(\d{1,3})(?=(\d{3})+(?!\d))"), (m) => "${m[1]}.")} FCFA',
-                              style: GoogleFonts.manrope(
-                                color: AppColors.primary, fontSize: 32, fontWeight: FontWeight.w900,
+                  ),
+                  child: SafeArea(
+                    bottom: false,
+                    child: Padding(
+                      padding: const EdgeInsets.fromLTRB(24, 8, 24, 28),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Row(
+                            children: [
+                              PayflexProfileAvatar(
+                                letter: auth.avatarLetter,
+                                imageUrl: auth.profilePhotoUrl,
+                                awaitingAdminApproval: auth.awaitingAdminApproval,
+                                radius: 20,
+                                letterFontSize: 18,
                               ),
-                            ).animate().fadeIn(delay: 200.ms).scale(begin: const Offset(0.9, 0.9)),
-                          ],
-                        ),
+                              const SizedBox(width: 12),
+                              Expanded(
+                                child: Column(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    Text(
+                                      '$greeting, ${auth.greetingFirstName} 👋',
+                                      style: GoogleFonts.manrope(
+                                        color: Colors.white.withOpacity(0.7),
+                                        fontSize: 13,
+                                      ),
+                                    ),
+                                    Text(
+                                      auth.name?.trim().isNotEmpty == true
+                                          ? auth.name!.trim()
+                                          : 'Mon espace PayFlex',
+                                      style: GoogleFonts.manrope(
+                                        color: Colors.white,
+                                        fontSize: 18,
+                                        fontWeight: FontWeight.w800,
+                                      ),
+                                      maxLines: 1,
+                                      overflow: TextOverflow.ellipsis,
+                                    ),
+                                    const SizedBox(height: 4),
+                                    Text(
+                                      '${auth.statusLabelFr()} · ${auth.roleLabelFr()}',
+                                      style: GoogleFonts.inter(
+                                        color: Colors.white.withOpacity(0.55),
+                                        fontSize: 11,
+                                        fontWeight: FontWeight.w600,
+                                      ),
+                                    ),
+                                    if (auth.assignedAgentName != null &&
+                                        auth.assignedAgentName!.trim().isNotEmpty)
+                                      Padding(
+                                        padding: const EdgeInsets.only(top: 2),
+                                        child: Text(
+                                          'Agent PayFlex : ${auth.assignedAgentName!.trim()}',
+                                          style: GoogleFonts.inter(
+                                            color: AppColors.primary,
+                                            fontSize: 11,
+                                            fontWeight: FontWeight.w700,
+                                          ),
+                                          maxLines: 1,
+                                          overflow: TextOverflow.ellipsis,
+                                        ),
+                                      ),
+                                  ],
+                                ),
+                              ),
+                              Stack(
+                                clipBehavior: Clip.none,
+                                children: [
+                                  IconButton(
+                                    icon: const Icon(Icons.notifications_none_rounded, color: Colors.white),
+                                    onPressed: auth.role == 'client'
+                                        ? () => Navigator.push(
+                                              context,
+                                              MaterialPageRoute(
+                                                builder: (_) => const ClientNotificationsScreen(),
+                                              ),
+                                            )
+                                        : null,
+                                  ),
+                                  if (inboxState != null && inboxState.notificationsUnread > 0)
+                                    CountBadge(
+                                      count: inboxState.notificationsUnread,
+                                      top: 8,
+                                      right: 8,
+                                    ),
+                                ],
+                              ),
+                            ],
+                          ),
+                          const SizedBox(height: 22),
+                          Text(
+                            'SOLDE TOTAL ÉPARGNÉ',
+                            style: GoogleFonts.manrope(
+                              color: Colors.white.withOpacity(0.55),
+                              fontSize: 10,
+                              fontWeight: FontWeight.w700,
+                              letterSpacing: 2,
+                            ),
+                          ),
+                          const SizedBox(height: 6),
+                          Text(
+                            '${financeState.balance.toStringAsFixed(0).replaceAllMapped(RegExp(r"(\d{1,3})(?=(\d{3})+(?!\d))"), (m) => "${m[1]}.")} FCFA',
+                            style: GoogleFonts.manrope(
+                              color: AppColors.primary,
+                              fontSize: 34,
+                              fontWeight: FontWeight.w900,
+                              height: 1.1,
+                            ),
+                          ).animate().fadeIn(delay: 200.ms).scale(begin: const Offset(0.9, 0.9)),
+                        ],
                       ),
                     ),
                   ),
                 ),
               ),
 
-              // === QUICK STATS ===
+              if (auth.awaitingAdminApproval)
+                SliverToBoxAdapter(
+                  child: Padding(
+                    padding: const EdgeInsets.fromLTRB(24, 16, 24, 0),
+                    child: Material(
+                      elevation: 0,
+                      borderRadius: BorderRadius.circular(16),
+                      color: Colors.amber.shade50,
+                      child: Padding(
+                        padding: const EdgeInsets.all(16),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Row(
+                              children: [
+                                Icon(Icons.hourglass_top_rounded, color: Colors.amber.shade900),
+                                const SizedBox(width: 10),
+                                Expanded(
+                                  child: Text(
+                                    'Validation PayFlex en cours',
+                                    style: GoogleFonts.manrope(
+                                      fontWeight: FontWeight.w800,
+                                      fontSize: 15,
+                                      color: Colors.amber.shade900,
+                                    ),
+                                  ),
+                                ),
+                              ],
+                            ),
+                            const SizedBox(height: 8),
+                            Text(
+                              'Votre dossier a été transmis. Catalogue, paiements et cotisations seront actifs après approbation par l’équipe.',
+                              style: GoogleFonts.inter(fontSize: 13, color: Colors.amber.shade900, height: 1.4),
+                            ),
+                            const SizedBox(height: 12),
+                            SizedBox(
+                              width: double.infinity,
+                              child: FilledButton.icon(
+                                onPressed: auth.isLoading
+                                    ? null
+                                    : () async {
+                                        final ok = await ref.read(authProvider.notifier).tryActivateApprovedAccount();
+                                        if (!context.mounted) return;
+                                        ScaffoldMessenger.of(context).showSnackBar(
+                                          SnackBar(
+                                            content: Text(
+                                              ok
+                                                  ? 'Compte activé — toutes les fonctions sont disponibles.'
+                                                  : 'Pas encore validé. Réessayez dans quelques instants.',
+                                            ),
+                                          ),
+                                        );
+                                      },
+                                icon: const Icon(Icons.refresh_rounded, size: 18),
+                                label: const Text('Vérifier mon activation'),
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ),
+                  ),
+                ),
+
+              // === QUICK STATS (fond clair séparé, ne recouvre plus le solde) ===
               SliverToBoxAdapter(
-                child: Padding(
-                  padding: const EdgeInsets.fromLTRB(24, 20, 24, 0),
+                child: Container(
+                  width: double.infinity,
+                  decoration: const BoxDecoration(
+                    color: Color(0xFFF8FAFC),
+                    borderRadius: BorderRadius.vertical(top: Radius.circular(28)),
+                  ),
+                  padding: const EdgeInsets.fromLTRB(24, 22, 24, 0),
                   child: Row(
                     children: [
                       _statCard(
                         icon: Icons.trending_up_rounded,
                         label: 'Projets actifs',
-                        value: '${financeState.projects.length}',
+                        value: auth.awaitingAdminApproval ? '—' : '${financeState.projects.length}',
                         color: AppColors.primary,
                       ),
                       const SizedBox(width: 12),
@@ -136,25 +287,101 @@ class DashboardScreen extends ConsumerWidget {
                       ),
                       const SizedBox(width: 12),
                       _statCard(
-                        icon: Icons.calendar_today_rounded,
-                        label: 'Ce mois',
-                        value: '${DateTime.now().day}j',
-                        color: const Color(0xFF38A169),
+                        icon: Icons.history_toggle_off_rounded,
+                        label: 'Rattrapages',
+                        value: '${financeState.catchUpOrangeDaysCount}',
+                        color: const Color(0xFFD97706),
                       ),
                     ],
                   ),
                 ).animate().fadeIn(delay: 300.ms).slideY(begin: 0.1),
               ),
 
-              const SliverToBoxAdapter(child: SizedBox(height: 28)),
+              if (auth.role == 'client' && auth.needsAdhesionPayment)
+                SliverToBoxAdapter(
+                  child: ColoredBox(
+                    color: const Color(0xFFF8FAFC),
+                    child: Padding(
+                      padding: const EdgeInsets.fromLTRB(24, 18, 24, 0),
+                      child: Material(
+                        elevation: 0,
+                        borderRadius: BorderRadius.circular(16),
+                        color: Colors.orange.shade50,
+                        child: InkWell(
+                          borderRadius: BorderRadius.circular(16),
+                          onTap: () async {
+                            final ok = await Navigator.push<bool>(
+                              context,
+                              MaterialPageRoute(builder: (_) => const AdhesionPaymentScreen()),
+                            );
+                            if (ok == true && context.mounted) {
+                              await ref.read(authProvider.notifier).refreshProfile();
+                            }
+                          },
+                          child: Container(
+                            width: double.infinity,
+                            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+                            decoration: BoxDecoration(
+                              borderRadius: BorderRadius.circular(16),
+                              border: Border.all(color: Colors.orange.shade200),
+                            ),
+                            child: Row(
+                              children: [
+                                Icon(Icons.payments_outlined, color: Colors.orange.shade800, size: 26),
+                                const SizedBox(width: 12),
+                                Expanded(
+                                  child: Column(
+                                    crossAxisAlignment: CrossAxisAlignment.start,
+                                    children: [
+                                      Text(
+                                        'Adhésion ${auth.adhesionFeeFcfa} FCFA',
+                                        style: GoogleFonts.manrope(
+                                          fontSize: 14,
+                                          fontWeight: FontWeight.w800,
+                                          color: Colors.orange.shade900,
+                                        ),
+                                      ),
+                                      const SizedBox(height: 4),
+                                      Text(
+                                        auth.assignedAgentName != null &&
+                                                auth.assignedAgentName!.trim().isNotEmpty
+                                            ? 'Espèces chez ${auth.assignedAgentName!.trim()} ou mobile money (FedaPay).'
+                                            : 'Paiement mobile money (FedaPay). Appuyez pour payer.',
+                                        style: GoogleFonts.inter(
+                                          fontSize: 12,
+                                          height: 1.35,
+                                          color: Colors.orange.shade900.withValues(alpha: 0.85),
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                ),
+                                Icon(Icons.chevron_right_rounded, color: Colors.orange.shade800),
+                              ],
+                            ),
+                          ),
+                        ),
+                      ),
+                    ).animate().fadeIn(delay: 350.ms).slideY(begin: 0.06),
+                  ),
+                ),
+
+              SliverToBoxAdapter(
+                child: ColoredBox(
+                  color: const Color(0xFFF8FAFC),
+                  child: SizedBox(height: auth.role == 'client' && auth.needsAdhesionPayment ? 22 : 28),
+                ),
+              ),
 
               // === ACCÈS RAPIDES ===
               SliverToBoxAdapter(
-                child: Padding(
-                  padding: const EdgeInsets.symmetric(horizontal: 24),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
+                child: ColoredBox(
+                  color: const Color(0xFFF8FAFC),
+                  child: Padding(
+                    padding: const EdgeInsets.symmetric(horizontal: 24),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
                       Text('ACCÈS RAPIDES',
                         style: GoogleFonts.manrope(
                           fontSize: 10, fontWeight: FontWeight.w900,
@@ -165,40 +392,96 @@ class DashboardScreen extends ConsumerWidget {
                         children: [
                           _quickAction(
                             context, ref,
-                            icon: Icons.add_circle_outline_rounded,
-                            label: 'Nouveau\nProjet',
-                            color: AppColors.primary,
-                            tabIndex: 2, // Onglet Paiement/Cotisation
+                            icon: Icons.storefront_outlined,
+                            label: 'Explorer\nCatalogue',
+                            color: AppColors.secondary,
+                            tabIndex: 1,
                           ),
                           const SizedBox(width: 12),
                           _quickAction(
                             context, ref,
-                            icon: Icons.storefront_outlined,
-                            label: 'Explorer\nCatalogue',
-                            color: AppColors.secondary,
-                            tabIndex: 1, // Onglet Catalogue
+                            icon: Icons.payments_outlined,
+                            label: 'Cotiser\n(Paiement)',
+                            color: AppColors.primary,
+                            tabIndex: 2,
                           ),
                           const SizedBox(width: 12),
                           _quickAction(
                             context, ref,
                             icon: Icons.calendar_month_outlined,
-                            label: 'Mon\nCarnet',
+                            label: 'Mon\nSuivi',
                             color: const Color(0xFF38A169),
-                            tabIndex: 3, // Onglet Suivi
+                            tabIndex: 3,
                           ),
                           const SizedBox(width: 12),
                           _quickAction(
                             context, ref,
-                            icon: Icons.phone_android_outlined,
-                            label: 'Cotiser\nMaintenant',
+                            icon: Icons.person_outline_rounded,
+                            label: 'Mon\nProfil',
                             color: const Color(0xFF8E24AA),
-                            tabIndex: 2, // Onglet Paiement
+                            tabIndex: 4,
                           ),
                         ],
                       ),
-                    ],
-                  ),
-                ).animate().fadeIn(delay: 400.ms),
+                      const SizedBox(height: 14),
+                      Material(
+                        color: Colors.white,
+                        borderRadius: BorderRadius.circular(18),
+                        child: InkWell(
+                          onTap: () {
+                            if (!auth.canUseAppFeatures) {
+                              showRegistrationFeatureLockedSnackBar(context, 'Discussion support');
+                              return;
+                            }
+                            Navigator.push(
+                              context,
+                              MaterialPageRoute(builder: (_) => const ChatScreen()),
+                            );
+                          },
+                          borderRadius: BorderRadius.circular(18),
+                          child: Container(
+                            width: double.infinity,
+                            padding: const EdgeInsets.symmetric(vertical: 14, horizontal: 16),
+                            decoration: BoxDecoration(
+                              borderRadius: BorderRadius.circular(18),
+                              border: Border.all(color: AppColors.secondary.withOpacity(0.12)),
+                              boxShadow: [
+                                BoxShadow(
+                                  color: Colors.black.withOpacity(0.03),
+                                  blurRadius: 10,
+                                  offset: const Offset(0, 4),
+                                ),
+                              ],
+                            ),
+                            child: Row(
+                              mainAxisAlignment: MainAxisAlignment.center,
+                              children: [
+                                Stack(
+                                  clipBehavior: Clip.none,
+                                  children: [
+                                    Icon(Icons.chat_bubble_outline_rounded, color: AppColors.secondary, size: 22),
+                                    if (inboxState != null && inboxState.chatUnread > 0)
+                                      CountBadge(count: inboxState.chatUnread, top: -4, right: -6),
+                                  ],
+                                ),
+                                const SizedBox(width: 10),
+                                Text(
+                                  'Message / Discussion',
+                                  style: GoogleFonts.manrope(
+                                    fontWeight: FontWeight.w800,
+                                    fontSize: 14,
+                                    color: AppColors.secondary,
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                        ),
+                      ),
+                      ],
+                    ),
+                  ).animate().fadeIn(delay: 400.ms),
+                ),
               ),
 
               const SliverToBoxAdapter(child: SizedBox(height: 28)),
@@ -235,12 +518,25 @@ class DashboardScreen extends ConsumerWidget {
                       itemCount: financeState.projects.length,
                       itemBuilder: (context, index) {
                         final project = financeState.projects[index];
-                        return ProjectCard(
-                          title: project.title,
-                          saved: project.saved.toStringAsFixed(0).replaceAllMapped(RegExp(r'(\d{1,3})(?=(\d{3})+(?!\d))'), (m) => '${m[1]}.'),
-                          total: project.total.toStringAsFixed(0).replaceAllMapped(RegExp(r'(\d{1,3})(?=(\d{3})+(?!\d))'), (m) => '${m[1]}.'),
-                          progress: project.progress,
-                          color: AppColors.primary,
+                        return InkWell(
+                          onTap: () async {
+                            await Navigator.of(context).push(
+                              MaterialPageRoute<void>(
+                                builder: (_) => DashboardProjectDetailScreen(projectId: project.id),
+                              ),
+                            );
+                            if (context.mounted) {
+                              await ref.read(financeProvider.notifier).reload();
+                            }
+                          },
+                          borderRadius: BorderRadius.circular(22),
+                          child: ProjectCard(
+                            title: project.title,
+                            saved: project.saved.toStringAsFixed(0).replaceAllMapped(RegExp(r'(\d{1,3})(?=(\d{3})+(?!\d))'), (m) => '${m[1]}.'),
+                            total: project.total.toStringAsFixed(0).replaceAllMapped(RegExp(r'(\d{1,3})(?=(\d{3})+(?!\d))'), (m) => '${m[1]}.'),
+                            progress: project.progress,
+                            color: AppColors.primary,
+                          ),
                         ).animate().fadeIn(delay: (400 + (index * 100)).ms).slideX(begin: 0.2);
                       },
                     ),
@@ -346,7 +642,14 @@ class DashboardScreen extends ConsumerWidget {
     return Expanded(
       child: GestureDetector(
         onTap: () {
-          // Changer l'onglet via le provider — pas de Navigator.push
+          final auth = ref.read(authProvider);
+          if (!auth.canUseAppFeatures && (tabIndex == 2 || tabIndex == 3)) {
+            showRegistrationFeatureLockedSnackBar(
+              context,
+              tabIndex == 2 ? 'Paiement' : 'Suivi',
+            );
+            return;
+          }
           ref.read(navigationIndexProvider.notifier).setIndex(tabIndex);
         },
         child: Container(

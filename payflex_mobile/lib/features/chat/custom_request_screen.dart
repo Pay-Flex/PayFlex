@@ -5,6 +5,8 @@ import 'package:google_fonts/google_fonts.dart';
 import '../../core/constants/app_colors.dart';
 import '../../core/database/database_service.dart';
 import '../../core/providers/chat_provider.dart';
+import '../../core/widgets/payflex_phone_field.dart';
+import '../../core/utils/phone_input_utils.dart';
 
 class CustomRequestScreen extends StatefulWidget {
   const CustomRequestScreen({super.key});
@@ -167,12 +169,10 @@ class _CustomRequestScreenState extends State<CustomRequestScreen> {
                 const SizedBox(height: 24),
 
                 _buildFieldLabel('Votre numéro personnel (pour le rappel)'),
-                _buildTextField(
-                  controller: _phoneController,
-                  hint: 'Ex: 77 000 00 00',
-                  icon: Icons.phone_android_rounded,
-                  keyboardType: TextInputType.phone,
-                  validator: (v) => v!.isEmpty ? 'Le numéro est obligatoire' : null,
+                PayflexPhoneField(
+                  completeNumberController: _phoneController,
+                  hint: 'Numéro de téléphone',
+                  validator: (v) => PayflexPhoneValidator.validate(v),
                 ),
 
                 const SizedBox(height: 48),

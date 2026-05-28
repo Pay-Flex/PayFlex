@@ -1,10 +1,10 @@
-import 'dart:ui';
 import 'package:flutter/material.dart';
 import 'package:flutter_animate/flutter_animate.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../core/constants/app_colors.dart';
 import '../../core/database/database_service.dart';
+import '../../core/providers/auth_provider.dart';
 import 'agent_collect_screen.dart';
 import 'agent_validation_queue_screen.dart';
 import 'agent_enrollment_screen.dart';
@@ -20,7 +20,6 @@ class AgentDashboardScreen extends ConsumerStatefulWidget {
 class _AgentDashboardScreenState extends ConsumerState<AgentDashboardScreen> {
   final DatabaseService _dbService = DatabaseService();
   List<Map<String, dynamic>> _clients = [];
-  bool _isLoadingClients = true;
   final TextEditingController _searchController = TextEditingController();
   
   // Données de démo pour l'UI
@@ -39,7 +38,6 @@ class _AgentDashboardScreenState extends ConsumerState<AgentDashboardScreen> {
       final clients = await _dbService.getClientsForAgent(auth.userId!);
       setState(() {
         _clients = clients;
-        _isLoadingClients = false;
       });
     }
   }
@@ -74,16 +72,32 @@ class _AgentDashboardScreenState extends ConsumerState<AgentDashboardScreen> {
                     padding: const EdgeInsets.fromLTRB(20, 10, 20, 20),
                     child: Row(
                       children: [
-                        const CircleAvatar(
-                          radius: 22,
-                          backgroundImage: NetworkImage('https://i.pravatar.cc/150?u=agent1'),
+                        Builder(
+                          builder: (context) {
+                            final auth = ref.watch(authProvider);
+                            return CircleAvatar(
+                              radius: 22,
+                              backgroundColor: AppColors.primary.withOpacity(0.2),
+                              child: Text(
+                                auth.avatarLetter,
+                                style: GoogleFonts.manrope(
+                                  fontSize: 18,
+                                  fontWeight: FontWeight.w800,
+                                  color: AppColors.secondary,
+                                ),
+                              ),
+                            );
+                          },
                         ),
                         const SizedBox(width: 12),
-                        Column(
+                        Builder(
+                          builder: (context) {
+                            final auth = ref.watch(authProvider);
+                            return Column(
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
                             Text(
-                              'ARCHITECTE FINANCIER',
+                              auth.roleLabelFr().toUpperCase(),
                               style: GoogleFonts.manrope(
                                 fontSize: 10,
                                 fontWeight: FontWeight.w900,
@@ -92,7 +106,7 @@ class _AgentDashboardScreenState extends ConsumerState<AgentDashboardScreen> {
                               ),
                             ),
                             Text(
-                              'Jean Dupont',
+                              auth.name?.trim().isNotEmpty == true ? auth.name!.trim() : 'Agent PayFlex',
                               style: GoogleFonts.manrope(
                                 fontSize: 20,
                                 fontWeight: FontWeight.w800,
@@ -101,7 +115,9 @@ class _AgentDashboardScreenState extends ConsumerState<AgentDashboardScreen> {
                               ),
                             ),
                           ],
-                        ),
+                        );
+                      },
+                    ),
                         const Spacer(),
                         _buildHeaderAction(Icons.notifications_none_rounded),
                       ],
@@ -311,8 +327,27 @@ class _AgentDashboardScreenState extends ConsumerState<AgentDashboardScreen> {
                     ),
                   ),
                 ),
-
-                    ]),
+                SliverPadding(
+                  padding: const EdgeInsets.fromLTRB(20, 0, 20, 100),
+                  sliver: SliverList(
+                    delegate: SliverChildBuilderDelegate(
+                      (context, index) {
+                        final client = _clients[index];
+                        return Padding(
+                          padding: const EdgeInsets.only(bottom: 12),
+                          child: _buildClientCard(
+                            context,
+                            (client['id'] as num).toInt(),
+                            (client['name'] as String?) ?? 'Client PayFlex',
+                            (client['profession'] as String?) ?? 'Metier non renseigne',
+                            'Aujourd hui',
+                            'https://i.pravatar.cc/150?u=${client['id']}',
+                            true,
+                          ),
+                        );
+                      },
+                      childCount: _clients.length,
+                    ),
                   ),
                 ),
               ],
@@ -341,13 +376,14 @@ class _AgentDashboardScreenState extends ConsumerState<AgentDashboardScreen> {
     );
   }
 
-  Widget _buildClientCard(BuildContext context, String name, String zone, String lastPay, String img, bool isPhysical, {bool hasAlert = false, bool amountIncoherent = false}) {
+  Widget _buildClientCard(BuildContext context, int clientDbId, String name, String zone, String lastPay, String img, bool isPhysical, {bool amountIncoherent = false}) {
     return GestureDetector(
       onTap: () {
         Navigator.push(
           context,
           MaterialPageRoute(
             builder: (context) => AgentClientDetailScreen(
+              clientId: clientDbId,
               name: name,
               zone: zone,
               img: img,
@@ -436,7 +472,9 @@ class _AgentDashboardScreenState extends ConsumerState<AgentDashboardScreen> {
                 onPressed: () {
                   Navigator.push(
                     context,
-                    MaterialPageRoute(builder: (context) => AgentCollectScreen(clientName: name)),
+                    MaterialPageRoute(
+                      builder: (context) => AgentCollectScreen(clientName: name, clientId: clientDbId),
+                    ),
                   );
                 },
                 style: ElevatedButton.styleFrom(

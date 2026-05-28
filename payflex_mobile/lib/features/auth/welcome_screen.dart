@@ -1,4 +1,5 @@
-import 'dart:ui';
+import 'dart:ui' show ImageFilter;
+
 import 'package:flutter/material.dart';
 import 'package:flutter_animate/flutter_animate.dart';
 import 'package:google_fonts/google_fonts.dart';
@@ -6,159 +7,172 @@ import '../../core/constants/app_colors.dart';
 import 'role_selection_screen.dart';
 import 'login_screen.dart';
 import 'widgets/auth_wave_background.dart';
+import 'widgets/payflex_logo.dart';
 
 class WelcomeScreen extends StatelessWidget {
   const WelcomeScreen({super.key});
+
+  static const String _heroImageUrl =
+      'https://images.unsplash.com/photo-1581578731548-c64695cc6952?w=1200&q=80';
 
   @override
   Widget build(BuildContext context) {
     return AuthWaveBackground(
       child: Stack(
+        fit: StackFit.expand,
         children: [
-          // 1. Atmospheric Blobs (Top/Center)
-          Positioned(
-            top: -50,
-            left: -50,
-            child: _buildWelcomeBlob(AppColors.primary, 300),
-          ).animate(onPlay: (controller) => controller.repeat(reverse: true))
-           .move(duration: 10.seconds, begin: const Offset(-20, -20), end: const Offset(20, 20)),
+          // Image plein écran + flou pour lisibilité du texte
+          Positioned.fill(
+            child: ImageFiltered(
+              imageFilter: ImageFilter.blur(sigmaX: 6, sigmaY: 6),
+              child: Image.network(
+                _heroImageUrl,
+                fit: BoxFit.cover,
+                alignment: Alignment.center,
+                errorBuilder: (context, error, _) => Container(
+                  color: AppColors.secondary,
+                  child: const Icon(Icons.engineering_rounded, size: 72, color: AppColors.primary),
+                ),
+              ),
+            ),
+          ).animate().fadeIn(duration: 500.ms),
 
-          Positioned(
-            top: 200,
-            right: -100,
-            child: _buildWelcomeBlob(AppColors.secondary, 400),
-          ).animate(onPlay: (controller) => controller.repeat(reverse: true))
-           .move(duration: 15.seconds, begin: const Offset(30, 30), end: const Offset(-30, -30)),
+          // Voile pour lisibilité du texte et des boutons
+          Positioned.fill(
+            child: DecoratedBox(
+              decoration: BoxDecoration(
+                gradient: LinearGradient(
+                  begin: Alignment.topCenter,
+                  end: Alignment.bottomCenter,
+                  colors: [
+                    Colors.black.withValues(alpha: 0.28),
+                    Colors.black.withValues(alpha: 0.12),
+                    Colors.black.withValues(alpha: 0.45),
+                    Colors.black.withValues(alpha: 0.58),
+                  ],
+                  stops: const [0.0, 0.35, 0.72, 1.0],
+                ),
+              ),
+            ),
+          ),
 
-          // 2. Content
           SafeArea(
-            child: Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 40, vertical: 40),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.center,
-                children: [
-                  const Spacer(flex: 2),
-                  
-                  // Central Logo/Title Area
-                  Column(
-                    children: [
-                      Container(
-                        padding: const EdgeInsets.all(24),
-                        decoration: BoxDecoration(
-                          color: AppColors.primary.withOpacity(0.1),
-                          shape: BoxShape.circle,
+            child: LayoutBuilder(
+              builder: (context, constraints) {
+                final keyboardOpen = MediaQuery.viewInsetsOf(context).bottom > 0;
+                final bottomClearance = keyboardOpen ? 20.0 : 100.0;
+
+                return SingleChildScrollView(
+                  physics: const ClampingScrollPhysics(),
+                  keyboardDismissBehavior: ScrollViewKeyboardDismissBehavior.onDrag,
+                  child: ConstrainedBox(
+                    constraints: BoxConstraints(minHeight: constraints.maxHeight),
+                    child: Padding(
+                      padding: EdgeInsets.fromLTRB(32, 12, 32, bottomClearance),
+                      child: Column(
+                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                        crossAxisAlignment: CrossAxisAlignment.center,
+                        children: [
+                          Column(
+                            crossAxisAlignment: CrossAxisAlignment.center,
+                            children: [
+                  Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
+                    decoration: BoxDecoration(
+                      color: Colors.white.withValues(alpha: 0.95),
+                      borderRadius: BorderRadius.circular(20),
+                      boxShadow: [
+                        BoxShadow(
+                          color: Colors.black.withValues(alpha: 0.2),
+                          blurRadius: 16,
+                          offset: const Offset(0, 4),
                         ),
-                        child: const Icon(Icons.account_balance_wallet_rounded, 
-                          color: AppColors.primary, size: 80),
-                      ).animate().scale(duration: 600.ms, curve: Curves.easeOutBack),
-                      
-                      const SizedBox(height: 32),
-                      
-                      Text(
-                        'PayFlex',
-                        style: GoogleFonts.manrope(
-                          fontSize: 56,
-                          fontWeight: FontWeight.w900,
-                          color: AppColors.secondary,
-                          letterSpacing: -2,
-                        ),
-                      ).animate().fadeIn(delay: 200.ms).slideY(begin: 0.2),
-                      
-                      const SizedBox(height: 8),
-                      
-                      Container(
-                        height: 4,
-                        width: 60,
-                        decoration: BoxDecoration(
-                          color: AppColors.primary,
-                          borderRadius: BorderRadius.circular(2),
-                        ),
-                      ).animate().scaleX(delay: 400.ms, duration: 600.ms, alignment: Alignment.center),
-                    ],
-                  ),
-                  
-                  const Spacer(),
-                  
-                  // Description
+                      ],
+                    ),
+                    child: const PayFlexLogo(size: 72),
+                  ).animate().scale(duration: 600.ms, curve: Curves.easeOutBack),
+                  const SizedBox(height: 8),
+                  Container(
+                    height: 4,
+                    width: 56,
+                    decoration: BoxDecoration(
+                      color: AppColors.primary,
+                      borderRadius: BorderRadius.circular(2),
+                    ),
+                  ).animate().scaleX(delay: 400.ms, duration: 600.ms, alignment: Alignment.center),
+
+                  const SizedBox(height: 20),
+
                   Text(
                     'La solution qui vous permet de cotiser progressivement pour acheter vos outils professionnels.',
                     textAlign: TextAlign.center,
                     style: GoogleFonts.inter(
-                      fontSize: 18,
-                      color: AppColors.secondary.withOpacity(0.7),
-                      height: 1.6,
+                      fontSize: 16,
+                      color: Colors.white.withValues(alpha: 0.95),
+                      height: 1.5,
                       fontWeight: FontWeight.w500,
+                      shadows: [
+                        Shadow(
+                          color: Colors.black.withValues(alpha: 0.5),
+                          blurRadius: 6,
+                        ),
+                      ],
                     ),
-                  ).animate().fadeIn(delay: 600.ms),
-                  
-                  const Spacer(flex: 2),
-                  
-                  // Action Buttons (Full width)
-                  Column(
-                    children: [
-                      ElevatedButton(
-                        onPressed: () {
-                          Navigator.push(
-                            context,
-                            MaterialPageRoute(builder: (context) => const LoginScreen()),
-                          );
-                        },
-                        style: ElevatedButton.styleFrom(
-                          minimumSize: const Size(double.infinity, 64),
-                          backgroundColor: AppColors.secondary,
-                          foregroundColor: Colors.white,
-                          elevation: 10,
-                          shadowColor: AppColors.secondary.withOpacity(0.4),
-                          shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(24),
+                  ).animate().fadeIn(delay: 500.ms),
+                            ],
                           ),
-                        ),
-                        child: const Text('SE CONNECTER'),
-                      ).animate().fadeIn(delay: 800.ms).slideY(begin: 0.3),
-                      
-                      const SizedBox(height: 20),
-                      
-                      OutlinedButton(
-                        onPressed: () {
-                          Navigator.push(
-                            context,
-                            MaterialPageRoute(builder: (context) => const RoleSelectionScreen()),
-                          );
-                        },
-                        style: OutlinedButton.styleFrom(
-                          foregroundColor: AppColors.secondary,
-                          side: BorderSide(color: AppColors.secondary.withOpacity(0.2), width: 2),
-                          minimumSize: const Size(double.infinity, 64),
-                          shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(24),
+
+                          Column(
+                            crossAxisAlignment: CrossAxisAlignment.stretch,
+                            children: [
+                  // Boutons remontés (au-dessus du décor vague en bas)
+                  OutlinedButton(
+                    onPressed: () {
+                      Navigator.push(
+                        context,
+                        MaterialPageRoute(builder: (context) => const LoginScreen()),
+                      );
+                    },
+                    style: OutlinedButton.styleFrom(
+                      minimumSize: const Size(double.infinity, 58),
+                      foregroundColor: Colors.white,
+                      backgroundColor: Colors.white.withValues(alpha: 0.12),
+                      side: const BorderSide(color: Colors.white, width: 2),
+                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
+                    ),
+                    child: const Text('SE CONNECTER'),
+                  ).animate().fadeIn(delay: 700.ms).slideY(begin: 0.15),
+
+                  const SizedBox(height: 14),
+
+                  ElevatedButton(
+                    onPressed: () {
+                      Navigator.push(
+                        context,
+                        MaterialPageRoute(builder: (context) => const RoleSelectionScreen()),
+                      );
+                    },
+                    style: ElevatedButton.styleFrom(
+                      minimumSize: const Size(double.infinity, 58),
+                      backgroundColor: AppColors.primary,
+                      foregroundColor: AppColors.secondary,
+                      elevation: 8,
+                      shadowColor: Colors.black.withValues(alpha: 0.35),
+                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
+                    ),
+                    child: const Text('CRÉER UN COMPTE'),
+                  ).animate().fadeIn(delay: 850.ms).slideY(begin: 0.15),
+                            ],
                           ),
-                        ),
-                        child: const Text('CRÉER UN COMPTE'),
-                      ).animate().fadeIn(delay: 1000.ms).slideY(begin: 0.3),
-                    ],
+                        ],
+                      ),
+                    ),
                   ),
-                  
-                  const SizedBox(height: 24),
-                ],
-              ),
+                );
+              },
             ),
           ),
         ],
-      ),
-    );
-  }
-
-  Widget _buildWelcomeBlob(Color color, double size) {
-    return Container(
-      width: size,
-      height: size,
-      decoration: BoxDecoration(
-        color: color.withOpacity(0.04),
-        shape: BoxShape.circle,
-      ),
-      child: BackdropFilter(
-        filter: ImageFilter.blur(sigmaX: 50, sigmaY: 50),
-        child: Container(color: Colors.transparent),
       ),
     );
   }

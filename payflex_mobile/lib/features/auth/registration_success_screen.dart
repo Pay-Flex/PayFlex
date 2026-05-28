@@ -18,19 +18,7 @@ class RegistrationSuccessScreen extends StatelessWidget {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.center,
             children: [
-              // Header Logo
-              const PayFlexLogo(size: 70),
-              const SizedBox(height: 8),
-              Text(
-                'PayFlex',
-                style: GoogleFonts.manrope(
-                  fontSize: 22,
-                  fontWeight: FontWeight.w900,
-                  color: AppColors.secondary,
-                  letterSpacing: -1,
-                ),
-              ),
-              
+              const PayFlexLogo(size: 88),
               const Spacer(flex: 1),
               
               // Success Illustration Placeholder (Checkmark & Clipboard)
