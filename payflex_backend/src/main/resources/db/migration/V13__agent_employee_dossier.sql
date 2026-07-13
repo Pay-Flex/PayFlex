@@ -1,0 +1,20 @@
+-- Dossier RH / employé pour les agents terrain (créés depuis l'admin)
+ALTER TABLE agents
+    ADD COLUMN matricule VARCHAR(48) NULL,
+    ADD COLUMN gender VARCHAR(24) NULL,
+    ADD COLUMN email VARCHAR(180) NULL,
+    ADD COLUMN personal_address VARCHAR(600) NULL,
+    ADD COLUMN hire_date DATE NULL,
+    ADD COLUMN contract_type VARCHAR(80) NULL,
+    ADD COLUMN emergency_contact_name VARCHAR(160) NULL,
+    ADD COLUMN emergency_contact_phone VARCHAR(48) NULL,
+    ADD COLUMN emergency_contact_relation VARCHAR(100) NULL,
+    ADD COLUMN supervisor_name VARCHAR(160) NULL,
+    ADD COLUMN supervisor_phone VARCHAR(48) NULL,
+    ADD COLUMN secondary_contact_name VARCHAR(160) NULL,
+    ADD COLUMN secondary_contact_phone VARCHAR(48) NULL,
+    ADD COLUMN references_notes TEXT NULL,
+    ADD COLUMN internal_notes TEXT NULL,
+    ADD COLUMN id_document_path VARCHAR(512) NULL,
+    ADD COLUMN contract_document_path VARCHAR(512) NULL,
+    ADD COLUMN photo_path VARCHAR(512) NULL;

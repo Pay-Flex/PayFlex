@@ -1,0 +1,61 @@
+<!doctype html>
+<html lang="fr" xmlns:th="http://www.thymeleaf.org">
+<head>
+  <meta charset="UTF-8">
+  <title>Clients assidus — impression</title>
+  <style>
+    body { font-family: system-ui, sans-serif; margin: 24px; color: #0f172a; }
+    h1 { font-size: 1.25rem; margin-bottom: 4px; }
+    p.meta { font-size: 0.85rem; color: #64748b; margin-bottom: 20px; }
+    table { width: 100%; border-collapse: collapse; font-size: 0.85rem; }
+    th, td { border: 1px solid #cbd5e1; padding: 8px 10px; text-align: left; }
+    th { background: #f1f5f9; }
+    @media print { .no-print { display: none; } }
+  </style>
+</head>
+<body onload="window.print()">
+  <button type="button" class="no-print" onclick="window.print()" style="margin-bottom:12px;padding:8px 16px;">Imprimer</button>
+  <h1>Liste clients assidus — badge
+    <span th:switch="${badge}">
+      <span th:case="'or'">Or</span>
+      <span th:case="'argent'">Argent</span>
+      <span th:case="'bronze'">Bronze</span>
+      <span th:case="*" th:text="${badge}">or</span>
+    </span>
+  </h1>
+  <p class="meta">PayFlex · pour cadeaux / reconnaissance · <span th:text="${#dates.format(#dates.createNow(), 'dd/MM/yyyy HH:mm')}"></span></p>
+  <table>
+    <thead>
+    <tr>
+      <th>#</th>
+      <th>Nom</th>
+      <th>Téléphone</th>
+      <th>Ville</th>
+      <th>Agent PayFlex</th>
+      <th>Tél. agent</th>
+    </tr>
+    </thead>
+    <tbody>
+    <tr th:each="r, stat : ${rows}">
+      <td th:text="${stat.count}">1</td>
+      <td th:text="${r.fullName()}"></td>
+      <td th:text="${r.phone()}"></td>
+      <td th:text="${r.city() != null ? r.city() : '—'}"></td>
+      <td>
+        <span th:if="${r.selfManaged()}">Sans agent (autonome)</span>
+        <span th:if="${!r.selfManaged() and r.agentName() != null}" th:text="${r.agentName()}"></span>
+        <span th:if="${!r.selfManaged() and r.agentName() == null}">—</span>
+      </td>
+      <td>
+        <span th:if="${r.selfManaged()}">—</span>
+        <span th:if="${!r.selfManaged() and r.agentPhone() != null}" th:text="${r.agentPhone()}"></span>
+        <span th:if="${!r.selfManaged() and r.agentPhone() == null}">—</span>
+      </td>
+    </tr>
+    <tr th:if="${rows == null || rows.isEmpty()}">
+      <td colspan="6">Aucun client pour ce badge.</td>
+    </tr>
+    </tbody>
+  </table>
+</body>
+</html>

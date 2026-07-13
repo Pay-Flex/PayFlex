@@ -1,0 +1,59 @@
+<!doctype html>
+<html lang="fr" xmlns:th="http://www.thymeleaf.org">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>PayFlex Admin — Connexion</title>
+    <link rel="icon" type="image/png" th:href="@{/img/logo.png}">
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="stylesheet" th:href="@{/css/admin-wow.css}">
+</head>
+<body class="min-h-screen flex items-center justify-center p-4" style="background:var(--pf-main-bg)">
+<div class="pf-admin-top-strip fixed inset-x-0 top-0 h-44 -z-10" aria-hidden="true"></div>
+<div class="w-full max-w-6xl bg-white rounded-2xl overflow-hidden shadow-2xl grid grid-cols-1 md:grid-cols-2 border border-slate-200">
+    <section class="pf-admin-login-brand relative p-10 md:p-14 flex flex-col justify-end border-r border-slate-200/80 overflow-hidden min-h-[22rem] md:min-h-0">
+        <div class="relative z-10 pf-admin-login-brand-copy">
+            <p class="text-sm uppercase tracking-widest font-semibold pf-admin-login-brand-kicker">Administration</p>
+            <p class="mt-6 text-lg leading-relaxed pf-admin-login-brand-desc">Tableau de bord équipe : suivi des cotisations, validation des inscriptions et pilotage des agents.</p>
+        </div>
+    </section>
+
+    <section class="p-8 md:p-12 bg-slate-50">
+        <div class="max-w-md mx-auto">
+            <div class="flex justify-center mb-2">
+                <img th:src="@{/img/logo.png}" src="/img/logo.png" alt="PayFlex" class="pf-brand-logo pf-brand-logo--login-form">
+            </div>
+            <h2 class="text-2xl font-semibold text-slate-800 text-center mt-2">Connexion</h2>
+            <p class="text-center text-slate-500 text-sm mt-1">Identifiants compte administrateur</p>
+
+            <form class="mt-8 space-y-4" method="post" action="/login">
+                <input type="hidden" th:name="${_csrf.parameterName}" th:value="${_csrf.token}">
+                <div>
+                    <label class="block text-sm text-slate-600 mb-1">Nom d’utilisateur</label>
+                    <input name="username" type="text" autocomplete="username" required placeholder="Votre identifiant"
+                           class="w-full rounded-md border border-slate-200 bg-white px-4 py-3 outline-none focus:ring-2" style="--tw-ring-color:rgba(143,114,36,0.35)">
+                </div>
+                <div>
+                    <label class="block text-sm text-slate-600 mb-1">Mot de passe</label>
+                    <input name="password" type="password" autocomplete="current-password" required placeholder="••••••••"
+                           class="w-full rounded-md border border-slate-200 bg-white px-4 py-3 outline-none focus:ring-2" style="--tw-ring-color:rgba(143,114,36,0.35)">
+                </div>
+
+                <button type="submit"
+                        class="w-full py-3 rounded-md text-white font-semibold transition border border-transparent hover:opacity-95"
+                        style="background:var(--pf-admin-gold)">
+                    Se connecter
+                </button>
+            </form>
+
+            <div th:if="${param.error}" class="mt-4 rounded-md bg-red-100 text-red-700 p-3 text-sm">
+                Identifiants invalides.
+            </div>
+            <div th:if="${param.logout}" class="mt-4 rounded-md bg-emerald-50 text-emerald-800 p-3 text-sm border border-emerald-100">
+                Déconnexion effectuée.
+            </div>
+        </div>
+    </section>
+</div>
+</body>
+</html>

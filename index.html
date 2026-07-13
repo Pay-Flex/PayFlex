@@ -30,9 +30,22 @@
 
     <!-- Template Stylesheet -->
     <link href="css/style.css" rel="stylesheet">
+    <link href="css/premium.css" rel="stylesheet">
 </head>
 
 <body>
+    <!-- Splash Screen Start -->
+    <div id="splash-screen" class="">
+    <div class="text-center splash-content d-flex flex-column align-items-center">
+        <img src="img/logo.png" alt="PayFlex Logo" class="splash-logo mb-3" style="max-height: 120px;">
+        <p class="text-light fs-5 fw-light text-uppercase mb-4" style="letter-spacing: 4px;">L'innovation à votre portée</p>
+        <div class="loading-bar-container">
+            <div class="loading-bar"></div>
+        </div>
+    </div>
+</div>
+<!-- Splash Screen End -->
+
     <!-- Spinner Start -->
     <div id="spinner" class="show bg-white position-fixed translate-middle w-100 vh-100 top-50 start-50 d-flex align-items-center justify-content-center">
         <div class="spinner-border text-primary" role="status" style="width: 3rem; height: 3rem;"></div>
@@ -46,14 +59,14 @@
             <div class="col-lg-6 ps-5 text-start">
                 <div class="h-100 d-inline-flex align-items-center text-light">
                     <span>Suivez-nous :</span>
-                    <a class="btn btn-link text-light" href=""><i class="fab fa-facebook-f"></i></a>
-                    <a class="btn btn-link text-light" href=""><i class="fab fa-twitter"></i></a>
-                    <a class="btn btn-link text-light" href=""><i class="fab fa-linkedin-in"></i></a>
-                    <a class="btn btn-link text-light" href=""><i class="fab fa-instagram"></i></a>
+                    <a class="btn btn-link text-light" href="feature.html"><i class="fab fa-facebook-f"></i></a>
+                    <a class="btn btn-link text-light" href="feature.html"><i class="fab fa-twitter"></i></a>
+                    <a class="btn btn-link text-light" href="feature.html"><i class="fab fa-linkedin-in"></i></a>
+                    <a class="btn btn-link text-light" href="feature.html"><i class="fab fa-instagram"></i></a>
                 </div>
             </div>
             <div class="col-lg-6 text-end">
-                <div class=" h-100 d-inline-flex align-items-center text-white py-2 px-4" style="background-color:#0360ecd8;">
+                <div class=" h-100 d-inline-flex align-items-center text-white py-1 px-4 topbar-premium" style="background-color:#0360ecd8;">
                     <span class="me-2 fw-semi-bold"><i class="fa fa-phone-alt me-2"></i>Appelez-nous :</span>
                     <span>+228  345 6789</span>
                 </div>
@@ -64,7 +77,7 @@
 
 
     <!-- Navbar Start -->
-    <nav class="navbar navbar-expand-lg bg-white navbar-light sticky-top px-4 px-lg-5">
+    <nav class="navbar navbar-expand-lg glass-nav navbar-light sticky-top px-4 px-lg-5">
         <a href="index.html" class="navbar-brand d-flex align-items-center">
             <img src="img/logo.png" alt="PayFlex Logo" style="height: 70px;">
         </a>
@@ -78,7 +91,7 @@
                     <a href="#" class="nav-link dropdown-toggle" data-bs-toggle="dropdown">À Propos</a>
                     <div class="dropdown-menu bg-light m-0">
                         <a href="about.html" class="dropdown-item">À Propos de Nous</a>
-                        <a href="about.html#features" class="dropdown-item">Fonctionnalités</a>
+                        <a href="feature.html" class="dropdown-item">Fonctionnalités</a>
                         <a href="about.html#team" class="dropdown-item">Notre Équipe</a>
                         <a href="about.html#testimonials" class="dropdown-item">Témoignages</a>
                     </div>
@@ -87,6 +100,7 @@
                 <a href="catalogue.html" class="nav-item nav-link">Catalogue</a>
                 <a href="contact.html" class="nav-item nav-link">Contact</a>
             </div>
+            <button id="darkModeToggle" class="btn btn-sm btn-outline-secondary rounded-circle ms-3 d-flex align-items-center justify-content-center" style="width:38px; height:38px; border-width:2px; min-width: 38px;"><i class="fas fa-moon" style="font-size: 1.1rem;"></i></button>
             <!-- <div class="border-start ps-4 d-none d-lg-block">
                 <button type="button" class="btn btn-sm p-0"><i class="fa fa-search"></i></button>
             </div> -->
@@ -96,7 +110,7 @@
 
 
     <!-- Carousel Start -->
-    <div class="container-fluid px-0 mb-5">
+    <div class="container-fluid px-0 mb-4">
         <div id="header-carousel" class="carousel slide" data-bs-ride="carousel">
             <div class="carousel-inner">
                 <div class="carousel-item active">
@@ -111,7 +125,7 @@
                                                     <h1 class="display-1 text-white mb-5 animated slideInRight">La solution pour les tous les apprentis</h1>
                                                     
                                                     
-                                                    <a href="" class="btn btn-secondary rounded-pill py-3 px-5 animated slideInRight" style="background-color: var(--secondary); color: var(--dark); transition: background-color .2s ease, color .2s ease;" onmouseover="this.style.backgroundColor='#007bff'; this.style.color='#ffffff';" onmouseout="this.style.backgroundColor='var(--secondary)'; this.style.color='var(--dark)';">Découvrir</a>
+                                                    <a href="feature.html" class="btn btn-secondary rounded-pill py-3 px-5 animated slideInRight" style="background-color: var(--secondary); color: var(--dark); transition: background-color .2s ease, color .2s ease;" onmouseover="this.style.backgroundColor='#007bff'; this.style.color='#ffffff';" onmouseout="this.style.backgroundColor='var(--secondary)'; this.style.color='var(--dark)';">Découvrir</a>
                                                 </div>
                                             </div>
                                         </div>
@@ -126,7 +140,7 @@
                                                     <p class="text-white mb-4 text-center" style="font-family:'Libre Baskerville', serif; font-weight:700; font-size:clamp(2rem,6vw,4.5rem); letter-spacing:1px; text-shadow:0 2px 6px rgba(0,0,0,0.45); white-space:nowrap; display:inline-block;">
                                                         <span style="color:#fab62d;">PayFlex</span></p>
                                                     <h1 class="display-1 text-white mb-5 animated slideInRight">Votre avenir professionnel commence ici</h1>
-                                                    <a href="" class="btn btn-secondary rounded-pill py-3 px-5 animated slideInRight" style="background-color: var(--secondary); color: var(--dark); transition: background-color .2s ease, color .2s ease;" onmouseover="this.style.backgroundColor='#007bff'; this.style.color='#ffffff';" onmouseout="this.style.backgroundColor='var(--secondary)'; this.style.color='var(--dark)';">Découvrir</a>
+                                                    <a href="feature.html" class="btn btn-secondary rounded-pill py-3 px-5 animated slideInRight" style="background-color: var(--secondary); color: var(--dark); transition: background-color .2s ease, color .2s ease;" onmouseover="this.style.backgroundColor='#007bff'; this.style.color='#ffffff';" onmouseout="this.style.backgroundColor='var(--secondary)'; this.style.color='var(--dark)';">Découvrir</a>
                                                 </div>
                                             </div>
                                         </div>
@@ -148,45 +162,41 @@
 
 
     <!-- About Start -->
-    <div class="container-xxl py-5">
+    <div class="container-xxl py-5 my-5">
         <div class="container">
-            <div class="row g-5 align-items-end">
-                <div class="col-lg-6">
-                    <div class="row g-2">
-                        <div class="col-6 position-relative wow fadeIn" data-wow-delay="0.7s">
-                            <div class="about-experience bg-warning rounded">
-                                <h1 class="display-1 mb-0">+57</h1>
-                                <small class="fs-5 fw-bold">spécialités</small>
+            <div class="row g-5 align-items-center">
+                <div class="col-lg-6 wow fadeInUp" data-wow-delay="0.1s">
+                    <div class="row g-4">
+                        <div class="col-6"><img class="img-fluid rounded-4 shadow-lg mb-4 w-100" src="img/service-1.jpg" style="object-fit: cover; aspect-ratio: 4/5;"></div>
+                        <div class="col-6"><img class="img-fluid rounded-4 shadow-lg w-100" src="img/service-2.jpg" style="object-fit: cover; aspect-ratio: 4/5;"></div>
+                        <div class="col-6"><img class="img-fluid rounded-4 shadow-lg w-100" src="img/service-3.jpg" style="object-fit: cover; aspect-ratio: 4/5;"></div>
+                        <div class="col-6 d-flex align-items-center justify-content-center">
+                            <div class="bg-warning rounded-4 shadow-lg p-4 text-center w-100 d-flex flex-column justify-content-center align-items-center" style="aspect-ratio: 4/5;">
+                                <h1 class="display-3 mb-2 fw-bolder text-dark">+57</h1>
+                                <span class="fs-5 fw-bold text-dark text-uppercase letter-spacing-1">spécialités</span>
                             </div>
-                        </div>
-                        <div class="col-6 wow fadeIn" data-wow-delay="0.1s">
-                            <img class="img-fluid rounded" src="img/service-1.jpg">
-                        </div>
-                        <div class="col-6 wow fadeIn" data-wow-delay="0.3s">
-                            <img class="img-fluid rounded" src="img/service-2.jpg">
-                        </div>
-                        <div class="col-6 wow fadeIn" data-wow-delay="0.5s">
-                            <img class="img-fluid rounded" src="img/service-3.jpg">
                         </div>
                     </div>
                 </div>
                 <div class="col-lg-6 wow fadeIn" data-wow-delay="0.5s">
-                    <p class="section-title bg-white text-start text-infos pe-3">À Propos de Nous</p>
-                    <h1 class="mb-4">Découvrez PayFlex et notre mission</h1>
-                    <p class="mb-4">PayFlex est une plateforme numérique conçue pour les jeunes apprentis et artisans, leur permettant d'acquérir les outils et kits de travail essentiels grâce à des paiements échelonnés. Notre mission est de lever les barrières financières qui empêchent les talents de démarrer leur carrière.</p>
-                    <div class="row g-5 pt-2 mb-5">
-                        <div class="col-sm-6">
-                            <img class="img-fluid mb-4" src="img/service.png" alt="">
-                            <h5 class="mb-3">Accessibilité et flexibilité</h5>
-                            <span>Payez en plusieurs fois, selon vos revenus.</span>
+                    <p class="section-title bg-white text-start text-primary pe-3 fw-bold text-uppercase">À Propos de Nous</p>
+                    <h1 class="mb-4 display-5 fw-bold text-dark">Découvrez PayFlex et notre mission</h1>
+                    <p class="mb-4 fs-5 text-muted line-height-lg">PayFlex est une plateforme numérique conçue pour les jeunes apprentis et artisans, leur permettant d'acquérir les outils et kits de travail essentiels grâce à des paiements échelonnés. Notre mission est de lever les barrières financières qui empêchent les talents de démarrer leur carrière.</p>
+                    <div class="row g-4 pt-4 mb-5">
+                        <div class="col-sm-6 d-flex">
+                            <div class="d-flex flex-column align-items-start">
+                                <div class="bg-light rounded-circle d-flex justify-content-center align-items-center mb-3 shadow-sm" style="width: 60px; height: 60px;"><img class="img-fluid p-2" src="img/service.png"></div>
+                                <h5 class="mb-2 fw-bold text-dark">Accessibilité et flexibilité</h5><p class="text-muted mb-0">Payez en plusieurs fois, selon vos revenus.</p>
+                            </div>
                         </div>
-                        <div class="col-sm-6">
-                            <img class="img-fluid mb-4" src="img/product.png" alt="">
-                            <h5 class="mb-3">Qualité et fiabilité</h5>
-                            <span>Des outils et kits certifiés avec des garanties.</span>
+                        <div class="col-sm-6 d-flex">
+                            <div class="d-flex flex-column align-items-start">
+                                <div class="bg-light rounded-circle d-flex justify-content-center align-items-center mb-3 shadow-sm" style="width: 60px; height: 60px;"><img class="img-fluid p-2" src="img/product.png"></div>
+                                <h5 class="mb-2 fw-bold text-dark">Qualité et fiabilité</h5><p class="text-muted mb-0">Des outils et kits certifiés avec des garanties.</p>
+                            </div>
                         </div>
                     </div>
-                    <a class="btn btn-warning rounded-pill py-3 px-5" href="about.html">En savoir plus</a>
+                    <a class="btn btn-primary rounded-pill py-3 px-5 fw-bold shadow" href="feature.html">En savoir plus</a>
                 </div>
             </div>
         </div>
@@ -195,20 +205,18 @@
 
 
     <!-- Graphic Section Start -->
-    <div class="container-xxl py-5">
-        <div class="container">
+    <div class="container-xxl py-5 my-5 bg-light rounded-4 shadow-sm" style="position: relative; overflow: hidden;">
+        <div class="container py-5">
             <div class="row g-5 align-items-center">
-                <div class="col-lg-6 wow fadeIn" data-wow-delay="0.5s">
-                    <p class="section-title bg-white text-start text-infos pe-3">Notre Vision</p>
-                    <h1 class="mb-4">Technologie et Flexibilité au service des apprentis et de leur avenir</h1>
-                    <p class="mb-4">Nous croyons que la technologie peut libérer le potentiel. Notre plateforme est conçue pour être intuitive, sécurisée et s'adapter à vos besoins, vous donnant la liberté de vous concentrer sur ce que vous faites de mieux : votre métier.</p>
-                    <p>Le graphique ci-contre symbolise la connexion, la croissance et la flexibilité que PayFlex apporte à chaque artisan. C'est notre engagement envers votre réussite.</p>
+                <div class="col-lg-6 wow fadeIn" data-wow-delay="0.1s">
+                    <p class="section-title bg-light text-start text-primary pe-3 fw-bold text-uppercase">Notre Vision</p>
+                    <h1 class="mb-4 display-5 fw-bold text-dark">Technologie et Flexibilité au service des apprentis et de leur avenir</h1>
+                    <p class="mb-4 fs-5 text-muted line-height-lg">Nous croyons que la technologie peut libérer le potentiel. Notre plateforme est conçue pour être intuitive, sécurisée et s'adapter à vos besoins, vous donnant la liberté de vous concentrer sur ce que vous faites de mieux : votre métier.</p>
+                    <p class="text-muted fs-5">Le graphique ci-contre symbolise la connexion, la croissance et la flexibilité que PayFlex apporte à chaque artisan. C'est notre engagement envers votre réussite.</p>
                 </div>
-                <div class="col-lg-6 wow fadeOut" data-wow-delay="0.1s">
-                    <div class="custom-graphic-container text-center">
-                        <svg class="custom-graphic" viewBox="0 0 1024 1024" xmlns="http://www.w3.org/2000/svg">
-                            <path d="M1024 512c0 282.77-229.23 512-512 512S0 794.77 0 512 229.23 0 512 0s512 229.23 512 512z m-512 448c247.42 0 448-200.58 448-448S759.42 64 512 64 64 264.58 64 512s200.58 448 448 448z m0-128c-176.73 0-320-143.27-320-320s143.27-320 320-320 320 143.27 320 320-143.27 320-320 320z m0-64c141.38 0 256-114.62 256-256S653.38 256 512 256 256 370.62 256 512s114.62 256 256 256z m0-128c-70.69 0-128-57.31-128-128s57.31-128 128-128 128 57.31 128 128-57.31 128-128 128z m0-64c35.35 0 64-28.65 64-64s-28.65-64-64-64-64 28.65-64 64 28.65 64 64 64z"/>
-                        </svg>
+                <div class="col-lg-6 wow zoomIn" data-wow-delay="0.3s">
+                    <div class="custom-graphic-container d-flex justify-content-center align-items-center p-5 bg-white rounded-circle shadow-lg" style="width: 100%; max-width: 450px; aspect-ratio: 1/1; margin: 0 auto;">
+                        <svg class="custom-graphic" viewBox="0 0 1024 1024" xmlns="http://www.w3.org/2000/svg" style="width: 80%; height: 80%;"><path d="M1024 512c0 282.77-229.23 512-512 512S0 794.77 0 512 229.23 0 512 0s512 229.23 512 512z m-512 448c247.42 0 448-200.58 448-448S759.42 64 512 64 64 264.58 64 512s200.58 448 448 448z m0-128c-176.73 0-320-143.27-320-320s143.27-320 320-320 320 143.27 320 320-143.27 320-320 320z m0-64c141.38 0 256-114.62 256-256S653.38 256 512 256 256 370.62 256 512s114.62 256 256 256z m0-128c-70.69 0-128-57.31-128-128s57.31-128 128-128 128 57.31 128 128-57.31 128-128 128z m0-64c35.35 0 64-28.65 64-64s-28.65-64-64-64-64 28.65-64 64 28.65 64 64 64z" fill="var(--primary)"/></svg>
                     </div>
                 </div>
             </div>
@@ -218,48 +226,56 @@
 
 
     <!-- Features Start -->
-    <div class="container-xxl py-5">
+    <div class="container-xxl py-5 my-5">
         <div class="container">
             <div class="row g-5 align-items-center">
                 <div class="col-lg-6 wow fadeInUp" data-wow-delay="0.1s">
-                    <p class="section-title bg-white text-start text-infos pe-3">Pourquoi Nous Choisir !</p>
-                    <h1 class="mb-4">Les avantages de PayFlex pour votre avenir</h1>
-                    <p class="mb-4">PayFlex vous offre bien plus qu'une simple solution de paiement. Nous vous accompagnons à chaque étape de votre parcours professionnel.</p>
-                    <p><i class="fa fa-check text-infos me-3"></i>Accompagnement et conseils personnalisés</p>
-                    <p><i class="fa fa-check text-infos me-3"></i>Services complémentaires (maintenance, location, etc.)</p>
-                    <p><i class="fa fa-check text-infos me-3"></i>Une communauté de professionnels pour échanger</p>
-                    <a class="btn rounded-pill py-3 px-5 mt-3" style="background-color:#0360ecd8; color: white;" href="feature.html">En savoir plus</a>
+                    <p class="section-title bg-white text-start text-primary pe-3 fw-bold text-uppercase">Pourquoi Nous Choisir !</p>
+                    <h1 class="mb-4 display-5 fw-bold text-dark">Les avantages de PayFlex pour votre avenir</h1>
+                    <p class="mb-4 fs-5 text-muted line-height-lg">PayFlex vous offre bien plus qu'une simple solution de paiement. Nous vous accompagnons à chaque étape de votre parcours professionnel.</p>
+                    
+                    <div class="d-flex align-items-center mb-3 p-3 bg-light rounded-4 shadow-sm wow slideInLeft" data-wow-delay="0.2s">
+                        <div class="bg-primary text-white rounded-circle d-flex align-items-center justify-content-center shadow" style="width: 55px; height: 55px; flex-shrink: 0;"><i class="fa fa-check fs-4"></i></div>
+                        <p class="ms-4 mb-0 fs-5 fw-medium text-dark line-height-lg">Accompagnement et conseils personnalisés</p>
+                    </div>
+                    <div class="d-flex align-items-center mb-3 p-3 bg-light rounded-4 shadow-sm wow slideInLeft" data-wow-delay="0.4s">
+                        <div class="bg-primary text-white rounded-circle d-flex align-items-center justify-content-center shadow" style="width: 55px; height: 55px; flex-shrink: 0;"><i class="fa fa-check fs-4"></i></div>
+                        <p class="ms-4 mb-0 fs-5 fw-medium text-dark line-height-lg">Services complémentaires (maintenance, location, etc.)</p>
+                    </div>
+                    <div class="d-flex align-items-center mb-4 p-3 bg-light rounded-4 shadow-sm wow slideInLeft" data-wow-delay="0.6s">
+                        <div class="bg-primary text-white rounded-circle d-flex align-items-center justify-content-center shadow" style="width: 55px; height: 55px; flex-shrink: 0;"><i class="fa fa-check fs-4"></i></div>
+                        <p class="ms-4 mb-0 fs-5 fw-medium text-dark line-height-lg">Une communauté de professionnels pour échanger</p>
+                    </div>
+                    <a class="btn btn-primary rounded-pill py-3 px-5 mt-3 fw-bold shadow" href="feature.html">En savoir plus</a>
                 </div>
                 <div class="col-lg-6">
-                    <div class="rounded overflow-hidden">
-                        <div class="row g-0">
-                            <div class="col-sm-6 wow fadeIn" data-wow-delay="0.1s">
-                                <div class="text-center  py-5 px-4" style="background-color: #0360ecd8;">
-                                    <img class="img-fluid mb-4" src="img/experience.png" alt="">
-                                    <h1 class="display-6 text-white" data-toggle="counter-up"> 45000</h1>
-                                    <span class="fs-5 fw-semi-bold text-white">Apprentis</span>
-                                </div>
+                    <div class="row g-4">
+                        <div class="col-sm-6 wow zoomIn" data-wow-delay="0.1s">
+                            <div class="premium-card p-5 text-center d-flex flex-column align-items-center justify-content-center h-100" style="border-top: 6px solid var(--primary) !important;">
+                                <img class="img-fluid mb-4 drop-shadow" src="img/experience.png" style="height: 70px; object-fit: contain;">
+                                <h1 class="display-5 fw-bolder text-primary mb-2" data-toggle="counter-up">45000</h1>
+                                <span class="fs-5 fw-semibold text-muted text-uppercase letter-spacing-1">Apprentis</span>
                             </div>
-                            <div class="col-sm-6 wow fadeIn" data-wow-delay="0.3s">
-                                <div class="text-center bg-white py-5 px-4">
-                                    <img class="img-fluid mb-4" src="img/award.png" alt="">
-                                    <h1 class="display-6" data-toggle="counter-up">15</h1>
-                                    <span class="fs-5 fw-semi-bold ">Partenaires</span>
-                                </div>
+                        </div>
+                        <div class="col-sm-6 wow flipInY" data-wow-delay="0.3s">
+                            <div class="premium-card p-5 text-center d-flex flex-column align-items-center justify-content-center h-100" style="border-top: 6px solid var(--secondary) !important;">
+                                <img class="img-fluid mb-4 drop-shadow" src="img/award.png" style="height: 70px; object-fit: contain;">
+                                <h1 class="display-5 fw-bolder text-secondary mb-2" data-toggle="counter-up">15</h1>
+                                <span class="fs-5 fw-semibold text-muted text-uppercase letter-spacing-1">Partenaires</span>
                             </div>
-                            <div class="col-sm-6 wow fadeIn" data-wow-delay="0.5s">
-                                <div class="text-center bg-white py-5 px-4">
-                                    <img class="img-fluid mb-4" src="img/animal.png" alt="">
-                                    <h1 class="display-6" data-toggle="counter-up">30000</h1>
-                                    <span class="fs-5 fw-semi-bold ">Utilisateurs Potentiels</span>
-                                </div>
+                        </div>
+                        <div class="col-sm-6 wow lightSpeedIn" data-wow-delay="0.5s">
+                            <div class="premium-card p-5 text-center d-flex flex-column align-items-center justify-content-center h-100" style="border-top: 6px solid #17a2b8 !important;">
+                                <img class="img-fluid mb-4 drop-shadow" src="img/animal.png" style="height: 70px; object-fit: contain;">
+                                <h1 class="display-5 fw-bolder text-info mb-2" data-toggle="counter-up">30000</h1>
+                                <span class="fs-5 fw-semibold text-muted text-uppercase letter-spacing-1">Utilisateurs</span>
                             </div>
-                            <div class="col-sm-6 wow fadeIn" data-wow-delay="0.7s">
-                                <div class="text-center bg-warning py-5 px-4">
-                                    <img class="img-fluid mb-4" src="img/client.png" alt="">
-                                    <h1 class="display-6 text-white" data-toggle="counter-up">5</h1>
-                                    <span class="fs-5 fw-semi-bold text-white">Villes</span>
-                                </div>
+                        </div>
+                        <div class="col-sm-6 wow rollIn" data-wow-delay="0.6s">
+                            <div class="premium-card p-5 text-center d-flex flex-column align-items-center justify-content-center h-100" style="border-top: 6px solid #28a745 !important;">
+                                <img class="img-fluid mb-4 drop-shadow" src="img/client.png" style="height: 70px; object-fit: contain;">
+                                <h1 class="display-5 fw-bolder text-success mb-2" data-toggle="counter-up">5</h1>
+                                <span class="fs-5 fw-semibold text-muted text-uppercase letter-spacing-1">Villes</span>
                             </div>
                         </div>
                     </div>
@@ -277,24 +293,24 @@
                 <div class="col-lg-6 wow fadeIn" data-wow-delay="0.3s">
                     <div class="row g-4 align-items-center">
                         <div class="col-sm-4">
-                            <img class="img-fluid rounded" src="img/banner-1.jpg" alt="">
+                            <img class="img-fluid rounded" src="img/gallery-ai-5.png" alt="">
                         </div>
                         <div class="col-sm-8">
                             <h2 class="text-white mb-3">Des outils de qualité pour votre métier</h2>
                             <p class="text-white mb-4">Nous sélectionnons les meilleurs outils pour garantir votre succès professionnel.</p>
-                            <a class="btn btn-secondary rounded-pill py-2 px-4" href="product.html">Voir les produits</a>
+                            <a class="btn btn-secondary rounded-pill py-1 px-4 topbar-premium" href="product.html">Voir les produits</a>
                         </div>
                     </div>
                 </div>
                 <div class="col-lg-6 wow fadeIn" data-wow-delay="0.5s">
                     <div class="row g-4 align-items-center">
                         <div class="col-sm-4">
-                            <img class="img-fluid rounded" src="img/banner-2.jpg" alt="">
+                            <img class="img-fluid rounded" src="img/gallery-ai-4.png" alt="">
                         </div>
                         <div class="col-sm-8">
                             <h2 class="text-white mb-3">Un accès simple et rapide à l'équipement</h2>
                             <p class="text-white mb-4">Grâce à nos partenaires, nous vous offrons un service de proximité.</p>
-                            <a class="btn btn-secondary rounded-pill py-2 px-4" href="service.html">Nos services</a>
+                            <a class="btn btn-secondary rounded-pill py-1 px-4 topbar-premium" href="service.html">Nos services</a>
                         </div>
                     </div>
                 </div>
@@ -312,7 +328,7 @@
                 <h1 class="mb-5">Des services conçus pour votre réussite</h1>
             </div>
             <div class="row gy-5 gx-4">
-                <div class="col-lg-4 col-md-6 pt-5 wow fadeInUp" data-wow-delay="0.1s">
+                <div class="col-lg-4 col-md-6 pt-5 wow bounceInUp" data-wow-delay="0.1s">
                     <div class="service-item d-flex h-100">
                         <div class="service-img">
                             <img class="img-fluid" src="img/service-1.jpg" alt="">
@@ -327,7 +343,7 @@
                         </div>
                     </div>
                 </div>
-                <div class="col-lg-4 col-md-6 pt-5 wow fadeInUp" data-wow-delay="0.3s">
+                <div class="col-lg-4 col-md-6 pt-5 wow bounceInUp" data-wow-delay="0.3s">
                     <div class="service-item d-flex h-100">
                         <div class="service-img">
                             <img class="img-fluid" src="img/service-2.jpg" alt="">
@@ -342,7 +358,7 @@
                         </div>
                     </div>
                 </div>
-                <div class="col-lg-4 col-md-6 pt-5 wow fadeInUp" data-wow-delay="0.5s">
+                <div class="col-lg-4 col-md-6 pt-5 wow bounceInUp" data-wow-delay="0.5s">
                     <div class="service-item d-flex h-100">
                         <div class="service-img">
                             <img class="img-fluid" src="img/service-3.jpg" alt="">
@@ -369,13 +385,13 @@
             <div class="col-lg-3 col-md-6 wow fadeInUp" data-wow-delay="0.1s">
                 <div class="row g-0">
                     <div class="col-12">
-                        <a class="d-block" href="img/gallery-5.jpg" data-lightbox="gallery">
-                            <img class="img-fluid" src="img/gallery-5.jpg" alt="">
+                        <a class="d-block" href="img/gallery-ai-5.png" data-lightbox="gallery">
+                            <img class="img-fluid" src="img/gallery-ai-5.png" alt="Apprentis PayFlex" style="aspect-ratio: 1/1; object-fit: cover;">
                         </a>
                     </div>
                     <div class="col-12">
-                        <a class="d-block" href="img/gallery-1.jpg" data-lightbox="gallery">
-                            <img class="img-fluid" src="img/gallery-1.jpg" alt="">
+                        <a class="d-block" href="img/gallery-ai-1.png" data-lightbox="gallery">
+                            <img class="img-fluid" src="img/gallery-ai-1.png" alt="Mécanicien PayFlex" style="aspect-ratio: 1/1; object-fit: cover;">
                         </a>
                     </div>
                 </div>
@@ -383,13 +399,13 @@
             <div class="col-lg-3 col-md-6 wow fadeInUp" data-wow-delay="0.3s">
                 <div class="row g-0">
                     <div class="col-12">
-                        <a class="d-block" href="img/gallery-2.jpg" data-lightbox="gallery">
-                            <img class="img-fluid" src="img/gallery-2.jpg" alt="">
+                        <a class="d-block" href="img/gallery-ai-2.png" data-lightbox="gallery">
+                            <img class="img-fluid" src="img/gallery-ai-2.png" alt="Application PayFlex" style="aspect-ratio: 1/1; object-fit: cover;">
                         </a>
                     </div>
                     <div class="col-12">
-                        <a class="d-block" href="img/gallery-6.jpg" data-lightbox="gallery">
-                            <img class="img-fluid" src="img/gallery-6.jpg" alt="">
+                        <a class="d-block" href="img/images/WhatsApp Image 2026-04-07 at 18.39.55.jpeg" data-lightbox="gallery">
+                            <img class="img-fluid" src="img/images/WhatsApp Image 2026-04-07 at 18.39.55.jpeg" alt="Contexte Réel PayFlex" style="aspect-ratio: 1/1; object-fit: cover;">
                         </a>
                     </div>
                 </div>
@@ -397,13 +413,13 @@
             <div class="col-lg-3 col-md-6 wow fadeInUp" data-wow-delay="0.5s">
                 <div class="row g-0">
                     <div class="col-12">
-                        <a class="d-block" href="img/gallery-7.jpg" data-lightbox="gallery">
-                            <img class="img-fluid" src="img/gallery-7.jpg" alt="">
+                        <a class="d-block" href="img/images/WhatsApp Image 2026-04-07 at 18.39.57.jpeg" data-lightbox="gallery">
+                            <img class="img-fluid" src="img/images/WhatsApp Image 2026-04-07 at 18.39.57.jpeg" alt="Terrain PayFlex" style="aspect-ratio: 1/1; object-fit: cover;">
                         </a>
                     </div>
                     <div class="col-12">
-                        <a class="d-block" href="img/gallery-3.jpg" data-lightbox="gallery">
-                            <img class="img-fluid" src="img/gallery-3.jpg" alt="">
+                        <a class="d-block" href="img/gallery-ai-3.png" data-lightbox="gallery">
+                            <img class="img-fluid" src="img/gallery-ai-3.png" alt="Couture PayFlex" style="aspect-ratio: 1/1; object-fit: cover;">
                         </a>
                     </div>
                 </div>
@@ -411,13 +427,13 @@
             <div class="col-lg-3 col-md-6 wow fadeInUp" data-wow-delay="0.7s">
                 <div class="row g-0">
                     <div class="col-12">
-                        <a class="d-block" href="img/gallery-4.jpg" data-lightbox="gallery">
-                            <img class="img-fluid" src="img/gallery-4.jpg" alt="">
+                        <a class="d-block" href="img/gallery-ai-4.png" data-lightbox="gallery">
+                            <img class="img-fluid" src="img/gallery-ai-4.png" alt="Energie Solaire" style="aspect-ratio: 1/1; object-fit: cover;">
                         </a>
                     </div>
                     <div class="col-12">
-                        <a class="d-block" href="img/gallery-8.jpg" data-lightbox="gallery">
-                            <img class="img-fluid" src="img/gallery-8.jpg" alt="">
+                        <a class="d-block" href="img/images/WhatsApp Image 2026-04-07 at 18.39.56 (1).jpeg" data-lightbox="gallery">
+                            <img class="img-fluid" src="img/images/WhatsApp Image 2026-04-07 at 18.39.56 (1).jpeg" alt="Impact PayFlex" style="aspect-ratio: 1/1; object-fit: cover;">
                         </a>
                     </div>
                 </div>
@@ -436,62 +452,62 @@
             </div>
             <div class="row gx-4">
                 <div class="col-md-6 col-lg-4 col-xl-3 wow fadeInUp" data-wow-delay="0.1s">
-                    <div class="product-item">
+                    <div class="product-item h-100 shadow-sm border-0 rounded-4 overflow-hidden">
                         <div class="position-relative">
-                            <img class="img-fluid" src="img/product-1.jpg" alt="">
+                            <img class="img-fluid w-100" src="img/product-mech.png" alt="Kit Mécanique PayFlex" style="height: 250px; object-fit: cover;">
                             <div class="product-overlay">
-                                <a class="btn btn-square btn-secondary rounded-circle m-1" href=""><i class="bi bi-link"></i></a>
-                                <a class="btn btn-square btn-secondary rounded-circle m-1" href=""><i class="bi bi-cart"></i></a>
+                                <a class="btn btn-square btn-secondary rounded-circle m-1" href="feature.html"><i class="bi bi-link"></i></a>
+                                <a class="btn btn-square btn-secondary rounded-circle m-1" href="feature.html"><i class="bi bi-cart"></i></a>
                             </div>
                         </div>
                         <div class="text-center p-4">
-                            <a class="d-block h5" href="">Kit de Mécanique</a>
-                            <span class="text-primary me-1">À partir de 5000 XOF/mois</span>
+                            <a class="d-block h5 mb-2" href="feature.html">Kit de Mécanique</a>
+                            <span class="text-primary fw-bold">À partir de 5000 XOF/mois</span>
                         </div>
                     </div>
                 </div>
                 <div class="col-md-6 col-lg-4 col-xl-3 wow fadeInUp" data-wow-delay="0.3s">
-                    <div class="product-item">
+                    <div class="product-item h-100 shadow-sm border-0 rounded-4 overflow-hidden">
                         <div class="position-relative">
-                            <img class="img-fluid" src="img/product-2.jpg" alt="">
+                            <img class="img-fluid w-100" src="img/product-hair.jpg" alt="Kit Coiffure PayFlex" style="height: 250px; object-fit: cover;">
                             <div class="product-overlay">
-                                <a class="btn btn-square btn-secondary rounded-circle m-1" href=""><i class="bi bi-link"></i></a>
-                                <a class="btn btn-square btn-secondary rounded-circle m-1" href=""><i class="bi bi-cart"></i></a>
+                                <a class="btn btn-square btn-secondary rounded-circle m-1" href="feature.html"><i class="bi bi-link"></i></a>
+                                <a class="btn btn-square btn-secondary rounded-circle m-1" href="feature.html"><i class="bi bi-cart"></i></a>
                             </div>
                         </div>
                         <div class="text-center p-4">
-                            <a class="d-block h5" href="">Kit de Coiffure</a>
-                            <span class="text-primary me-1">À partir de 3000 XOF/mois</span>
+                            <a class="d-block h5 mb-2" href="feature.html">Kit de Coiffure</a>
+                            <span class="text-primary fw-bold">À partir de 3000 XOF/mois</span>
                         </div>
                     </div>
                 </div>
                 <div class="col-md-6 col-lg-4 col-xl-3 wow fadeInUp" data-wow-delay="0.5s">
-                    <div class="product-item">
+                    <div class="product-item h-100 shadow-sm border-0 rounded-4 overflow-hidden">
                         <div class="position-relative">
-                            <img class="img-fluid" src="img/product-3.jpg" alt="">
+                            <img class="img-fluid w-100" src="img/product-sew.png" alt="Kit Couture PayFlex" style="height: 250px; object-fit: cover;">
                             <div class="product-overlay">
-                                <a class="btn btn-square btn-secondary rounded-circle m-1" href=""><i class="bi bi-link"></i></a>
-                                <a class="btn btn-square btn-secondary rounded-circle m-1" href=""><i class="bi bi-cart"></i></a>
+                                <a class="btn btn-square btn-secondary rounded-circle m-1" href="feature.html"><i class="bi bi-link"></i></a>
+                                <a class="btn btn-square btn-secondary rounded-circle m-1" href="feature.html"><i class="bi bi-cart"></i></a>
                             </div>
                         </div>
                         <div class="text-center p-4">
-                            <a class="d-block h5" href="">Kit de Couture</a>
-                            <span class="text-primary me-1">À partir de 4000 XOF/mois</span>
+                            <a class="d-block h5 mb-2" href="feature.html">Kit de Couture</a>
+                            <span class="text-primary fw-bold">À partir de 4000 XOF/mois</span>
                         </div>
                     </div>
                 </div>
                 <div class="col-md-6 col-lg-4 col-xl-3 wow fadeInUp" data-wow-delay="0.7s">
-                    <div class="product-item">
+                    <div class="product-item h-100 shadow-sm border-0 rounded-4 overflow-hidden">
                         <div class="position-relative">
-                            <img class="img-fluid" src="img/product-4.jpg" alt="">
+                            <img class="img-fluid w-100" src="img/product-plumb.jpg" alt="Outils Plomberie PayFlex" style="height: 250px; object-fit: cover;">
                             <div class="product-overlay">
-                                <a class="btn btn-square btn-secondary rounded-circle m-1" href=""><i class="bi bi-link"></i></a>
-                                <a class="btn btn-square btn-secondary rounded-circle m-1" href=""><i class="bi bi-cart"></i></a>
+                                <a class="btn btn-square btn-secondary rounded-circle m-1" href="feature.html"><i class="bi bi-link"></i></a>
+                                <a class="btn btn-square btn-secondary rounded-circle m-1" href="feature.html"><i class="bi bi-cart"></i></a>
                             </div>
                         </div>
                         <div class="text-center p-4">
-                            <a class="d-block h5" href="">Outils de Plomberie</a>
-                            <span class="text-primary me-1">À partir de 4500 XOF/mois</span>
+                            <a class="d-block h5 mb-2" href="feature.html">Outils de Plomberie</a>
+                            <span class="text-primary fw-bold">À partir de 4500 XOF/mois</span>
                         </div>
                     </div>
                 </div>
@@ -502,46 +518,70 @@
 
 
     <!-- Team Start -->
-    <div class="container-xxl py-5">
+    <div class="container-xxl py-5" id="team">
         <div class="container">
             <div class="text-center mx-auto wow fadeInUp" data-wow-delay="0.1s" style="max-width: 500px;">
-                <p class="section-title bg-white text-center text-primary px-3">Our Team</p>
-                <h1 class="mb-5">Experienced Team Members</h1>
+                <p class="section-title bg-white text-center text-primary px-3">Notre Équipe</p>
+                <h1 class="mb-5">Membres de l'équipe</h1>
             </div>
             <div class="row g-4">
-                <div class="col-lg-4 col-md-6 wow fadeInUp" data-wow-delay="0.1s">
-                    <div class="team-item rounded p-4">
-                        <img class="img-fluid rounded mb-4" src="img/team-1.jpg" alt="">
-                        <h5>Adam Crew</h5>
-                        <p class="text-primary">Founder</p>
-                        <div class="d-flex justify-content-center">
-                            <a class="btn btn-square btn-outline-secondary rounded-circle mx-1" href=""><i class="fab fa-facebook-f"></i></a>
-                            <a class="btn btn-square btn-outline-secondary rounded-circle mx-1" href=""><i class="fab fa-twitter"></i></a>
-                            <a class="btn btn-square btn-outline-secondary rounded-circle mx-1" href=""><i class="fab fa-instagram"></i></a>
+                <div class="col-lg-3 col-md-6 wow fadeInUp" data-wow-delay="0.1s">
+                    <div class="team-item rounded p-4 h-100 d-flex flex-column justify-content-center text-center">
+                        <div class="bg-light rounded-circle d-flex align-items-center justify-content-center mx-auto mb-4" style="width: 100px; height: 100px; border: 3px solid var(--primary);">
+                            <i class="fas fa-user-tie fa-3x text-primary"></i>
+                        </div>
+                        <h5 class="mb-2">HIBA Divine</h5>
+                        <p class="text-primary mb-1 fw-bold">Chef Projet et Founder</p>
+                        <p class="small text-muted mb-3">Economiste & Spécialiste en Transformation Digitale</p>
+                        <div class="d-flex justify-content-center mt-auto">
+                            <a class="btn btn-square btn-outline-secondary rounded-circle mx-1" href="#"><i class="fab fa-facebook-f"></i></a>
+                            <a class="btn btn-square btn-outline-secondary rounded-circle mx-1" href="#"><i class="fab fa-twitter"></i></a>
+                            <a class="btn btn-square btn-outline-secondary rounded-circle mx-1" href="#"><i class="fab fa-linkedin-in"></i></a>
                         </div>
                     </div>
                 </div>
-                <div class="col-lg-4 col-md-6 wow fadeInUp" data-wow-delay="0.3s">
-                    <div class="team-item rounded p-4">
-                        <img class="img-fluid rounded mb-4" src="img/team-2.jpg" alt="">
-                        <h5>Doris Jordan</h5>
-                        <p class="text-primary">Veterinarian</p>
-                        <div class="d-flex justify-content-center">
-                            <a class="btn btn-square btn-outline-secondary rounded-circle mx-1" href=""><i class="fab fa-facebook-f"></i></a>
-                            <a class="btn btn-square btn-outline-secondary rounded-circle mx-1" href=""><i class="fab fa-twitter"></i></a>
-                            <a class="btn btn-square btn-outline-secondary rounded-circle mx-1" href=""><i class="fab fa-instagram"></i></a>
+                <div class="col-lg-3 col-md-6 wow fadeInUp" data-wow-delay="0.3s">
+                    <div class="team-item rounded p-4 h-100 d-flex flex-column justify-content-center text-center">
+                        <div class="bg-light rounded-circle d-flex align-items-center justify-content-center mx-auto mb-4" style="width: 100px; height: 100px; border: 3px solid var(--primary);">
+                            <i class="fas fa-laptop-code fa-3x text-primary"></i>
+                        </div>
+                        <h5 class="mb-2">Chaminade Dondah ADJOLOU</h5>
+                        <p class="text-primary mb-1 fw-bold">Developpeur Web et Mobile</p>
+                        <p class="small text-muted mb-3">Co-Founder</p>
+                        <div class="d-flex justify-content-center mt-auto">
+                            <a class="btn btn-square btn-outline-secondary rounded-circle mx-1" href="#"><i class="fab fa-facebook-f"></i></a>
+                            <a class="btn btn-square btn-outline-secondary rounded-circle mx-1" href="#"><i class="fab fa-twitter"></i></a>
+                            <a class="btn btn-square btn-outline-secondary rounded-circle mx-1" href="#"><i class="fab fa-linkedin-in"></i></a>
                         </div>
                     </div>
                 </div>
-                <div class="col-lg-4 col-md-6 wow fadeInUp" data-wow-delay="0.5s">
-                    <div class="team-item rounded p-4">
-                        <img class="img-fluid rounded mb-4" src="img/team-3.jpg" alt="">
-                        <h5>Jack Dawson</h5>
-                        <p class="text-primary">Farmer</p>
-                        <div class="d-flex justify-content-center">
-                            <a class="btn btn-square btn-outline-secondary rounded-circle mx-1" href=""><i class="fab fa-facebook-f"></i></a>
-                            <a class="btn btn-square btn-outline-secondary rounded-circle mx-1" href=""><i class="fab fa-twitter"></i></a>
-                            <a class="btn btn-square btn-outline-secondary rounded-circle mx-1" href=""><i class="fab fa-instagram"></i></a>
+                <div class="col-lg-3 col-md-6 wow fadeInUp" data-wow-delay="0.5s">
+                    <div class="team-item rounded p-4 h-100 d-flex flex-column justify-content-center text-center">
+                        <div class="bg-light rounded-circle d-flex align-items-center justify-content-center mx-auto mb-4" style="width: 100px; height: 100px; border: 3px solid var(--primary);">
+                            <i class="fas fa-user fa-3x text-primary"></i>
+                        </div>
+                        <h5 class="mb-2">John Doe</h5>
+                        <p class="text-primary mb-1 fw-bold">Membre de l'équipe</p>
+                        <p class="small text-muted mb-3"></p>
+                        <div class="d-flex justify-content-center mt-auto">
+                            <a class="btn btn-square btn-outline-secondary rounded-circle mx-1" href="#"><i class="fab fa-facebook-f"></i></a>
+                            <a class="btn btn-square btn-outline-secondary rounded-circle mx-1" href="#"><i class="fab fa-twitter"></i></a>
+                            <a class="btn btn-square btn-outline-secondary rounded-circle mx-1" href="#"><i class="fab fa-linkedin-in"></i></a>
+                        </div>
+                    </div>
+                </div>
+                <div class="col-lg-3 col-md-6 wow fadeInUp" data-wow-delay="0.7s">
+                    <div class="team-item rounded p-4 h-100 d-flex flex-column justify-content-center text-center">
+                        <div class="bg-light rounded-circle d-flex align-items-center justify-content-center mx-auto mb-4" style="width: 100px; height: 100px; border: 3px solid var(--primary);">
+                            <i class="fas fa-user fa-3x text-primary"></i>
+                        </div>
+                        <h5 class="mb-2">John Doe</h5>
+                        <p class="text-primary mb-1 fw-bold">Membre de l'équipe</p>
+                        <p class="small text-muted mb-3"></p>
+                        <div class="d-flex justify-content-center mt-auto">
+                            <a class="btn btn-square btn-outline-secondary rounded-circle mx-1" href="#"><i class="fab fa-facebook-f"></i></a>
+                            <a class="btn btn-square btn-outline-secondary rounded-circle mx-1" href="#"><i class="fab fa-twitter"></i></a>
+                            <a class="btn btn-square btn-outline-secondary rounded-circle mx-1" href="#"><i class="fab fa-linkedin-in"></i></a>
                         </div>
                     </div>
                 </div>
@@ -558,34 +598,26 @@
                 <p class="section-title bg-white text-center text-primary px-3">Témoignages</p>
                 <h1 class="mb-5">Ce que nos utilisateurs pensent de PayFlex</h1>
             </div>
-            <div class="row g-5 align-items-center">
-                <div class="col-lg-5 wow fadeInUp" data-wow-delay="0.1s">
-                    <div class="testimonial-img">
-                        <img class="img-fluid animated pulse infinite" src="img/testimonial-1.jpg" alt="">
-                        <img class="img-fluid animated pulse infinite" src="img/testimonial-2.jpg" alt="">
-                        <img class="img-fluid animated pulse infinite" src="img/testimonial-3.jpg" alt="">
-                        <img class="img-fluid animated pulse infinite" src="img/testimonial-4.jpg" alt="">
-                    </div>
-                </div>
-                <div class="col-lg-7 wow fadeInUp" data-wow-delay="0.5s">
-                    <div class="owl-carousel testimonial-carousel">
+            <div class="row justify-content-center">
+                <div class="col-lg-10 wow fadeInUp" data-wow-delay="0.5s">
+                    <div class="owl-carousel testimonial-carousel text-center p-4 bg-light rounded-4 shadow-sm">
                         <div class="testimonial-item">
-                            <img class="img-fluid mb-3" src="img/testimonial-1.jpg" alt="">
-                            <p class="fs-5">Grâce à PayFlex, j'ai enfin pu acheter mon propre kit de coiffure. Le paiement en plusieurs fois m'a vraiment aidé à démarrer mon activité sans stress.</p>
-                            <h5>Afi, Apprentie coiffeuse</h5>
-                            <span class="text-primary">Lomé</span>
+                            <i class="fa fa-quote-left fa-3x text-primary mb-4"></i>
+                            <p class="fs-5 mb-4">"Grâce à PayFlex, j'ai enfin pu acheter mon propre kit de coiffure. Le paiement en plusieurs fois m'a vraiment aidé à démarrer mon activité sans stress."</p>
+                            <h5 class="mb-1 text-dark">Afi</h5>
+                            <span class="text-primary fw-bold text-uppercase">Apprentie coiffeuse • Lomé</span>
                         </div>
                         <div class="testimonial-item">
-                            <img class="img-fluid mb-3" src="img/testimonial-2.jpg" alt="">
-                            <p class="fs-5">Je recommande PayFlex à tous les jeunes artisans. La plateforme est simple à utiliser et les outils sont de très bonne qualité. C'est une vraie chance pour nous.</p>
-                            <h5>Kodjo, Artisan mécanicien</h5>
-                            <span class="text-primary">Kara</span>
+                            <i class="fa fa-quote-left fa-3x text-primary mb-4"></i>
+                            <p class="fs-5 mb-4">"Je recommande PayFlex à tous les jeunes artisans. La plateforme est simple à utiliser et les outils sont de très bonne qualité. C'est une vraie chance pour nous."</p>
+                            <h5 class="mb-1 text-dark">Kodjo</h5>
+                            <span class="text-primary fw-bold text-uppercase">Artisan mécanicien • Kara</span>
                         </div>
                         <div class="testimonial-item">
-                            <img class="img-fluid mb-3" src="img/testimonial-3.jpg" alt="">
-                            <p class="fs-5">Le support client est très réactif. J'ai eu une question sur ma commande et ils m'ont répondu rapidement. On se sent vraiment accompagné.</p>
-                            <h5>Esinam, Apprentie couturière</h5>
-                            <span class="text-primary">Sokodé</span>
+                            <i class="fa fa-quote-left fa-3x text-primary mb-4"></i>
+                            <p class="fs-5 mb-4">"Le support client est très réactif. J'ai eu une question sur ma commande et ils m'ont répondu rapidement. On se sent vraiment accompagné."</p>
+                            <h5 class="mb-1 text-dark">Esinam</h5>
+                            <span class="text-primary fw-bold text-uppercase">Apprentie couturière • Sokodé</span>
                         </div>
                     </div>
                 </div>
@@ -596,7 +628,7 @@
 
 
     <!-- Footer Start -->
-    <div class="container-fluid bg-dark footer mt-5 py-5 wow fadeIn" data-wow-delay="0.1s">
+    <div class="container-fluid footer-premium footer mt-5 py-5 wow fadeIn" data-wow-delay="0.1s">
         <div class="container py-5">
             <div class="row g-5">
                 <div class="col-lg-3 col-md-6">
@@ -605,10 +637,10 @@
                     <p class="mb-2"><i class="fa fa-phone-alt me-3"></i>+228 90 00 00 00</p>
                     <p class="mb-2"><i class="fa fa-envelope me-3"></i>contact@payflex.com</p>
                     <div class="d-flex pt-3">
-                        <a class="btn btn-square btn-secondary rounded-circle me-2" href=""><i class="fab fa-twitter"></i></a>
-                        <a class="btn btn-square btn-secondary rounded-circle me-2" href=""><i class="fab fa-facebook-f"></i></a>
-                        <a class="btn btn-square btn-secondary rounded-circle me-2" href=""><i class="fab fa-youtube"></i></a>
-                        <a class="btn btn-square btn-secondary rounded-circle me-2" href=""><i class="fab fa-linkedin-in"></i></a>
+                        <a class="btn btn-square btn-secondary rounded-circle me-2" href="feature.html"><i class="fab fa-twitter"></i></a>
+                        <a class="btn btn-square btn-secondary rounded-circle me-2" href="feature.html"><i class="fab fa-facebook-f"></i></a>
+                        <a class="btn btn-square btn-secondary rounded-circle me-2" href="feature.html"><i class="fab fa-youtube"></i></a>
+                        <a class="btn btn-square btn-secondary rounded-circle me-2" href="feature.html"><i class="fab fa-linkedin-in"></i></a>
                     </div>
                 </div>
                 <div class="col-lg-3 col-md-6">
@@ -616,8 +648,8 @@
                     <a class="btn btn-link" href="about.html">À Propos de Nous</a>
                     <a class="btn btn-link" href="contact.html">Contactez-nous</a>
                     <a class="btn btn-link" href="service.html">Nos Services</a>
-                    <a class="btn btn-link" href="">Termes & Conditions</a>
-                    <a class="btn btn-link" href="">Support</a>
+                    <a class="btn btn-link" href="feature.html">Termes & Conditions</a>
+                    <a class="btn btn-link" href="feature.html">Support</a>
                 </div>
                 <div class="col-lg-3 col-md-6">
                     <h5 class="text-white mb-4">Horaires</h5>
@@ -643,15 +675,15 @@
 
 
     <!-- Copyright Start -->
-    <div class="container-fluid bg-secondary text-body copyright py-4">
+    <div class="container-fluid copyright-premium copyright py-4">
         <div class="container">
             <div class="row">
                 <div class="col-md-6 text-center text-md-start mb-3 mb-md-0">
-                    &copy; <a class="fw-semi-bold" href="#">PayFlex</a>, Tous Droits Réservés.
+                    &copy; <script>document.write(new Date().getFullYear());</script> <a class="fw-semi-bold" href="#">PayFlex</a>, Tous Droits Réservés.
                 </div>
                 <div class="col-md-6 text-center text-md-end">
                     <!--/*** This template is free as long as you keep the footer author’s credit link/attribution link/backlink. If you'd like to use the template without the footer author’s credit link/attribution link/backlink, you can purchase the Credit Removal License from "https://htmlcodex.com/credit-removal". Thank you for your support. ***/-->
-                    Designed By <a class="fw-semi-bold" href="https://htmlcodex.com">HTML Codex</a>
+                    Designed By <a class="fw-semi-bold" href="https://donchaminade-alpha.vercel.app">PayFlex</a>
                 </div>
             </div>
         </div>
@@ -676,6 +708,37 @@
 
     <!-- Template Javascript -->
     <script src="js/main.js"></script>
+    <script src="js/darkmode.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/canvas-confetti@1.6.0/dist/confetti.browser.min.js"></script>
+    <script src="js/premium.js"></script>
+
+    <script>
+        document.addEventListener("DOMContentLoaded", () => {
+            const splash = document.getElementById('splash-screen');
+            if (splash) {
+                // Check if page is reloaded
+                const navigationEntries = performance.getEntriesByType("navigation");
+                const isReload = (navigationEntries.length > 0 && navigationEntries[0].type === "reload") || 
+                                 (performance.navigation && performance.navigation.type === 1);
+                
+                const isSplashShown = sessionStorage.getItem('splashShown');
+
+                if (!isSplashShown && !isReload) {
+                    splash.classList.add('active');
+                    setTimeout(() => {
+                        splash.classList.add('fade-out');
+                        setTimeout(() => {
+                            splash.style.display = 'none';
+                        }, 600);
+                        sessionStorage.setItem('splashShown', 'true');
+                    }, 3000);
+                } else {
+                    splash.style.display = 'none';
+                }
+            }
+        });
+    </script>
 </body>
+
 
 </html>

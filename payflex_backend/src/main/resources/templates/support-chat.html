@@ -1,0 +1,497 @@
+<!doctype html>
+<html lang="fr" xmlns:th="http://www.thymeleaf.org">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Admin — Chat support</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.2/css/all.min.css">
+  <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
+  <link rel="stylesheet" href="/css/admin-wow.css">
+</head>
+<body class="pf-admin bg-slate-100 min-h-screen">
+<th:block th:replace="~{fragments/admin-chrome :: startMain('flex flex-col min-h-[calc(100vh-0px)] lg:min-h-0')}"/>
+<th:block th:replace="~{fragments/admin-chrome :: pageHeader('Chat support','Conversations 1:1 et envois groupés aux clients')}"/>
+
+    <details class="mb-4 rounded-2xl border border-emerald-200 bg-white shadow-sm group" open>
+      <summary class="cursor-pointer list-none px-4 py-3 flex items-center justify-between gap-3 font-semibold text-slate-800">
+        <span class="inline-flex items-center gap-2"><i class="fa-solid fa-bullhorn text-emerald-600"></i> Message groupé</span>
+        <i class="fa-solid fa-chevron-down text-slate-400 group-open:rotate-180 transition-transform"></i>
+      </summary>
+      <form method="post" action="/admin/support-chat/broadcast" class="px-4 pb-4 border-t border-slate-100 space-y-3 pf-confirm-submit" id="pfBroadcastForm"
+            data-confirm-title="Envoyer le message groupé"
+            data-confirm-text="Confirmer l'envoi de cette notification aux clients ciblés ?"
+            data-confirm-icon="question"
+            data-confirm-yes="Oui, envoyer">
+        <input type="hidden" th:name="${_csrf.parameterName}" th:value="${_csrf.token}">
+        <div class="grid sm:grid-cols-2 gap-3 pt-3">
+          <div>
+            <label class="text-xs font-bold text-slate-500 uppercase tracking-wide">Ciblage</label>
+            <select name="targetType" id="pfBroadcastTarget" required class="mt-1 w-full rounded-xl border border-slate-200 px-3 py-2 text-sm">
+              <option value="all">Tous les clients actifs (adhérents et en attente)</option>
+              <option value="zone">Par zone</option>
+              <option value="individual">Client(s) individuel(s)</option>
+            </select>
+          </div>
+          <div id="pfBroadcastZoneWrap" class="hidden">
+            <label class="text-xs font-bold text-slate-500 uppercase tracking-wide">Zone</label>
+            <select name="zoneId" id="pfBroadcastZone" class="mt-1 w-full rounded-xl border border-slate-200 px-3 py-2 text-sm">
+              <option value="">— Choisir —</option>
+              <option th:each="z : ${broadcastZones}" th:value="${z.id}" th:text="${z.name + ' (' + z.clients_count + ' client(s))'}"></option>
+            </select>
+          </div>
+        </div>
+        <div id="pfBroadcastClientsWrap" class="hidden overflow-visible relative z-[30]">
+          <label class="text-xs font-bold text-slate-500 uppercase tracking-wide">Clients</label>
+          <p class="text-xs text-slate-500 mt-0.5 mb-1">Ouvrez la liste, tapez pour filtrer (nom, téléphone, zone), cliquez pour sélectionner.</p>
+          <div class="pf-client-multi-picker pf-category-picker mt-1" id="pfBroadcastClientsPicker">
+            <select name="userIds" id="pfBroadcastClients" multiple class="sr-only" tabindex="-1" aria-hidden="true">
+              <option th:each="c : ${broadcastClients}" th:value="${c.id}"
+                      th:attr="data-phone=${c.phone}, data-zone=${c.zone_name != null ? c.zone_name : ''}"
+                      th:text="${c.full_name + ' · ' + c.phone + (c.zone_name != null ? ' · ' + c.zone_name : '')}"></option>
+            </select>
+            <button type="button" class="pf-cat-picker-trigger" aria-haspopup="listbox" aria-expanded="false">
+              <span class="pf-client-picker-summary text-slate-400">Rechercher et sélectionner des clients…</span>
+              <i class="fa-solid fa-chevron-down text-slate-400 text-xs"></i>
+            </button>
+            <div class="pf-cat-picker-panel">
+              <input type="search" class="pf-cat-picker-search" placeholder="Nom, téléphone ou zone…" autocomplete="off">
+              <ul class="pf-cat-picker-list" role="listbox" aria-multiselectable="true"></ul>
+            </div>
+            <div class="pf-client-picker-chips"></div>
+          </div>
+        </div>
+        <div>
+          <label class="text-xs font-bold text-slate-500 uppercase tracking-wide">Titre notification (optionnel)</label>
+          <input type="text" name="title" maxlength="120" placeholder="Ex. Rappel cotisation"
+                 class="mt-1 w-full rounded-xl border border-slate-200 px-3 py-2 text-sm">
+        </div>
+        <div>
+          <label class="text-xs font-bold text-slate-500 uppercase tracking-wide">Message</label>
+          <textarea name="body" rows="3" required maxlength="4000" placeholder="Votre message aux clients…"
+                    class="mt-1 w-full rounded-xl border border-slate-200 px-3 py-2 text-sm resize-none"></textarea>
+        </div>
+        <div class="flex justify-end">
+          <button type="submit" class="pf-btn pf-btn-primary text-sm inline-flex items-center gap-2">
+            <i class="fa-solid fa-paper-plane"></i> Envoyer le message groupé
+          </button>
+        </div>
+      </form>
+    </details>
+
+    <div class="flex flex-col lg:flex-row flex-1 min-h-0 rounded-2xl border border-slate-200 bg-white shadow-sm overflow-hidden">
+      <aside class="w-full lg:w-[min(100%,380px)] lg:max-w-[420px] flex-shrink-0 flex flex-col border-b lg:border-b-0 lg:border-r border-slate-200 bg-slate-50/80 max-h-[42vh] lg:max-h-none lg:h-[min(720px,calc(100vh-10rem))]">
+        <div class="p-3 border-b border-slate-200 bg-white">
+          <label class="sr-only">Rechercher</label>
+          <div class="relative">
+            <i class="fa-solid fa-magnifying-glass absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 text-sm"></i>
+            <input type="search" id="pfChatSearch" autocomplete="off" placeholder="Rechercher un client…" class="w-full rounded-xl border border-slate-200 bg-slate-50 py-2.5 pl-9 pr-3 text-sm focus:ring-2 outline-none" style="--tw-ring-color:rgba(249,168,37,0.4)">
+          </div>
+        </div>
+        <div id="pfChatThreadList" class="overflow-y-auto flex-1">
+          <div th:if="${#lists.isEmpty(threads)}" class="p-8 text-center text-slate-400 text-sm">Aucune conversation pour le moment.</div>
+          <div th:each="t : ${threads}"
+             class="pf-chat-thread-row flex gap-2 px-3 py-3 border-b border-slate-100 hover:bg-white transition-colors items-start"
+             th:classappend="${openUserId != null && openUserId == t.user_id} ? ' bg-emerald-50 border-l-4 border-l-emerald-600 pl-[calc(0.75rem-4px)]' : ''"
+             th:attr="data-name=${t.full_name},data-phone=${t.phone}">
+            <a th:href="@{/admin/support-chat(open=${t.user_id})}" class="flex gap-3 min-w-0 flex-1 items-start">
+              <div class="h-11 w-11 rounded-full pf-admin-avatar text-white flex items-center justify-center text-sm font-bold shrink-0"
+                   th:text="${t.full_name != null && !#strings.isEmpty(t.full_name) ? #strings.substring(t.full_name, 0, 1) : '?'}">?</div>
+              <div class="min-w-0 flex-1">
+                <div class="flex items-start justify-between gap-2">
+                  <span class="font-semibold text-slate-900 truncate text-sm" th:text="${t.full_name}">Client</span>
+                  <span class="text-[11px] text-slate-400 whitespace-nowrap shrink-0" th:text="${t.last_at}"></span>
+                </div>
+                <p class="text-xs text-slate-500 truncate mt-0.5" th:text="${t.last_body}"></p>
+                <div class="flex justify-end mt-2">
+                  <span class="inline-flex items-center justify-center min-w-[1.5rem] h-6 px-1.5 rounded-full bg-emerald-600 text-white text-[11px] font-bold"
+                        th:if="${t.client_messages_count != null && t.client_messages_count > 0}"
+                        th:text="${t.client_messages_count}">0</span>
+                </div>
+              </div>
+            </a>
+            <form method="post" th:action="@{/admin/support-chat/delete-thread}" class="shrink-0 self-center pf-confirm-submit"
+                  th:attr="data-confirm-title='Supprimer la discussion',data-confirm-text=${'Effacer tous les messages avec ' + t.full_name + ' ?'},data-confirm-icon='warning',data-confirm-yes='Oui, supprimer'"
+                  onclick="event.stopPropagation()">
+              <input type="hidden" th:name="${_csrf.parameterName}" th:value="${_csrf.token}">
+              <input type="hidden" name="userId" th:value="${t.user_id}">
+              <button type="submit" title="Supprimer la discussion" class="h-9 w-9 rounded-lg text-slate-400 hover:text-red-600 hover:bg-red-50 inline-flex items-center justify-center"
+                      onclick="event.stopPropagation()">
+                <i class="fa-solid fa-trash-can text-sm"></i>
+              </button>
+            </form>
+          </div>
+        </div>
+      </aside>
+
+      <section class="flex-1 flex flex-col min-h-[280px] lg:h-[min(720px,calc(100vh-10rem))] bg-[#eceff5]">
+        <div th:if="${openUserId == null}" class="flex-1 flex flex-col items-center justify-center text-slate-400 px-6 text-center">
+          <i class="fa-solid fa-comments text-5xl mb-4 text-emerald-500/90"></i>
+          <p class="font-semibold text-slate-600">Sélectionnez une conversation</p>
+          <p class="text-sm mt-2 max-w-sm">Les messages envoyés depuis l’application mobile apparaissent ici. Choisissez un client dans la liste pour afficher le fil et répondre.</p>
+        </div>
+
+        <th:block th:if="${openUserId != null}">
+          <div class="flex items-center gap-3 px-4 py-3 bg-white border-b border-slate-200 shadow-sm shrink-0">
+            <div class="h-10 w-10 rounded-full pf-admin-avatar text-white flex items-center justify-center text-sm font-bold"
+                 th:text="${openThreadUser != null && openThreadUser.fullName() != null && !#strings.isEmpty(openThreadUser.fullName()) ? #strings.substring(openThreadUser.fullName(), 0, 1) : '?'}">?</div>
+            <div class="min-w-0 flex-1">
+              <p class="font-bold text-slate-900 truncate" th:text="${openThreadUser != null ? openThreadUser.fullName() : 'Client'}">Client</p>
+              <p class="text-xs font-mono text-slate-500 truncate" th:text="${openThreadUser != null ? openThreadUser.phone() : ''}"></p>
+            </div>
+            <form method="post" action="/admin/support-chat/delete-thread" class="pf-confirm-submit shrink-0"
+                  th:attr="data-confirm-title='Supprimer la discussion',data-confirm-text=${'Effacer tous les messages avec ' + (openThreadUser != null ? openThreadUser.fullName() : 'ce client') + ' ?'},data-confirm-icon='warning',data-confirm-yes='Oui, supprimer'">
+              <input type="hidden" th:name="${_csrf.parameterName}" th:value="${_csrf.token}">
+              <input type="hidden" name="userId" th:value="${openUserId}">
+              <button type="submit" class="pf-btn text-xs border border-red-200 text-red-700 hover:bg-red-50 inline-flex items-center gap-1.5">
+                <i class="fa-solid fa-trash-can"></i> Supprimer la discussion
+              </button>
+            </form>
+          </div>
+
+          <div id="pfChatScroll" class="flex-1 overflow-y-auto px-3 py-4 space-y-3" th:attr="data-user-id=${openUserId}">
+            <div id="pfChatMessages">
+            <div th:if="${openMessages == null || #lists.isEmpty(openMessages)}" class="text-center text-slate-400 text-sm py-12 pf-chat-empty">Aucun message.</div>
+            <div th:each="m : ${openMessages}" th:class="${m.sender == 'admin'} ? 'flex justify-end group pf-chat-msg' : 'flex justify-start group pf-chat-msg'" th:attr="data-msg-id=${m.id}">
+              <div class="flex items-end gap-1 max-w-[90%]">
+                <form th:if="${m.sender != 'admin'}" method="post" action="/admin/support-chat/delete-message" class="opacity-0 group-hover:opacity-100 transition-opacity pf-confirm-submit shrink-0 mb-1"
+                      data-confirm-title="Supprimer ce message"
+                      data-confirm-text="Retirer ce message de la conversation ?"
+                      data-confirm-icon="warning"
+                      data-confirm-yes="Oui, supprimer">
+                  <input type="hidden" th:name="${_csrf.parameterName}" th:value="${_csrf.token}">
+                  <input type="hidden" name="messageId" th:value="${m.id}">
+                  <input type="hidden" name="userId" th:value="${openUserId}">
+                  <button type="submit" title="Supprimer le message" class="h-8 w-8 rounded-lg text-slate-400 hover:text-red-600 hover:bg-red-50 inline-flex items-center justify-center">
+                    <i class="fa-solid fa-trash-can text-xs"></i>
+                  </button>
+                </form>
+                <div th:class="${m.sender == 'admin'} ? 'max-w-[85%] rounded-2xl rounded-tr-md px-4 py-2 pf-admin-chat-bubble text-sm shadow' : 'max-w-[85%] rounded-2xl rounded-tl-md px-4 py-2 bg-white text-slate-800 text-sm border border-slate-100 shadow-sm'">
+                  <p class="whitespace-pre-wrap" th:text="${m.body}"></p>
+                  <div th:if="${m.attachment_url != null && !#strings.isEmpty(m.attachment_url)}" class="mt-2 pf-chat-attachment" th:attr="data-kind=${m.attachment_kind},data-url=${m.attachment_url},data-name=${m.attachment_name}">
+                    <button th:if="${m.attachment_kind == 'image'}" type="button" class="pf-chat-img-preview block rounded-lg overflow-hidden border border-slate-200/80 hover:opacity-90 transition-opacity" th:attr="data-url=${m.attachment_url}">
+                      <img th:src="${m.attachment_url}" alt="Image" class="max-w-[220px] max-h-[220px] object-cover">
+                    </button>
+                    <div th:if="${m.attachment_kind == 'audio'}" class="flex items-center gap-2">
+                      <button type="button" class="pf-chat-audio-play h-10 w-10 rounded-full bg-emerald-600 hover:bg-emerald-700 text-white inline-flex items-center justify-center shrink-0" th:attr="data-url=${m.attachment_url}" title="Écouter">
+                        <i class="fa-solid fa-play text-sm ml-0.5"></i>
+                      </button>
+                      <div class="min-w-0">
+                        <p class="text-xs font-semibold truncate" th:text="${m.attachment_name != null ? m.attachment_name : 'Audio'}">Audio</p>
+                        <audio class="hidden pf-chat-audio-el" th:src="${m.attachment_url}" preload="metadata"></audio>
+                      </div>
+                      <a th:href="${m.attachment_url}" download class="text-xs text-emerald-700 hover:underline shrink-0" title="Télécharger"><i class="fa-solid fa-download"></i></a>
+                    </div>
+                    <a th:if="${m.attachment_kind == 'document'}" th:href="${m.attachment_url}" download class="inline-flex items-center gap-2 text-sm text-emerald-700 hover:underline">
+                      <i class="fa-solid fa-file-arrow-down"></i>
+                      <span th:text="${m.attachment_name != null ? m.attachment_name : 'Document'}">Document</span>
+                    </a>
+                  </div>
+                  <p th:class="${m.sender == 'admin'} ? 'text-[10px] pf-admin-chat-meta mt-1' : 'text-[10px] text-slate-400 mt-1'" th:text="${m.created_at}"></p>
+                </div>
+                <form th:if="${m.sender == 'admin'}" method="post" action="/admin/support-chat/delete-message" class="opacity-0 group-hover:opacity-100 transition-opacity pf-confirm-submit shrink-0 mb-1"
+                      data-confirm-title="Supprimer ce message"
+                      data-confirm-text="Retirer ce message de la conversation ?"
+                      data-confirm-icon="warning"
+                      data-confirm-yes="Oui, supprimer">
+                  <input type="hidden" th:name="${_csrf.parameterName}" th:value="${_csrf.token}">
+                  <input type="hidden" name="messageId" th:value="${m.id}">
+                  <input type="hidden" name="userId" th:value="${openUserId}">
+                  <button type="submit" title="Supprimer le message" class="h-8 w-8 rounded-lg text-slate-400 hover:text-red-600 hover:bg-red-50 inline-flex items-center justify-center">
+                    <i class="fa-solid fa-trash-can text-xs"></i>
+                  </button>
+                </form>
+              </div>
+            </div>
+            </div>
+          </div>
+
+          <form method="post" action="/admin/support-chat/send" id="pfChatReplyForm" class="bg-white border-t border-slate-200 p-3 flex flex-col gap-2 shrink-0">
+            <input type="hidden" th:name="${_csrf.parameterName}" th:value="${_csrf.token}">
+            <input type="hidden" name="userId" th:value="${openUserId}">
+            <label class="sr-only">Réponse</label>
+            <textarea name="body" id="pfChatReplyBody" rows="2" required class="border border-slate-200 rounded-xl px-3 py-2 w-full text-sm resize-none focus:ring-2 outline-none" style="--tw-ring-color:rgba(143,114,36,0.35)" placeholder="Écrire une réponse…"></textarea>
+            <div class="flex justify-end">
+              <button type="submit" class="pf-btn pf-btn-primary text-sm inline-flex items-center gap-2">
+                <i class="fa-solid fa-paper-plane"></i> Envoyer
+              </button>
+            </div>
+          </form>
+        </th:block>
+      </section>
+    </div>
+
+<th:block th:replace="~{fragments/admin-chrome :: endMain}"/>
+<script>
+  (function () {
+    const params = new URLSearchParams(window.location.search);
+    if (params.get('sent')) {
+      Swal.fire({ icon: 'success', title: 'Message envoyé', timer: 1400, showConfirmButton: false });
+      params.delete('sent');
+      const q = params.toString();
+      window.history.replaceState({}, '', window.location.pathname + (q ? '?' + q : ''));
+    }
+    if (params.get('error')) {
+      Swal.fire({ icon: 'error', title: 'Envoi impossible', text: 'Vérifiez le contenu du message.' });
+      params.delete('error');
+      const q = params.toString();
+      window.history.replaceState({}, '', window.location.pathname + (q ? '?' + q : ''));
+    }
+    const broadcastOk = params.get('broadcastOk');
+    if (broadcastOk) {
+      Swal.fire({ icon: 'success', title: 'Message groupé envoyé', text: broadcastOk + ' client(s) notifié(s).' });
+      params.delete('broadcastOk');
+      window.history.replaceState({}, '', window.location.pathname + (params.toString() ? '?' + params : ''));
+    }
+    const broadcastErr = params.get('broadcastError');
+    if (broadcastErr) {
+      Swal.fire({ icon: 'error', title: 'Envoi groupé impossible', text: decodeURIComponent(broadcastErr) });
+      params.delete('broadcastError');
+      window.history.replaceState({}, '', window.location.pathname + (params.toString() ? '?' + params : ''));
+    }
+    if (params.get('threadDeleted')) {
+      Swal.fire({ icon: 'success', title: 'Discussion supprimée', timer: 1400, showConfirmButton: false });
+      params.delete('threadDeleted');
+      window.history.replaceState({}, '', window.location.pathname + (params.toString() ? '?' + params : ''));
+    }
+    if (params.get('msgDeleted')) {
+      Swal.fire({ icon: 'success', title: 'Message supprimé', timer: 1200, showConfirmButton: false });
+      params.delete('msgDeleted');
+      window.history.replaceState({}, '', window.location.pathname + (params.toString() ? '?' + params : ''));
+    }
+    if (params.get('msgDeleteError') || params.get('threadDeleteError')) {
+      Swal.fire({ icon: 'error', title: 'Suppression impossible' });
+      params.delete('msgDeleteError');
+      params.delete('threadDeleteError');
+      window.history.replaceState({}, '', window.location.pathname + (params.toString() ? '?' + params : ''));
+    }
+    const targetSel = document.getElementById('pfBroadcastTarget');
+    const zoneWrap = document.getElementById('pfBroadcastZoneWrap');
+    const clientsWrap = document.getElementById('pfBroadcastClientsWrap');
+    function syncBroadcastFields() {
+      const v = targetSel ? targetSel.value : 'all';
+      if (zoneWrap) zoneWrap.classList.toggle('hidden', v !== 'zone');
+      if (clientsWrap) {
+        clientsWrap.classList.toggle('hidden', v !== 'individual');
+        if (v === 'individual' && window.PfClientMultiPicker) {
+          const picker = document.getElementById('pfBroadcastClientsPicker');
+          if (picker) PfClientMultiPicker.mount(picker);
+        }
+      }
+    }
+    if (targetSel) {
+      targetSel.addEventListener('change', syncBroadcastFields);
+      syncBroadcastFields();
+    }
+    if (window.PfClientMultiPicker) PfClientMultiPicker.initAll();
+
+    const broadcastForm = document.getElementById('pfBroadcastForm');
+    if (broadcastForm) {
+      broadcastForm.addEventListener('submit', (e) => {
+        const v = targetSel ? targetSel.value : 'all';
+        if (v !== 'individual') return;
+        const picker = document.getElementById('pfBroadcastClientsPicker');
+        const api = picker && picker.pfClientPicker;
+        if (api && !api.validate()) {
+          e.preventDefault();
+          e.stopImmediatePropagation();
+          if (typeof Swal !== 'undefined') {
+            Swal.fire({
+              icon: 'warning',
+              title: 'Clients requis',
+              text: 'Sélectionnez au moins un client dans la liste.',
+            });
+          }
+        }
+      }, true);
+    }
+    const box = document.getElementById('pfChatScroll');
+    if (box) box.scrollTop = box.scrollHeight;
+
+    const csrfInput = document.querySelector('input[name="_csrf"]');
+    const csrfName = csrfInput ? csrfInput.name : '_csrf';
+    const csrfToken = csrfInput ? csrfInput.value : '';
+
+    function escapeHtml(s) {
+      const d = document.createElement('div');
+      d.textContent = s == null ? '' : String(s);
+      return d.innerHTML;
+    }
+
+    function renderAttachmentHtml(m) {
+      const url = m.attachment_url ? String(m.attachment_url) : '';
+      if (!url) return '';
+      const kind = m.attachment_kind ? String(m.attachment_kind) : 'document';
+      const name = m.attachment_name ? String(m.attachment_name) : (kind === 'audio' ? 'Audio' : 'Fichier');
+      if (kind === 'image') {
+        return `<div class="mt-2 pf-chat-attachment" data-kind="image" data-url="${escapeHtml(url)}"><button type="button" class="pf-chat-img-preview block rounded-lg overflow-hidden border border-slate-200/80 hover:opacity-90 transition-opacity" data-url="${escapeHtml(url)}"><img src="${escapeHtml(url)}" alt="Image" class="max-w-[220px] max-h-[220px] object-cover"></button></div>`;
+      }
+      if (kind === 'audio') {
+        return `<div class="mt-2 pf-chat-attachment" data-kind="audio" data-url="${escapeHtml(url)}"><div class="flex items-center gap-2"><button type="button" class="pf-chat-audio-play h-10 w-10 rounded-full bg-emerald-600 hover:bg-emerald-700 text-white inline-flex items-center justify-center shrink-0" data-url="${escapeHtml(url)}" title="Écouter"><i class="fa-solid fa-play text-sm ml-0.5"></i></button><div class="min-w-0"><p class="text-xs font-semibold truncate">${escapeHtml(name)}</p><audio class="hidden pf-chat-audio-el" src="${escapeHtml(url)}" preload="metadata"></audio></div><a href="${escapeHtml(url)}" download class="text-xs text-emerald-700 hover:underline shrink-0" title="Télécharger"><i class="fa-solid fa-download"></i></a></div></div>`;
+      }
+      return `<div class="mt-2 pf-chat-attachment" data-kind="document" data-url="${escapeHtml(url)}"><a href="${escapeHtml(url)}" download class="inline-flex items-center gap-2 text-sm text-emerald-700 hover:underline"><i class="fa-solid fa-file-arrow-down"></i><span>${escapeHtml(name)}</span></a></div>`;
+    }
+
+    function renderAdminMessage(m) {
+      const isAdmin = m.sender === 'admin';
+      const rowClass = isAdmin ? 'flex justify-end group pf-chat-msg' : 'flex justify-start group pf-chat-msg';
+      const bubbleClass = isAdmin
+        ? 'max-w-[85%] rounded-2xl rounded-tr-md px-4 py-2 pf-admin-chat-bubble text-sm shadow'
+        : 'max-w-[85%] rounded-2xl rounded-tl-md px-4 py-2 bg-white text-slate-800 text-sm border border-slate-100 shadow-sm';
+      const metaClass = isAdmin ? 'text-[10px] pf-admin-chat-meta mt-1' : 'text-[10px] text-slate-400 mt-1';
+      const created = m.created_at != null ? String(m.created_at) : '';
+      const attachment = renderAttachmentHtml(m);
+      return `<div class="${rowClass}" data-msg-id="${m.id}"><div class="flex items-end gap-1 max-w-[90%]"><div class="${bubbleClass}"><p class="whitespace-pre-wrap">${escapeHtml(m.body)}</p>${attachment}<p class="${metaClass}">${escapeHtml(created)}</p></div></div></div>`;
+    }
+
+    let pfChatActiveAudio = null;
+
+    function bindChatAttachmentHandlers(root) {
+      if (!root) return;
+      root.querySelectorAll('.pf-chat-img-preview').forEach((btn) => {
+        if (btn.dataset.bound) return;
+        btn.dataset.bound = '1';
+        btn.addEventListener('click', () => {
+          const url = btn.getAttribute('data-url');
+          if (!url) return;
+          Swal.fire({
+            imageUrl: url,
+            imageAlt: 'Image client',
+            showConfirmButton: false,
+            showCloseButton: true,
+            width: 'auto',
+            padding: '0.5rem',
+            background: '#0f172a',
+          });
+        });
+      });
+      root.querySelectorAll('.pf-chat-audio-play').forEach((btn) => {
+        if (btn.dataset.bound) return;
+        btn.dataset.bound = '1';
+        btn.addEventListener('click', () => {
+          const wrap = btn.closest('.pf-chat-attachment');
+          const audio = wrap ? wrap.querySelector('.pf-chat-audio-el') : null;
+          if (!audio) return;
+          if (pfChatActiveAudio && pfChatActiveAudio !== audio) {
+            pfChatActiveAudio.pause();
+            pfChatActiveAudio.currentTime = 0;
+            document.querySelectorAll('.pf-chat-audio-play i').forEach((ic) => {
+              ic.classList.remove('fa-pause');
+              ic.classList.add('fa-play');
+            });
+          }
+          if (audio.paused) {
+            audio.play().catch(() => Swal.fire({ icon: 'error', title: 'Lecture impossible', text: 'Téléchargez le fichier pour l’écouter.' }));
+            pfChatActiveAudio = audio;
+            const icon = btn.querySelector('i');
+            if (icon) {
+              icon.classList.remove('fa-play');
+              icon.classList.add('fa-pause');
+            }
+            audio.onended = () => {
+              const icon2 = btn.querySelector('i');
+              if (icon2) {
+                icon2.classList.remove('fa-pause');
+                icon2.classList.add('fa-play');
+              }
+              if (pfChatActiveAudio === audio) pfChatActiveAudio = null;
+            };
+          } else {
+            audio.pause();
+            audio.currentTime = 0;
+            pfChatActiveAudio = null;
+            const icon = btn.querySelector('i');
+            if (icon) {
+              icon.classList.remove('fa-pause');
+              icon.classList.add('fa-play');
+            }
+          }
+        });
+      });
+    }
+
+    const chatScroll = document.getElementById('pfChatScroll');
+    const chatMessages = document.getElementById('pfChatMessages');
+    const openUserId = chatScroll ? chatScroll.getAttribute('data-user-id') : null;
+    let lastMsgCount = chatMessages ? chatMessages.querySelectorAll('.pf-chat-msg').length : 0;
+
+    async function refreshChatMessages() {
+      if (!openUserId || !chatMessages) return;
+      try {
+        const res = await fetch('/admin/support-chat/api/messages?userId=' + encodeURIComponent(openUserId), {
+          headers: { 'Accept': 'application/json' },
+          credentials: 'same-origin'
+        });
+        if (!res.ok) return;
+        const messages = await res.json();
+        if (!Array.isArray(messages)) return;
+        if (messages.length === lastMsgCount) {
+          const ids = messages.map((m) => String(m.id));
+          const domIds = Array.from(chatMessages.querySelectorAll('.pf-chat-msg')).map((el) => el.getAttribute('data-msg-id'));
+          if (ids.length === domIds.length && ids.every((id, i) => id === domIds[i])) return;
+        }
+        lastMsgCount = messages.length;
+        if (messages.length === 0) {
+          chatMessages.innerHTML = '<div class="text-center text-slate-400 text-sm py-12 pf-chat-empty">Aucun message.</div>';
+        } else {
+          chatMessages.innerHTML = messages.map(renderAdminMessage).join('');
+          bindChatAttachmentHandlers(chatMessages);
+        }
+        if (chatScroll) chatScroll.scrollTop = chatScroll.scrollHeight;
+      } catch (_) { /* ignore */ }
+    }
+
+    bindChatAttachmentHandlers(chatMessages);
+
+    if (openUserId) {
+      setInterval(refreshChatMessages, 3000);
+    }
+
+    const replyForm = document.getElementById('pfChatReplyForm');
+    const replyBody = document.getElementById('pfChatReplyBody');
+    if (replyForm && replyBody && openUserId) {
+      replyForm.addEventListener('submit', async (e) => {
+        e.preventDefault();
+        const body = replyBody.value.trim();
+        if (!body) return;
+        const fd = new FormData();
+        fd.append(csrfName, csrfToken);
+        fd.append('userId', openUserId);
+        fd.append('body', body);
+        try {
+          const res = await fetch('/admin/support-chat/api/send', {
+            method: 'POST',
+            body: fd,
+            credentials: 'same-origin'
+          });
+          if (!res.ok) {
+            const err = await res.json().catch(() => ({}));
+            Swal.fire({ icon: 'error', title: 'Envoi impossible', text: err.message || 'Réessayez.' });
+            return;
+          }
+          replyBody.value = '';
+          await refreshChatMessages();
+        } catch (_) {
+          Swal.fire({ icon: 'error', title: 'Envoi impossible', text: 'Connexion au serveur.' });
+        }
+      });
+    }
+
+    const inp = document.getElementById('pfChatSearch');
+    const rows = document.querySelectorAll('.pf-chat-thread-row');
+    if (inp && rows.length) {
+      inp.addEventListener('input', () => {
+        const q = inp.value.trim().toLowerCase();
+        rows.forEach((row) => {
+          const name = (row.getAttribute('data-name') || '').toLowerCase();
+          const phone = (row.getAttribute('data-phone') || '').toLowerCase();
+          row.style.display = !q || name.includes(q) || phone.includes(q) ? '' : 'none';
+        });
+      });
+    }
+  })();
+</script>
+<script src="/js/admin-client-multi-picker.js"></script>
+<script src="/js/admin-wow.js"></script>
+</body>
+</html>

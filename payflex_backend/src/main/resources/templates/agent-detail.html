@@ -1,0 +1,200 @@
+<!doctype html>
+<html lang="fr" xmlns:th="http://www.thymeleaf.org">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Admin — Fiche agent</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.2/css/all.min.css">
+  <link rel="stylesheet" href="/css/admin-wow.css">
+</head>
+<body class="pf-admin bg-slate-100 min-h-screen">
+<th:block th:replace="~{fragments/admin-chrome :: startMain('space-y-4')}"/>
+
+  <div class="bg-white rounded-xl shadow-sm border border-slate-200/80 p-4 md:p-5">
+    <th:block th:replace="~{fragments/admin-chrome :: recordBack('/admin/agents', 'Retour aux agents')}"/>
+    <div class="mt-1">
+      <h2 class="text-xl md:text-2xl font-bold text-slate-900" th:text="${agentDetails.fullName()}"></h2>
+      <p class="text-sm text-slate-600 mt-1 flex flex-wrap items-center gap-x-2 gap-y-1">
+        <span><i class="fa-solid fa-phone me-1 opacity-70"></i><span th:text="${agentDetails.phone() != null ? agentDetails.phone() : '—'}"></span></span>
+        <span class="text-slate-300">·</span>
+        <span><i class="fa-solid fa-location-dot me-1 opacity-70"></i><span th:text="${agentDetails.zone()}"></span></span>
+        <span class="text-slate-300">·</span>
+        <span><i class="fa-solid fa-city me-1 opacity-70"></i><span th:text="${agentDetails.city()}"></span></span>
+      </p>
+    </div>
+  </div>
+
+  <section class="pf-detail-panel" th:if="${agentDetails.matricule() != null || agentDetails.email() != null || agentDetails.personalAddress() != null || agentDetails.emergencyContactName() != null || agentDetails.supervisorName() != null}">
+    <h2 class="pf-detail-section-head"><i class="fa-solid fa-folder-open"></i>Dossier employé</h2>
+    <div class="grid grid-cols-1 md:grid-cols-2 gap-x-8 gap-y-3 text-sm">
+      <dl class="space-y-2">
+        <div class="flex gap-2" th:if="${agentDetails.matricule() != null && !agentDetails.matricule().isBlank()}"><dt class="text-slate-500 shrink-0">Matricule</dt><dd class="font-medium text-slate-800" th:text="${agentDetails.matricule()}"></dd></div>
+        <div class="flex gap-2" th:if="${agentDetails.gender() != null && !agentDetails.gender().isBlank()}"><dt class="text-slate-500 shrink-0">Sexe</dt><dd class="font-medium" th:text="${agentDetails.gender()}"></dd></div>
+        <div class="flex gap-2" th:if="${agentDetails.email() != null && !agentDetails.email().isBlank()}"><dt class="text-slate-500 shrink-0">E-mail</dt><dd class="font-medium break-all" th:text="${agentDetails.email()}"></dd></div>
+        <div class="flex gap-2" th:if="${agentDetails.contractType() != null && !agentDetails.contractType().isBlank()}"><dt class="text-slate-500 shrink-0">Contrat</dt><dd class="font-medium" th:text="${agentDetails.contractType()}"></dd></div>
+        <div class="flex gap-2" th:if="${agentDetails.hireDate() != null && !agentDetails.hireDate().isBlank()}"><dt class="text-slate-500 shrink-0">Embauche</dt><dd class="font-medium" th:text="${agentDetails.hireDate()}"></dd></div>
+        <div class="md:col-span-2" th:if="${agentDetails.personalAddress() != null && !agentDetails.personalAddress().isBlank()}">
+          <dt class="text-slate-500">Adresse</dt>
+          <dd class="font-medium text-slate-800 mt-1 whitespace-pre-line" th:text="${agentDetails.personalAddress()}"></dd>
+        </div>
+      </dl>
+      <dl class="space-y-2">
+        <div th:if="${agentDetails.emergencyContactName() != null && !agentDetails.emergencyContactName().isBlank()}">
+          <dt class="text-slate-500 text-xs uppercase tracking-wide">Urgence</dt>
+          <dd class="font-medium" th:text="${agentDetails.emergencyContactName()}"></dd>
+          <dd class="text-slate-600 text-sm" th:if="${agentDetails.emergencyContactPhone() != null}" th:text="${agentDetails.emergencyContactPhone()}"></dd>
+          <dd class="text-slate-500 text-xs" th:if="${agentDetails.emergencyContactRelation() != null}" th:text="${agentDetails.emergencyContactRelation()}"></dd>
+        </div>
+        <div class="pt-2" th:if="${agentDetails.supervisorName() != null && !agentDetails.supervisorName().isBlank()}">
+          <dt class="text-slate-500 text-xs uppercase tracking-wide">Référent interne (contact RH)</dt>
+          <dd class="text-slate-500 text-xs mb-0.5">Pas de compte PayFlex — supervision via admin / gestionnaire</dd>
+          <dd class="font-medium" th:text="${agentDetails.supervisorName()}"></dd>
+          <dd class="text-slate-600 text-sm" th:if="${agentDetails.supervisorPhone() != null}" th:text="${agentDetails.supervisorPhone()}"></dd>
+        </div>
+        <div class="pt-2" th:if="${agentDetails.secondaryContactName() != null && !agentDetails.secondaryContactName().isBlank()}">
+          <dt class="text-slate-500 text-xs uppercase tracking-wide">Contact secondaire</dt>
+          <dd class="font-medium" th:text="${agentDetails.secondaryContactName()}"></dd>
+          <dd class="text-slate-600 text-sm" th:if="${agentDetails.secondaryContactPhone() != null}" th:text="${agentDetails.secondaryContactPhone()}"></dd>
+        </div>
+      </dl>
+    </div>
+    <div class="mt-4 grid grid-cols-1 md:grid-cols-2 gap-4 text-sm" th:if="${(agentDetails.referencesNotes() != null && !agentDetails.referencesNotes().isBlank()) || (agentDetails.internalNotes() != null && !agentDetails.internalNotes().isBlank())}">
+      <div th:if="${agentDetails.referencesNotes() != null && !agentDetails.referencesNotes().isBlank()}">
+        <h3 class="text-xs font-bold text-slate-500 uppercase mb-1">Références vérifiées</h3>
+        <p class="text-slate-800 whitespace-pre-line bg-slate-50 rounded-lg p-3 border border-slate-100" th:text="${agentDetails.referencesNotes()}"></p>
+      </div>
+      <div th:if="${agentDetails.internalNotes() != null && !agentDetails.internalNotes().isBlank()}">
+        <h3 class="text-xs font-bold text-amber-800 uppercase mb-1">Notes internes RH</h3>
+        <p class="text-slate-800 whitespace-pre-line bg-amber-50 rounded-lg p-3 border border-amber-100" th:text="${agentDetails.internalNotes()}"></p>
+      </div>
+    </div>
+    <div class="mt-4 flex flex-wrap gap-2 text-sm" th:if="${(agentDetails.photoPath() != null && !agentDetails.photoPath().isBlank()) || (agentDetails.idDocumentPath() != null && !agentDetails.idDocumentPath().isBlank()) || (agentDetails.contractDocumentPath() != null && !agentDetails.contractDocumentPath().isBlank())}">
+      <span class="text-slate-500 font-medium w-full mb-1">Pièces du dossier :</span>
+      <a th:if="${agentDetails.photoPath() != null && !agentDetails.photoPath().isBlank()}"
+         th:href="@{/admin/agents/{id}/photo(id=${agentDetails.agentId()})}" target="_blank" rel="noopener"
+         class="pf-btn pf-btn-secondary text-xs"><i class="fa-solid fa-image mr-1"></i>Photo</a>
+      <a th:if="${agentDetails.idDocumentPath() != null && !agentDetails.idDocumentPath().isBlank()}"
+         th:href="@{/admin/agents/{id}/identity(id=${agentDetails.agentId()})}" target="_blank" rel="noopener"
+         class="pf-btn pf-btn-secondary text-xs"><i class="fa-solid fa-id-card mr-1"></i>Pièce d’identité</a>
+      <a th:if="${agentDetails.contractDocumentPath() != null && !agentDetails.contractDocumentPath().isBlank()}"
+         th:href="@{/admin/agents/{id}/contract(id=${agentDetails.agentId()})}" target="_blank" rel="noopener"
+         class="pf-btn pf-btn-secondary text-xs"><i class="fa-solid fa-file-contract mr-1"></i>Contrat</a>
+    </div>
+  </section>
+
+  <section class="pf-detail-panel">
+    <h2 class="pf-detail-section-head"><i class="fa-solid fa-chart-column"></i>Performance</h2>
+    <div class="grid grid-cols-2 md:grid-cols-5 gap-3">
+      <article class="pf-stat-tile">
+        <p class="pf-stat-label">Clients suivis</p>
+        <p class="pf-stat-value" th:text="${agentDetails.clientsCount()}"></p>
+      </article>
+      <article class="pf-stat-tile pf-stat-tile--emerald">
+        <p class="pf-stat-label">Collecté confirmé</p>
+        <p class="pf-stat-value" th:text="${#numbers.formatInteger(agentDetails.collectedAmount(),0,'POINT')} + ' FCFA'"></p>
+      </article>
+      <article class="pf-stat-tile pf-stat-tile--gold">
+        <p class="pf-stat-label">Objectif terrain (auto)</p>
+        <p class="pf-stat-value" th:text="${#numbers.formatInteger(agentDetails.objectiveAmount(),0,'POINT')} + ' FCFA'"></p>
+        <p class="text-[11px] text-slate-500 mt-2 leading-snug">Somme des prix catalogue pour chaque projet client distinct (cotisation liée à l’agent ou client rattaché).</p>
+      </article>
+      <article class="pf-stat-tile pf-stat-tile--emerald">
+        <p class="pf-stat-label">Versements confirmés</p>
+        <p class="pf-stat-value" th:text="${agentDetails.validatedCount()}"></p>
+      </article>
+      <article class="pf-stat-tile pf-stat-tile--amber">
+        <p class="pf-stat-label">En attente</p>
+        <p class="pf-stat-value" th:text="${agentDetails.pendingCount()}"></p>
+      </article>
+      <article class="pf-stat-tile" th:classappend="${agentDetails.cashDebtFcfa() > 0} ? ' pf-stat-tile--rose ring-2 ring-rose-200' : ''">
+        <p class="pf-stat-label">Dette caisse</p>
+        <p class="pf-stat-value" th:classappend="${agentDetails.cashDebtFcfa() > 0} ? ' text-rose-700' : ''"
+           th:text="${#numbers.formatInteger(agentDetails.cashDebtFcfa(),0,'POINT')} + ' FCFA'"></p>
+        <p class="text-[11px] text-slate-500 mt-2 leading-snug" th:if="${agentDetails.cashDebtFcfa() > 0}">
+          Reliquat rapprochement incomplet — à rembourser au centre.
+        </p>
+      </article>
+    </div>
+  </section>
+
+  <section class="pf-detail-panel">
+    <h2 class="pf-detail-section-head"><i class="fa-solid fa-receipt"></i>Cotisations remontées (centre)</h2>
+    <p class="text-xs text-slate-500 mb-3">Historique issu de la base PayFlex — les espèces saisies sur l’app agent arrivent <strong>en attente</strong> jusqu’à validation au centre (rapprochement fin de journée).</p>
+    <p class="text-sm text-slate-600 py-4" th:if="${agentRecentContributions == null || agentRecentContributions.isEmpty()}">Aucune cotisation enregistrée pour cet agent dans la base centrale pour l’instant.</p>
+    <div class="pf-detail-table-card overflow-x-auto" th:if="${agentRecentContributions != null && !agentRecentContributions.isEmpty()}">
+      <table class="w-full text-sm min-w-[640px]">
+        <thead>
+        <tr>
+          <th class="text-left py-2 px-3">Date / heure</th>
+          <th class="text-left py-2 px-3">Client</th>
+          <th class="text-left py-2 px-3">Téléphone</th>
+          <th class="text-right py-2 px-3">Montant</th>
+          <th class="text-left py-2 px-3">Mode</th>
+          <th class="text-left py-2 px-3">Statut</th>
+          <th class="text-left py-2 px-3">Réf.</th>
+          <th class="text-right py-2 px-3"></th>
+        </tr>
+        </thead>
+        <tbody>
+        <tr th:each="row : ${agentRecentContributions}" class="border-t border-slate-100">
+          <td class="py-2 px-3 text-slate-600 text-xs whitespace-nowrap font-mono" th:text="${row.createdAt()}"></td>
+          <td class="py-2 px-3 font-medium text-slate-800" th:text="${row.clientName()}"></td>
+          <td class="py-2 px-3 text-slate-600" th:text="${row.clientPhone()}"></td>
+          <td class="py-2 px-3 text-right font-medium tabular-nums" th:text="${#numbers.formatInteger(row.amount(),0,'POINT')} + ' FCFA'"></td>
+          <td class="py-2 px-3 text-slate-600" th:text="${row.paymentMode()}"></td>
+          <td class="py-2 px-3">
+            <span th:if="${row.status() == 'validated'}" class="text-emerald-700 font-medium text-xs">Validée</span>
+            <span th:if="${row.status() == 'pending'}" class="text-amber-700 font-medium text-xs">En attente</span>
+            <span th:if="${row.status() != 'validated' && row.status() != 'pending'}" class="text-slate-600 text-xs" th:text="${row.status()}"></span>
+          </td>
+          <td class="py-2 px-3 text-xs text-slate-500 font-mono max-w-[9rem] truncate" th:text="${row.referenceCode()}"></td>
+          <td class="py-2 px-3 text-right">
+            <a href="/admin/contributions" class="pf-btn pf-btn-secondary text-xs rounded-lg">Liste cotisations</a>
+          </td>
+        </tr>
+        </tbody>
+      </table>
+    </div>
+  </section>
+
+  <section class="pf-detail-panel">
+    <h2 class="pf-detail-section-head"><i class="fa-solid fa-users"></i>Clients rattachés à cet agent</h2>
+    <div class="pf-detail-table-card">
+      <table class="w-full text-sm">
+        <thead>
+        <tr>
+          <th class="text-left py-3 px-3">Nom</th>
+          <th class="text-left py-3 px-3">Téléphone</th>
+          <th class="text-left py-3 px-3">Ville</th>
+          <th class="text-right py-3 px-3">Total versé</th>
+          <th class="text-right py-3 px-3">Versements</th>
+          <th class="text-left py-3 px-3">Dernière activité</th>
+          <th class="text-right py-3 px-3"></th>
+        </tr>
+        </thead>
+        <tbody>
+        <tr th:each="c : ${agentClients}" class="border-t border-slate-100">
+          <td class="py-3 px-3 font-medium text-slate-800" th:text="${c.fullName()}"></td>
+          <td class="py-3 px-3 text-slate-600" th:text="${c.phone()}"></td>
+          <td class="py-3 px-3 text-slate-600" th:text="${c.city()}"></td>
+          <td class="py-3 px-3 text-right font-medium tabular-nums" th:text="${#numbers.formatInteger(c.totalContributed(),0,'POINT')} + ' FCFA'"></td>
+          <td class="py-3 px-3 text-right tabular-nums" th:text="${c.contributionsCount()}"></td>
+          <td class="py-3 px-3 text-slate-500 text-xs" th:text="${c.lastContributionAt()}"></td>
+          <td class="py-3 px-3 text-right">
+            <a th:href="@{/admin/clients/{id}(id=${c.userId()})}" class="pf-btn pf-btn-secondary text-xs rounded-lg">Fiche client</a>
+          </td>
+        </tr>
+        </tbody>
+      </table>
+    </div>
+  </section>
+
+<th:block th:replace="~{fragments/admin-chrome :: endMain}"/>
+<script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
+<script th:if="${param.hired != null && param.hired.length > 0}">
+  Swal.fire({icon:'success',title:'Employé créé',text:'Compte mobile actif avec le PIN défini.',timer:2200,showConfirmButton:false});
+</script>
+<script src="/js/admin-wow.js"></script>
+</body>
+</html>

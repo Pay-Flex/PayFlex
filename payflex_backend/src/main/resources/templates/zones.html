@@ -1,0 +1,74 @@
+<!doctype html>
+<html lang="fr" xmlns:th="http://www.thymeleaf.org">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Admin — Zones</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.2/css/all.min.css">
+  <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
+  <link rel="stylesheet" href="/css/admin-wow.css">
+</head>
+<body class="pf-admin bg-slate-100 min-h-screen">
+<th:block th:replace="~{fragments/admin-chrome :: startMain('space-y-6')}"/>
+<th:block th:replace="~{fragments/admin-chrome :: pageHeader(${pageTitle}, ${pageSubtitle})}"/>
+
+    <div class="flex justify-end -mt-2">
+      <a href="/admin/agents" class="pf-btn pf-btn-secondary text-sm shrink-0"><i class="fa-solid fa-user-tie mr-2"></i>Agents</a>
+    </div>
+
+    <section class="bg-white rounded-xl p-5 shadow-sm border border-slate-200">
+      <h3 class="font-semibold text-slate-800 mb-3">Nouvelle zone</h3>
+      <form method="post" action="/admin/zones" class="grid grid-cols-1 md:grid-cols-3 gap-4 items-end">
+        <input type="hidden" th:name="${_csrf.parameterName}" th:value="${_csrf.token}">
+        <div class="md:col-span-1">
+          <label class="block text-xs font-medium text-slate-600 mb-1">Nom <span class="text-red-500">*</span></label>
+          <input name="name" required class="border rounded-lg px-3 py-2 w-full text-sm" placeholder="ex. Lomé — marché central">
+        </div>
+        <div class="md:col-span-2">
+          <label class="block text-xs font-medium text-slate-600 mb-1">Description</label>
+          <input name="description" class="border rounded-lg px-3 py-2 w-full text-sm" placeholder="optionnel">
+        </div>
+        <div>
+          <button type="submit" class="pf-btn pf-btn-primary text-sm py-2 px-4">Créer</button>
+        </div>
+      </form>
+    </section>
+
+    <section class="bg-white rounded-xl p-4 shadow-sm overflow-auto">
+      <table class="w-full text-sm">
+        <thead class="bg-slate-100">
+        <tr>
+          <th class="text-left py-2 px-2">Zone</th>
+          <th class="text-left py-2 px-2">Description</th>
+          <th class="text-center py-2 px-2">Active</th>
+          <th class="text-right py-2 px-2">Agents</th>
+          <th class="text-right py-2 px-2">Clients (liés)</th>
+          <th class="text-right py-2 px-2">Actions</th>
+        </tr>
+        </thead>
+        <tbody>
+        <tr th:each="z : ${zonesList}" class="border-t border-slate-100">
+          <td class="py-2 px-2 font-medium" th:text="${z.name()}"></td>
+          <td class="py-2 px-2 text-slate-600" th:text="${z.description() != null && !z.description().isBlank() ? z.description() : '—'}"></td>
+          <td class="py-2 px-2 text-center" th:text="${z.active() ? 'Oui' : 'Non'}"></td>
+          <td class="py-2 px-2 text-right tabular-nums" th:text="${z.agentsCount()}"></td>
+          <td class="py-2 px-2 text-right tabular-nums" th:text="${z.clientsCount()}"></td>
+          <td class="py-2 px-2 text-right">
+            <a th:href="@{/admin/zones/{id}(id=${z.id()})}" class="pf-btn pf-btn-secondary text-xs py-1 px-3">Détails</a>
+          </td>
+        </tr>
+        </tbody>
+      </table>
+    </section>
+
+<th:block th:replace="~{fragments/admin-chrome :: endMain}"/>
+<script th:inline="javascript">
+  const p = new URLSearchParams(window.location.search);
+  if (p.get('success') === '1') Swal.fire({icon:'success',title:'Zone créée',timer:1400,showConfirmButton:false});
+  if (p.get('success') === 'deleted') Swal.fire({icon:'success',title:'Zone supprimée',timer:1400,showConfirmButton:false});
+  if (p.get('error')) Swal.fire({icon:'error',title:'Erreur', text: decodeURIComponent(p.get('error'))});
+</script>
+<script src="/js/admin-wow.js"></script>
+</body>
+</html>

@@ -1,0 +1,602 @@
+<!doctype html>
+<html lang="fr" xmlns:th="http://www.thymeleaf.org">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Admin — Comptes utilisateurs</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.2/css/all.min.css">
+  <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
+  <link rel="stylesheet" href="/css/admin-wow.css">
+  <th:block th:replace="~{fragments/admin-chrome :: phoneInputHead}"/>
+</head>
+<body class="pf-admin bg-slate-100 min-h-screen">
+<th:block th:replace="~{fragments/admin-chrome :: startMain('space-y-4')}"/>
+<th:block th:replace="~{fragments/admin-chrome :: pageHeader('Comptes utilisateurs','Gestion des comptes et profils')}"/>
+
+    <div th:if="${errorMessage}" class="rounded-xl border border-red-200 bg-red-50 text-red-800 px-4 py-3 text-sm" th:text="${errorMessage}"></div>
+
+    <form method="get" action="/admin/users" class="bg-white rounded-xl p-4 shadow-sm grid grid-cols-1 md:grid-cols-6 gap-3 items-end">
+      <div class="md:col-span-2">
+        <label class="block text-xs font-medium text-slate-600 mb-1">Recherche</label>
+        <input name="q" th:value="${q}" placeholder="Nom, téléphone, ville" class="border rounded-lg px-3 py-2 w-full text-sm">
+      </div>
+      <div>
+        <label class="block text-xs font-medium text-slate-600 mb-1">Profil</label>
+        <select name="role" class="border rounded-lg px-3 py-2 w-full text-sm bg-white">
+          <option value="">Tous les profils</option>
+          <option th:each="ro : ${roles}" th:value="${ro.code()}" th:selected="${role != null && role == ro.code()}" th:text="${ro.label()}"></option>
+        </select>
+      </div>
+      <div>
+        <label class="block text-xs font-medium text-slate-600 mb-1">Statut du compte</label>
+        <select name="status" class="border rounded-lg px-3 py-2 w-full text-sm bg-white">
+          <option value="">Tous</option>
+          <option value="pending" th:selected="${status == 'pending'}">En attente</option>
+          <option value="valide" th:selected="${status == 'valide'}">Actif</option>
+          <option value="bloque" th:selected="${status == 'bloque'}">Bloqué</option>
+        </select>
+      </div>
+      <div>
+        <button type="submit" class="pf-btn pf-btn-primary w-full md:w-auto py-2 px-4 text-sm">Filtrer</button>
+      </div>
+    </form>
+
+    <section class="bg-white rounded-xl p-4 md:p-5 shadow-sm border border-slate-200/80">
+      <h3 class="font-semibold text-slate-800 mb-1">Créer un compte</h3>
+      <p class="text-xs text-slate-500 mb-4">Les champs affichés s’adaptent au profil choisi : client mobile, agent terrain, gestionnaire ou administrateur (connexion au tableau de bord).</p>
+
+      <form id="pfCreateUserForm" method="post" action="/admin/users" enctype="multipart/form-data" class="space-y-5">
+        <input type="hidden" th:name="${_csrf.parameterName}" th:value="${_csrf.token}">
+
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-4 max-w-3xl">
+          <div class="md:col-span-2">
+            <label class="block text-xs font-semibold text-slate-600 mb-1">Profil / rôle <span class="text-red-500">*</span></label>
+            <select id="pfCreateProfileKey" name="profileKey" required class="border rounded-lg px-3 py-2 w-full text-sm bg-white">
+              <option value="">— Choisir un profil —</option>
+              <optgroup th:if="${adminFullAccess}" label="Comptes équipe (connexion admin)">
+                <option value="team:gestionnaire" data-role-code="gestionnaire">Gestionnaire — accès limité au tableau de bord</option>
+                <option value="team:admin" data-role-code="admin">Administrateur — accès complet</option>
+              </optgroup>
+              <optgroup label="Utilisateurs application mobile">
+                <option th:each="ro : ${roles}" th:value="${'role:' + ro.id()}" th:attr="data-role-code=${ro.code()}"
+                        th:text="${ro.label() + ' (' + ro.code() + ')'}"></option>
+              </optgroup>
+            </select>
+          </div>
+          <div class="md:col-span-2">
+            <label class="block text-xs font-semibold text-slate-600 mb-1">Nom complet <span class="text-red-500">*</span></label>
+            <input name="fullName" required class="border rounded-lg px-3 py-2 w-full text-sm" placeholder="Nom et prénom">
+          </div>
+        </div>
+
+        <!-- Mobile : client, agent, autres rôles métier -->
+        <div id="pfSectionMobile" class="pf-create-section hidden space-y-4 border-t border-slate-100 pt-4" data-section="mobile">
+          <h4 class="text-sm font-bold text-slate-800"><i class="fa-solid fa-mobile-screen mr-2 text-blue-700"></i>Coordonnées & compte mobile</h4>
+          <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+            <div>
+              <label class="block text-xs font-semibold text-slate-600 mb-1">Téléphone (login app) <span class="text-red-500 pf-req-mobile">*</span></label>
+              <input name="phone" type="tel" class="pf-intl-phone border rounded-lg px-3 py-2 w-full text-sm" placeholder="90 12 34 56">
+            </div>
+            <div>
+              <label class="block text-xs font-semibold text-slate-600 mb-1">E-mail</label>
+              <input name="email" type="email" class="border rounded-lg px-3 py-2 w-full text-sm" placeholder="Facultatif">
+            </div>
+            <div>
+              <label class="block text-xs font-semibold text-slate-600 mb-1">Sexe</label>
+              <select name="gender" class="border rounded-lg px-3 py-2 w-full text-sm bg-white">
+                <option value="">—</option>
+                <option>Homme</option>
+                <option>Femme</option>
+              </select>
+            </div>
+            <div>
+              <label class="block text-xs font-semibold text-slate-600 mb-1">Ville</label>
+              <input name="city" class="border rounded-lg px-3 py-2 w-full text-sm">
+            </div>
+            <div>
+              <label class="block text-xs font-semibold text-slate-600 mb-1">Métier / activité</label>
+              <input name="profession" class="border rounded-lg px-3 py-2 w-full text-sm">
+            </div>
+            <div>
+              <label class="block text-xs font-semibold text-slate-600 mb-1">Statut initial</label>
+              <select name="status" class="border rounded-lg px-3 py-2 w-full text-sm bg-white">
+                <option value="pending">En attente</option>
+                <option value="valide">Actif / validé</option>
+                <option value="bloque">Bloqué</option>
+              </select>
+            </div>
+          </div>
+        </div>
+
+        <!-- Client -->
+        <div id="pfSectionClient" class="pf-create-section hidden space-y-4 border-t border-slate-100 pt-4" data-section="client">
+          <h4 class="text-sm font-bold text-slate-800"><i class="fa-solid fa-user mr-2 text-emerald-700"></i>Client — accès app & activité</h4>
+          <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div>
+              <label class="block text-xs font-semibold text-slate-600 mb-1">Code PIN mobile (4–12 chiffres) <span class="text-red-500">*</span></label>
+              <input name="mobilePin" type="password" inputmode="numeric" pattern="[0-9]{4,12}" minlength="4" maxlength="12" autocomplete="new-password"
+                     class="border rounded-lg px-3 py-2 w-full text-sm">
+            </div>
+            <div>
+              <label class="block text-xs font-semibold text-slate-600 mb-1">Confirmer le PIN</label>
+              <input name="mobilePinConfirm" type="password" inputmode="numeric" pattern="[0-9]{4,12}" minlength="4" maxlength="12" autocomplete="new-password"
+                     class="border rounded-lg px-3 py-2 w-full text-sm">
+            </div>
+            <div>
+              <label class="block text-xs font-semibold text-slate-600 mb-1">Mot de passe compte (8–64 caractères) <span class="text-red-500">*</span></label>
+              <input name="accountPassword" type="password" minlength="8" maxlength="64" autocomplete="new-password"
+                     class="border rounded-lg px-3 py-2 w-full text-sm" placeholder="Connexion à l’app">
+            </div>
+            <div>
+              <label class="block text-xs font-semibold text-slate-600 mb-1">Confirmer le mot de passe <span class="text-red-500">*</span></label>
+              <input name="accountPasswordConfirm" type="password" minlength="8" maxlength="64" autocomplete="new-password"
+                     class="border rounded-lg px-3 py-2 w-full text-sm">
+            </div>
+            <p class="text-xs text-slate-500 md:col-span-2">Les clients paient l’adhésion PayFlex (250 FCFA) après validation du dossier. Les agents terrain n’y sont pas soumis.</p>
+            <div class="md:col-span-2">
+              <label class="block text-xs font-semibold text-slate-600 mb-1">Agent parrain</label>
+              <select name="assignedAgentUserId" class="border rounded-lg px-3 py-2 w-full text-sm bg-white max-w-md">
+                <option value="">— Aucun —</option>
+                <option th:each="a : ${agentOptions}" th:value="${a.id()}" th:text="${a.fullName()}"></option>
+              </select>
+            </div>
+            <div>
+              <label class="block text-xs font-semibold text-slate-600 mb-1">Lieu de travail</label>
+              <input name="workplaceName" class="border rounded-lg px-3 py-2 w-full text-sm">
+            </div>
+            <div>
+              <label class="block text-xs font-semibold text-slate-600 mb-1">Adresse du lieu de travail</label>
+              <input name="workplaceAddress" class="border rounded-lg px-3 py-2 w-full text-sm">
+            </div>
+            <div>
+              <label class="block text-xs font-semibold text-slate-600 mb-1">Responsable / patron</label>
+              <input name="bossName" class="border rounded-lg px-3 py-2 w-full text-sm">
+            </div>
+            <div>
+              <label class="block text-xs font-semibold text-slate-600 mb-1">Téléphone du responsable</label>
+              <input name="bossPhone" type="tel" class="pf-intl-phone border rounded-lg px-3 py-2 w-full text-sm">
+            </div>
+          </div>
+        </div>
+
+        <!-- Agent -->
+        <div id="pfSectionAgent" class="pf-create-section hidden space-y-4 border-t border-slate-100 pt-4" data-section="agent">
+          <h4 class="text-sm font-bold text-slate-800"><i class="fa-solid fa-user-tie mr-2 text-blue-700"></i>Agent terrain — affectation & PIN</h4>
+          <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+            <div>
+              <label class="block text-xs font-semibold text-slate-600 mb-1">Zone d’affectation <span class="text-red-500">*</span></label>
+              <select name="zoneId" class="border rounded-lg px-3 py-2 w-full text-sm bg-white">
+                <option value="">Choisir…</option>
+                <option th:each="z : ${zoneChoices}" th:value="${z.id()}" th:text="${z.name()}"></option>
+              </select>
+            </div>
+            <div>
+              <label class="block text-xs font-semibold text-slate-600 mb-1">Matricule</label>
+              <input name="matricule" class="border rounded-lg px-3 py-2 w-full text-sm" placeholder="Auto si vide">
+            </div>
+            <div>
+              <label class="block text-xs font-semibold text-slate-600 mb-1">Date d’embauche</label>
+              <input name="hireDate" type="date" class="border rounded-lg px-3 py-2 w-full text-sm">
+            </div>
+            <div>
+              <label class="block text-xs font-semibold text-slate-600 mb-1">Type de contrat</label>
+              <select name="contractType" class="border rounded-lg px-3 py-2 w-full text-sm bg-white">
+                <option value="">—</option>
+                <option>CDI</option><option>CDD</option><option>Stage</option><option>Prestataire</option>
+              </select>
+            </div>
+            <div class="md:col-span-2">
+              <label class="block text-xs font-semibold text-slate-600 mb-1">Adresse personnelle</label>
+              <textarea name="personalAddress" rows="2" class="border rounded-lg px-3 py-2 w-full text-sm"></textarea>
+            </div>
+            <div>
+              <label class="block text-xs font-semibold text-slate-600 mb-1">Code PIN mobile <span class="text-red-500">*</span></label>
+              <input name="mobilePin" type="password" inputmode="numeric" pattern="[0-9]{4,12}" minlength="4" maxlength="12" autocomplete="new-password"
+                     class="border rounded-lg px-3 py-2 w-full text-sm">
+            </div>
+            <div>
+              <label class="block text-xs font-semibold text-slate-600 mb-1">Confirmer le PIN</label>
+              <input name="mobilePinConfirm" type="password" inputmode="numeric" pattern="[0-9]{4,12}" minlength="4" maxlength="12" autocomplete="new-password"
+                     class="border rounded-lg px-3 py-2 w-full text-sm">
+            </div>
+            <div>
+              <label class="block text-xs font-semibold text-slate-600 mb-1">Mot de passe compte (8–64 caractères) <span class="text-red-500">*</span></label>
+              <input name="accountPassword" type="password" minlength="8" maxlength="64" autocomplete="new-password"
+                     class="border rounded-lg px-3 py-2 w-full text-sm" placeholder="Connexion à l’app">
+            </div>
+            <div>
+              <label class="block text-xs font-semibold text-slate-600 mb-1">Confirmer le mot de passe <span class="text-red-500">*</span></label>
+              <input name="accountPasswordConfirm" type="password" minlength="8" maxlength="64" autocomplete="new-password"
+                     class="border rounded-lg px-3 py-2 w-full text-sm">
+            </div>
+            <p class="text-xs text-slate-500 md:col-span-3">Aucune adhésion pour les agents terrain — compte actif dès la création.</p>
+          </div>
+          <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+            <div><label class="block text-xs font-semibold text-slate-600 mb-1">Urgence — nom</label><input name="emergencyContactName" class="border rounded-lg px-3 py-2 w-full text-sm"></div>
+            <div><label class="block text-xs font-semibold text-slate-600 mb-1">Téléphone</label><input name="emergencyContactPhone" type="tel" class="pf-intl-phone border rounded-lg px-3 py-2 w-full text-sm"></div>
+            <div><label class="block text-xs font-semibold text-slate-600 mb-1">Lien</label><input name="emergencyContactRelation" class="border rounded-lg px-3 py-2 w-full text-sm"></div>
+            <div><label class="block text-xs font-semibold text-slate-600 mb-1">Référent interne</label><input name="supervisorName" class="border rounded-lg px-3 py-2 w-full text-sm"></div>
+            <div><label class="block text-xs font-semibold text-slate-600 mb-1">Tél. référent</label><input name="supervisorPhone" type="tel" class="pf-intl-phone border rounded-lg px-3 py-2 w-full text-sm"></div>
+            <div><label class="block text-xs font-semibold text-slate-600 mb-1">Autre contact</label><input name="secondaryContactName" class="border rounded-lg px-3 py-2 w-full text-sm"></div>
+            <div><label class="block text-xs font-semibold text-slate-600 mb-1">Tél. autre contact</label><input name="secondaryContactPhone" type="tel" class="pf-intl-phone border rounded-lg px-3 py-2 w-full text-sm"></div>
+          </div>
+          <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div><label class="block text-xs font-semibold text-slate-600 mb-1">Références</label><textarea name="referencesNotes" rows="2" class="border rounded-lg px-3 py-2 w-full text-sm"></textarea></div>
+            <div><label class="block text-xs font-semibold text-slate-600 mb-1">Notes RH internes</label><textarea name="internalNotes" rows="2" class="border rounded-lg px-3 py-2 w-full text-sm"></textarea></div>
+          </div>
+          <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+            <div><label class="block text-xs font-semibold text-slate-600 mb-1">Photo</label><input name="photo" type="file" accept="image/*,.pdf" class="text-xs w-full"></div>
+            <div><label class="block text-xs font-semibold text-slate-600 mb-1">Pièce d’identité</label><input name="idDocument" type="file" accept="image/*,.pdf" class="text-xs w-full"></div>
+            <div><label class="block text-xs font-semibold text-slate-600 mb-1">Contrat</label><input name="contractDocument" type="file" accept=".pdf,image/*" class="text-xs w-full"></div>
+          </div>
+        </div>
+
+        <!-- Équipe admin / gestionnaire -->
+        <div id="pfSectionTeam" class="pf-create-section hidden space-y-4 border-t border-slate-100 pt-4" data-section="team">
+          <h4 class="text-sm font-bold text-slate-800"><i class="fa-solid fa-key mr-2 text-amber-600"></i>Compte de connexion au tableau de bord</h4>
+          <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+            <div>
+              <label class="block text-xs font-semibold text-slate-600 mb-1">Identifiant <span class="text-red-500">*</span></label>
+              <input name="username" pattern="[a-z0-9._-]{3,50}" class="border rounded-lg px-3 py-2 w-full text-sm" placeholder="ex. koffi.admin">
+            </div>
+            <div>
+              <label class="block text-xs font-semibold text-slate-600 mb-1">Mot de passe <span class="text-red-500">*</span></label>
+              <input name="password" type="password" minlength="8" autocomplete="new-password" class="border rounded-lg px-3 py-2 w-full text-sm">
+            </div>
+            <div>
+              <label class="block text-xs font-semibold text-slate-600 mb-1">Confirmer le mot de passe</label>
+              <input name="passwordConfirm" type="password" minlength="8" autocomplete="new-password" class="border rounded-lg px-3 py-2 w-full text-sm">
+            </div>
+          </div>
+          <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+            <div>
+              <label class="block text-xs font-semibold text-slate-600 mb-1">Téléphone</label>
+              <input name="phone" type="tel" class="pf-intl-phone border rounded-lg px-3 py-2 w-full text-sm">
+            </div>
+            <div>
+              <label class="block text-xs font-semibold text-slate-600 mb-1">E-mail</label>
+              <input name="email" type="email" class="border rounded-lg px-3 py-2 w-full text-sm">
+            </div>
+            <div>
+              <label class="block text-xs font-semibold text-slate-600 mb-1">Sexe</label>
+              <select name="gender" class="border rounded-lg px-3 py-2 w-full text-sm bg-white">
+                <option value="">—</option><option>Homme</option><option>Femme</option>
+              </select>
+            </div>
+            <div>
+              <label class="block text-xs font-semibold text-slate-600 mb-1">Ville</label>
+              <input name="city" class="border rounded-lg px-3 py-2 w-full text-sm">
+            </div>
+            <div>
+              <label class="block text-xs font-semibold text-slate-600 mb-1">Fonction</label>
+              <input name="jobTitle" id="pfTeamJobTitle" class="border rounded-lg px-3 py-2 w-full text-sm">
+            </div>
+            <div>
+              <label class="block text-xs font-semibold text-slate-600 mb-1">Matricule</label>
+              <input name="matricule" class="border rounded-lg px-3 py-2 w-full text-sm">
+            </div>
+            <div class="md:col-span-3">
+              <label class="block text-xs font-semibold text-slate-600 mb-1">Adresse</label>
+              <textarea name="personalAddress" rows="2" class="border rounded-lg px-3 py-2 w-full text-sm"></textarea>
+            </div>
+            <div>
+              <label class="block text-xs font-semibold text-slate-600 mb-1">Type de contrat</label>
+              <select name="contractType" class="border rounded-lg px-3 py-2 w-full text-sm bg-white"><option value="">—</option><option>CDI</option><option>CDD</option><option>Prestataire</option></select>
+            </div>
+            <div>
+              <label class="block text-xs font-semibold text-slate-600 mb-1">Date d’embauche</label>
+              <input name="hireDate" type="date" class="border rounded-lg px-3 py-2 w-full text-sm">
+            </div>
+            <div>
+              <label class="block text-xs font-semibold text-slate-600 mb-1">Date signature contrat</label>
+              <input name="contractSignedDate" type="date" class="border rounded-lg px-3 py-2 w-full text-sm">
+            </div>
+          </div>
+          <h4 class="text-sm font-bold text-slate-800 pt-2"><i class="fa-solid fa-phone-volume mr-2 text-amber-600"></i>Contacts d’urgence & caution</h4>
+          <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+            <div><label class="block text-xs font-semibold text-slate-600 mb-1">Urgence — nom</label><input name="emergencyContactName" class="border rounded-lg px-3 py-2 w-full text-sm"></div>
+            <div><label class="block text-xs font-semibold text-slate-600 mb-1">Téléphone</label><input name="emergencyContactPhone" type="tel" class="pf-intl-phone border rounded-lg px-3 py-2 w-full text-sm"></div>
+            <div><label class="block text-xs font-semibold text-slate-600 mb-1">Lien</label><input name="emergencyContactRelation" class="border rounded-lg px-3 py-2 w-full text-sm"></div>
+            <div><label class="block text-xs font-semibold text-slate-600 mb-1">À prévenir — nom</label><input name="notifyContactName" class="border rounded-lg px-3 py-2 w-full text-sm"></div>
+            <div><label class="block text-xs font-semibold text-slate-600 mb-1">Téléphone</label><input name="notifyContactPhone" type="tel" class="pf-intl-phone border rounded-lg px-3 py-2 w-full text-sm"></div>
+            <div><label class="block text-xs font-semibold text-slate-600 mb-1">Lien / rôle</label><input name="notifyContactRelation" class="border rounded-lg px-3 py-2 w-full text-sm"></div>
+            <div><label class="block text-xs font-semibold text-slate-600 mb-1">Cautionnaire — nom</label><input name="guarantorName" class="border rounded-lg px-3 py-2 w-full text-sm"></div>
+            <div><label class="block text-xs font-semibold text-slate-600 mb-1">Téléphone</label><input name="guarantorPhone" type="tel" class="pf-intl-phone border rounded-lg px-3 py-2 w-full text-sm"></div>
+            <div><label class="block text-xs font-semibold text-slate-600 mb-1">Lien</label><input name="guarantorRelation" class="border rounded-lg px-3 py-2 w-full text-sm"></div>
+            <div><label class="block text-xs font-semibold text-slate-600 mb-1">Autre contact</label><input name="secondaryContactName" class="border rounded-lg px-3 py-2 w-full text-sm"></div>
+            <div><label class="block text-xs font-semibold text-slate-600 mb-1">Téléphone</label><input name="secondaryContactPhone" type="tel" class="pf-intl-phone border rounded-lg px-3 py-2 w-full text-sm"></div>
+            <div><label class="block text-xs font-semibold text-slate-600 mb-1">Référent interne</label><input name="supervisorName" class="border rounded-lg px-3 py-2 w-full text-sm"></div>
+            <div><label class="block text-xs font-semibold text-slate-600 mb-1">Tél. référent</label><input name="supervisorPhone" type="tel" class="pf-intl-phone border rounded-lg px-3 py-2 w-full text-sm"></div>
+          </div>
+          <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div><label class="block text-xs font-semibold text-slate-600 mb-1">Références</label><textarea name="referencesNotes" rows="2" class="border rounded-lg px-3 py-2 w-full text-sm"></textarea></div>
+            <div><label class="block text-xs font-semibold text-slate-600 mb-1">Notes RH</label><textarea name="internalNotes" rows="2" class="border rounded-lg px-3 py-2 w-full text-sm"></textarea></div>
+          </div>
+          <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+            <div><label class="block text-xs font-semibold text-slate-600 mb-1">Photo</label><input name="photo" type="file" accept="image/*,.pdf" class="text-xs w-full"></div>
+            <div><label class="block text-xs font-semibold text-slate-600 mb-1">Pièce d’identité</label><input name="idDocument" type="file" accept="image/*,.pdf" class="text-xs w-full"></div>
+            <div><label class="block text-xs font-semibold text-slate-600 mb-1">Contrat signé</label><input name="contractDocument" type="file" accept=".pdf,image/*" class="text-xs w-full"></div>
+          </div>
+        </div>
+
+        <div class="pt-2 border-t border-slate-100">
+          <button type="submit" class="pf-btn pf-btn-primary py-2.5 px-5 text-sm font-semibold">
+            <i class="fa-solid fa-user-plus mr-2"></i>Enregistrer le compte
+          </button>
+        </div>
+      </form>
+    </section>
+
+    <section class="bg-white rounded-xl p-4 shadow-sm overflow-auto">
+      <div class="flex justify-end gap-2 mb-3">
+        <a href="/admin/export/users.csv" class="pf-btn pf-btn-secondary text-sm">Export CSV</a>
+        <a href="/admin/export/users.pdf" class="pf-btn pf-btn-secondary text-sm">Export PDF</a>
+      </div>
+      <table class="w-full text-sm">
+        <thead class="bg-slate-100">
+        <tr>
+          <th class="text-left py-2 px-2">Nom</th>
+          <th class="text-left py-2 px-2">Téléphone</th>
+          <th class="text-left py-2 px-2">Profil</th>
+          <th class="text-left py-2 px-2">Ville</th>
+          <th class="text-left py-2 px-2">Métier</th>
+          <th class="text-left py-2 px-2">Statut</th>
+          <th class="text-left py-2 px-2 min-w-[12rem]">Actions</th>
+        </tr>
+        </thead>
+        <tbody>
+        <tr th:each="u : ${usersPage.items()}">
+          <td class="py-2 px-2 align-top font-medium text-slate-800" th:text="${u.fullName()}"></td>
+          <td class="py-2 px-2 align-top" th:text="${u.phone()}"></td>
+          <td class="py-2 px-2 align-top text-slate-700" th:text="${u.roleLabel() != null ? u.roleLabel() : u.role()}"></td>
+          <td class="py-2 px-2 align-top text-slate-600" th:text="${u.city() != null && !u.city().isBlank() ? u.city() : '—'}"></td>
+          <td class="py-2 px-2 align-top text-slate-600" th:text="${u.profession() != null && !u.profession().isBlank() ? u.profession() : '—'}"></td>
+          <td class="py-2 px-2 align-top">
+            <th:block th:replace="~{fragments/admin-chrome :: statusBadge(${u.status()})}"/>
+          </td>
+          <td class="py-2 px-2 align-top">
+            <div class="flex flex-col gap-1.5">
+              <div class="flex flex-wrap gap-1">
+                <a th:if="${u.role() == 'client'}" th:href="@{/admin/clients/{id}(id=${u.id()})}" class="pf-btn pf-btn-secondary text-xs"><i class="fa-regular fa-id-card mr-1"></i>Fiche client</a>
+                <a th:if="${u.role() != 'client' && u.agentRecordId() != null}" th:href="@{/admin/agents/{id}(id=${u.agentRecordId()})}" class="pf-btn pf-btn-secondary text-xs"><i class="fa-regular fa-user-tie mr-1"></i>Fiche agent</a>
+                <a th:if="${u.role() != 'client' && u.agentRecordId() == null}" th:href="@{/admin/users/{id}(id=${u.id()})}" class="pf-btn pf-btn-secondary text-xs"><i class="fa-regular fa-file-lines mr-1"></i>Voir la fiche</a>
+              </div>
+              <div class="flex flex-wrap gap-1">
+                <button type="button" class="pf-btn pf-btn-primary text-xs"
+                        th:attr="data-id=${u.id()},data-name=${u.fullName()},data-phone=${u.phone()},data-role-id=${u.roleId()},data-city=${u.city()},data-profession=${u.profession()},data-status=${u.status()}"
+                        onclick="openEditUserModal(this)"><i class="fa-regular fa-pen-to-square mr-1"></i>Modifier</button>
+                <form th:if="${adminFullAccess || adminIsGestionnaire}" method="post" action="/admin/users/delete" class="inline"
+                      th:attr="data-admin-full=${adminFullAccess}"
+                      onsubmit="return pfConfirmDeleteWithReason(event, this.dataset.adminFull === 'true' ? 'Supprimer définitivement cet utilisateur ?' : 'Demander la suppression de cet utilisateur ?', this.dataset.adminFull === 'true');">
+                  <input type="hidden" th:name="${_csrf.parameterName}" th:value="${_csrf.token}">
+                  <input type="hidden" name="id" th:value="${u.id()}">
+                  <button type="submit" class="pf-btn pf-btn-danger text-xs"><i class="fa-regular fa-trash-can mr-1"></i>Supprimer</button>
+                </form>
+              </div>
+            </div>
+          </td>
+        </tr>
+        </tbody>
+      </table>
+      <th:block th:replace="~{fragments/admin-chrome :: pagination(${usersPage}, '/admin/users', ${filterQuery})}"/>
+    </section>
+
+    <input type="hidden" id="pf-users-flash-success" th:if="${param.success != null && !#lists.isEmpty(param.success)}" th:value="${param.success[0]}">
+    <input type="hidden" id="pf-users-flash-error" th:if="${param.error != null && !#lists.isEmpty(param.error)}" th:value="${param.error[0]}">
+
+<th:block th:replace="~{fragments/admin-chrome :: endMain}"/>
+
+<div id="editUserModal" class="hidden fixed inset-0 bg-black/40 items-center justify-center z-50 p-4">
+  <div class="bg-white w-full max-w-xl rounded-xl p-6 border border-slate-200 shadow-lg">
+    <h3 class="font-semibold text-lg text-slate-800 mb-4">Modifier l’utilisateur</h3>
+    <form method="post" action="/admin/users/update" class="grid grid-cols-1 md:grid-cols-2 gap-x-4 gap-y-3">
+      <input type="hidden" th:name="${_csrf.parameterName}" th:value="${_csrf.token}">
+      <input type="hidden" id="editUserId" name="id">
+      <div>
+        <label class="block text-xs font-medium text-slate-600 mb-1">Nom complet</label>
+        <input id="editUserName" name="fullName" required class="border rounded-lg px-3 py-2 w-full text-sm">
+      </div>
+      <div>
+        <label class="block text-xs font-medium text-slate-600 mb-1">Téléphone</label>
+        <input id="editUserPhone" name="phone" type="tel" required class="pf-intl-phone border rounded-lg px-3 py-2 w-full text-sm">
+      </div>
+      <div>
+        <label class="block text-xs font-medium text-slate-600 mb-1">Rôle</label>
+        <select id="editUserRoleId" name="roleId" required class="border rounded-lg px-3 py-2 w-full text-sm">
+          <option th:each="ro : ${roles}" th:value="${ro.id()}" th:text="${ro.label() + ' (' + ro.code() + ')'}"></option>
+        </select>
+      </div>
+      <div>
+        <label class="block text-xs font-medium text-slate-600 mb-1">Ville</label>
+        <input id="editUserCity" name="city" class="border rounded-lg px-3 py-2 w-full text-sm">
+      </div>
+      <div class="md:col-span-2">
+        <label class="block text-xs font-medium text-slate-600 mb-1">Métier</label>
+        <input id="editUserProfession" name="profession" class="border rounded-lg px-3 py-2 w-full text-sm">
+      </div>
+      <div class="md:col-span-2">
+        <label class="block text-xs font-medium text-slate-600 mb-1">Statut du compte</label>
+        <select id="editUserStatus" name="status" class="border rounded-lg px-3 py-2 w-full text-sm bg-white">
+          <option value="pending">En attente</option>
+          <option value="valide">Actif</option>
+          <option value="bloque">Bloqué</option>
+        </select>
+      </div>
+      <div class="md:col-span-2 flex justify-end gap-2 pt-2">
+        <button type="button" onclick="closeEditUserModal()" class="pf-btn pf-btn-secondary py-2 px-4 text-sm">Annuler</button>
+        <button type="submit" class="pf-btn pf-btn-primary py-2 px-4 text-sm">Enregistrer</button>
+      </div>
+    </form>
+  </div>
+</div>
+<script>
+  const successEl = document.getElementById('pf-users-flash-success');
+  const errorEl = document.getElementById('pf-users-flash-error');
+  const successParam = successEl ? successEl.value : null;
+  const errorParam = errorEl ? errorEl.value : null;
+  const errTexts = {
+    'user_not_found': 'Cette fiche n’existe plus ou a déjà été supprimée.',
+    'user_delete_failed': 'La suppression n’a pas pu aboutir (données encore liées ou erreur technique). Réessayez ou contactez un administrateur.',
+    'validation': 'Vérifiez les informations saisies.'
+  };
+  if (successParam) {
+    Swal.fire({ icon: 'success', title: 'Enregistré', text: 'L’opération a bien été effectuée.', timer: 1600, showConfirmButton: false });
+  }
+  if (errorParam) {
+    Swal.fire({
+      icon: 'error',
+      title: 'Action impossible',
+      text: errTexts[errorParam] || errTexts.validation
+    });
+  }
+  function openEditUserModal(btn) {
+    document.getElementById('editUserId').value = btn.dataset.id || '';
+    document.getElementById('editUserName').value = btn.dataset.name || '';
+    const phoneInput = document.getElementById('editUserPhone');
+    if (typeof window.pfSetAdminPhoneNumber === 'function') {
+      window.pfSetAdminPhoneNumber(phoneInput, btn.dataset.phone || '');
+    } else if (phoneInput) {
+      phoneInput.value = btn.dataset.phone || '';
+    }
+    document.getElementById('editUserRoleId').value = btn.dataset.roleId || '';
+    document.getElementById('editUserCity').value = btn.dataset.city || '';
+    document.getElementById('editUserProfession').value = btn.dataset.profession || '';
+    document.getElementById('editUserStatus').value = btn.dataset.status || 'pending';
+    const modal = document.getElementById('editUserModal');
+    modal.classList.remove('hidden');
+    modal.classList.add('flex');
+  }
+  function closeEditUserModal() {
+    const modal = document.getElementById('editUserModal');
+    modal.classList.remove('flex');
+    modal.classList.add('hidden');
+  }
+  function confirmDelete(event, text) {
+    event.preventDefault();
+    const form = event.target;
+    Swal.fire({
+      icon: 'warning',
+      title: 'Confirmation',
+      text,
+      showCancelButton: true,
+      confirmButtonText: 'Oui',
+      cancelButtonText: 'Annuler'
+    }).then((result) => {
+      if (result.isConfirmed) form.submit();
+    });
+    return false;
+  }
+  (() => {
+    const qInput = document.querySelector('form[action="/admin/users"] input[name="q"]');
+    if (!qInput) return;
+    let t;
+    qInput.addEventListener('input', () => {
+      clearTimeout(t);
+      t = setTimeout(() => qInput.form.submit(), 450);
+    });
+  })();
+
+  (function () {
+    const profileSel = document.getElementById('pfCreateProfileKey');
+    const form = document.getElementById('pfCreateUserForm');
+    if (!profileSel || !form) return;
+
+    const sections = {
+      mobile: document.getElementById('pfSectionMobile'),
+      client: document.getElementById('pfSectionClient'),
+      agent: document.getElementById('pfSectionAgent'),
+      team: document.getElementById('pfSectionTeam'),
+    };
+    const jobTitle = document.getElementById('pfTeamJobTitle');
+
+    function setSectionEnabled(el, on) {
+      if (!el) return;
+      el.classList.toggle('hidden', !on);
+      el.querySelectorAll('input, select, textarea').forEach((inp) => {
+        inp.disabled = !on;
+        if (!on) inp.removeAttribute('required');
+      });
+    }
+
+    function syncCreateSections() {
+      const key = profileSel.value || '';
+      const opt = profileSel.selectedOptions[0];
+      const code = opt ? (opt.dataset.roleCode || '') : '';
+      const isTeam = key.startsWith('team:');
+      const isClient = code === 'client';
+      const isAgent = code === 'agent';
+      const isMobile = key.startsWith('role:');
+
+      setSectionEnabled(sections.mobile, isMobile);
+      setSectionEnabled(sections.client, isClient);
+      setSectionEnabled(sections.agent, isAgent);
+      setSectionEnabled(sections.team, isTeam);
+
+      const mobilePhone = sections.mobile && sections.mobile.querySelector('input[name="phone"]');
+      if (mobilePhone) {
+        mobilePhone.required = isMobile;
+      }
+      if (sections.team) {
+        const u = sections.team.querySelector('input[name="username"]');
+        const p = sections.team.querySelector('input[name="password"]');
+        const pc = sections.team.querySelector('input[name="passwordConfirm"]');
+        if (u) u.required = isTeam;
+        if (p) p.required = isTeam;
+        if (pc) pc.required = isTeam;
+      }
+      if (sections.agent) {
+        const z = sections.agent.querySelector('select[name="zoneId"]');
+        if (z) z.required = isAgent;
+      }
+      if (jobTitle && isTeam) {
+        if (code === 'admin' && !jobTitle.value) jobTitle.value = 'Administrateur PayFlex';
+        if (code === 'gestionnaire' && !jobTitle.value) jobTitle.value = 'Gestionnaire PayFlex';
+      }
+    }
+
+    profileSel.addEventListener('change', syncCreateSections);
+    syncCreateSections();
+
+    form.addEventListener('submit', (e) => {
+      const key = profileSel.value || '';
+      const opt = profileSel.selectedOptions[0];
+      const code = opt ? (opt.dataset.roleCode || '') : '';
+      if (code === 'client' || code === 'agent') {
+        const pins = form.querySelectorAll('input[name="mobilePin"]:not([disabled])');
+        const confirms = form.querySelectorAll('input[name="mobilePinConfirm"]:not([disabled])');
+        if (pins[0] && confirms[0] && pins[0].value !== confirms[0].value) {
+          e.preventDefault();
+          Swal.fire({ icon: 'error', title: 'PIN', text: 'Les codes PIN ne correspondent pas.' });
+          return;
+        }
+        const ap = form.querySelector('input[name="accountPassword"]:not([disabled])');
+        const apc = form.querySelector('input[name="accountPasswordConfirm"]:not([disabled])');
+        if (ap && apc) {
+          if (!ap.value || ap.value.length < 8) {
+            e.preventDefault();
+            Swal.fire({ icon: 'error', title: 'Mot de passe', text: 'Le mot de passe doit contenir au moins 8 caractères.' });
+            return;
+          }
+          if (ap.value !== apc.value) {
+            e.preventDefault();
+            Swal.fire({ icon: 'error', title: 'Mot de passe', text: 'Les mots de passe ne correspondent pas.' });
+            return;
+          }
+        }
+      }
+      if (key.startsWith('team:')) {
+        const p = form.querySelector('input[name="password"]:not([disabled])');
+        const pc = form.querySelector('input[name="passwordConfirm"]:not([disabled])');
+        if (p && pc && p.value !== pc.value) {
+          e.preventDefault();
+          Swal.fire({ icon: 'error', title: 'Mot de passe', text: 'Les mots de passe ne correspondent pas.' });
+        }
+      }
+    });
+  })();
+</script>
+<th:block th:replace="~{fragments/admin-chrome :: phoneInputFoot}"/>
+<script src="/js/admin-wow.js"></script>
+</body>
+</html>

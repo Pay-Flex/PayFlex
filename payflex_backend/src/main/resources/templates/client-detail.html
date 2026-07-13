@@ -1,0 +1,446 @@
+<!doctype html>
+<html lang="fr" xmlns:th="http://www.thymeleaf.org">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Admin — Fiche client</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.2/css/all.min.css">
+  <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
+  <link rel="stylesheet" href="/css/admin-wow.css">
+  <meta name="_csrf" th:content="${_csrf.token}">
+  <meta name="_csrf_parameter" th:content="${_csrf.parameterName}">
+</head>
+<body class="pf-admin bg-slate-100 min-h-screen">
+<th:block th:replace="~{fragments/admin-chrome :: startMain('space-y-4')}"/>
+
+  <div class="bg-white rounded-xl shadow-sm border border-slate-200/80 p-4 md:p-5">
+    <th:block th:replace="~{fragments/admin-chrome :: recordBack('/admin/clients', 'Retour aux clients')}"/>
+    <div class="flex flex-wrap items-start justify-between gap-3 mt-1">
+      <div class="min-w-0">
+        <h2 class="text-xl md:text-2xl font-bold text-slate-900" th:text="${client.fullName()}"></h2>
+        <p class="text-sm text-slate-600 mt-1">
+          <span th:text="${client.phone()}"></span>
+          <span class="opacity-60 mx-1">·</span>
+          <span th:text="${client.city()}"></span>
+          <span class="opacity-60 mx-1">·</span>
+          <span th:text="${client.profession()}"></span>
+        </p>
+      </div>
+      <span class="text-xs font-semibold text-slate-500 shrink-0" th:text="|Réf. #${client.id()}|"></span>
+    </div>
+  </div>
+
+  <section class="pf-detail-panel">
+    <h2 class="pf-detail-section-head"><i class="fa-solid fa-gauge-high"></i>Synthèse</h2>
+    <div class="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-3">
+      <article class="pf-stat-tile pf-stat-tile--slate">
+        <p class="pf-stat-label">Statut du compte</p>
+        <p class="pf-stat-value text-base">
+          <span class="pf-badge-soft text-xs font-bold"
+                th:classappend="${client.status() == 'pending'} ? ' pf-badge-soft--amber' : (${client.status() == 'adhere'} ? ' pf-badge-soft--emerald' : (${client.status() == 'valide'} ? ' pf-badge-soft--amber' : ' pf-badge-soft--red'))"
+                th:text="${client.status() == 'pending' ? 'En attente' : (client.status() == 'adhere' ? 'Adhérent' : (client.status() == 'valide' ? 'En attente adhésion' : (client.status() == 'bloque' ? 'Bloqué' : client.status())))}"></span>
+        </p>
+      </article>
+      <article class="pf-stat-tile pf-stat-tile--emerald">
+        <p class="pf-stat-label">Total versé</p>
+        <p class="pf-stat-value" th:text="${#numbers.formatInteger(client.totalContributed(),0,'POINT')} + ' FCFA'"></p>
+      </article>
+      <article class="pf-stat-tile">
+        <p class="pf-stat-label">Versements</p>
+        <p class="pf-stat-value" th:text="${client.contributionsCount()}"></p>
+      </article>
+      <article class="pf-stat-tile pf-stat-tile--amber">
+        <p class="pf-stat-label">Montant moyen</p>
+        <p class="pf-stat-value" th:text="${#numbers.formatInteger(client.avgContribution(),0,'POINT')} + ' FCFA'"></p>
+      </article>
+      <article class="pf-stat-tile">
+        <p class="pf-stat-label">Produits suivis</p>
+        <p class="pf-stat-value" th:text="${client.distinctProducts()}"></p>
+      </article>
+      <article class="pf-stat-tile">
+        <p class="pf-stat-label">Agents rencontrés</p>
+        <p class="pf-stat-value" th:text="${client.distinctAgents()}"></p>
+      </article>
+    </div>
+  </section>
+
+  <section class="pf-detail-panel" th:if="${adhesion != null}">
+    <h2 class="pf-detail-section-head"><i class="fa-solid fa-coins"></i>Adhésion (<span th:text="${adhesionFeeFcfa}">250</span> FCFA espèces)</h2>
+    <div class="grid grid-cols-1 md:grid-cols-2 gap-4 text-sm">
+      <dl class="space-y-2">
+        <div class="flex gap-2">
+          <dt class="text-slate-500 shrink-0">Paiement</dt>
+          <dd class="font-medium" th:text="${adhesion['adhesion_fee_paid'] == true} ? 'Confirmé' : 'Non encore confirmé'"></dd>
+        </div>
+        <div class="flex gap-2" th:if="${adhesion['adhesion_paid_at'] != null}">
+          <dt class="text-slate-500 shrink-0">Date</dt>
+          <dd th:text="${adhesion['adhesion_paid_at']}"></dd>
+        </div>
+        <div class="flex gap-2" th:if="${adhesion['collected_by_name'] != null}">
+          <dt class="text-slate-500 shrink-0">Encaissé par</dt>
+          <dd th:text="${adhesion['collected_by_name']}"></dd>
+        </div>
+      </dl>
+      <dl class="space-y-2">
+        <div class="flex gap-2">
+          <dt class="text-slate-500 shrink-0">Badge assiduité</dt>
+          <dd class="font-medium capitalize" th:text="${adhesion['assiduity_badge'] != null ? adhesion['assiduity_badge'] : 'standard'}"></dd>
+        </div>
+        <div class="flex gap-2">
+          <dt class="text-slate-500 shrink-0">Mode</dt>
+          <dd th:text="${adhesion['self_managed'] == true} ? 'Client autonome (sans agent)' : 'Avec agent'"></dd>
+        </div>
+      </dl>
+    </div>
+    <div th:if="${adhesion['adhesion_dispute_open'] == true}" class="mt-4 rounded-lg border-2 border-red-400 bg-red-50 p-4 text-sm text-red-900">
+      <p class="font-bold"><i class="fa-solid fa-bell mr-1"></i>Urgence adhésion</p>
+      <p class="mt-1" th:text="${adhesion['adhesion_dispute_note'] != null ? adhesion['adhesion_dispute_note'] : 'Le client signale avoir payé sans changement de statut.'}"></p>
+      <div class="flex flex-wrap gap-2 mt-3">
+        <form method="post" th:action="@{/admin/clients/{id}/adhesion/dispute/resolve(id=${client.id()})}">
+          <input type="hidden" th:name="${_csrf.parameterName}" th:value="${_csrf.token}">
+          <input type="hidden" name="markPaid" value="true">
+          <button type="submit" class="pf-btn pf-btn-success text-xs">Confirmer paiement + adhérent</button>
+        </form>
+        <form method="post" th:action="@{/admin/clients/{id}/adhesion/dispute/resolve(id=${client.id()})}">
+          <input type="hidden" th:name="${_csrf.parameterName}" th:value="${_csrf.token}">
+          <input type="hidden" name="markPaid" value="false">
+          <button type="submit" class="pf-btn pf-btn-secondary text-xs">Clore sans paiement</button>
+        </form>
+      </div>
+    </div>
+    <div class="flex flex-wrap gap-2 mt-4" th:if="${adhesion['adhesion_fee_paid'] != true}">
+      <form method="post" th:action="@{/admin/clients/{id}/adhesion/confirm(id=${client.id()})}">
+        <input type="hidden" th:name="${_csrf.parameterName}" th:value="${_csrf.token}">
+        <button type="submit" class="pf-btn pf-btn-primary text-xs"><i class="fa-solid fa-hand-holding-dollar mr-1"></i>Confirmer adhésion payée (centre)</button>
+      </form>
+    </div>
+    <div class="flex flex-wrap gap-2 mt-3">
+      <form method="post" th:action="@{/admin/clients/{id}/self-managed(id=${client.id()})}">
+        <input type="hidden" th:name="${_csrf.parameterName}" th:value="${_csrf.token}">
+        <input type="hidden" name="value" th:value="${adhesion['self_managed'] != true}">
+        <button type="submit" class="pf-btn pf-btn-secondary text-xs"
+                th:text="${adhesion['self_managed'] == true} ? 'Réactiver rattachement agent' : 'Marquer client autonome'"></button>
+      </form>
+    </div>
+  </section>
+
+  <section class="pf-detail-panel border-emerald-100 bg-emerald-50/40" th:if="${clientOutreachMessage != null}">
+    <h2 class="pf-detail-section-head text-emerald-900"><i class="fa-solid fa-message"></i>Message pour le client</h2>
+    <p class="text-sm text-slate-600 mb-2">Copiez ce texte (SMS ou WhatsApp) — une notification est aussi envoyée dans l’application.</p>
+    <textarea readonly rows="7" class="w-full border border-emerald-200 rounded-lg px-3 py-2 text-sm font-sans bg-white"
+              th:text="${clientOutreachMessage}" onclick="this.select();"></textarea>
+  </section>
+
+  <section class="pf-detail-panel">
+    <h2 class="pf-detail-section-head"><i class="fa-solid fa-id-card"></i>Identité &amp; rattachement</h2>
+    <div class="grid grid-cols-1 md:grid-cols-2 gap-4 text-sm">
+      <dl class="space-y-2">
+        <div class="flex gap-2"><dt class="text-slate-500 shrink-0">Code unique</dt><dd class="font-mono font-medium" th:text="${client.uniqueCode() != null ? client.uniqueCode() : '—'}"></dd></div>
+        <div class="flex gap-2"><dt class="text-slate-500 shrink-0">Agent parrain</dt>
+          <dd class="font-medium" th:text="${client.assignedAgentName() != null ? client.assignedAgentName() + ' (' + client.assignedAgentPhone() + ')' : 'Non assigné'}"></dd></div>
+        <p class="text-xs text-slate-500 md:col-span-2">
+          Cet agent valide l'adhésion (250 FCFA) dans son application. Vous pouvez le remplacer ci-dessous si besoin.
+        </p>
+        <form method="post" th:action="@{/admin/clients/{id}/assign-agent(id=${client.id()})}" class="md:col-span-2 flex flex-wrap items-end gap-2 pt-1">
+          <input type="hidden" th:name="${_csrf.parameterName}" th:value="${_csrf.token}">
+          <div class="flex-1 min-w-[200px]">
+            <label class="block text-xs font-medium text-slate-600 mb-1">Changer l'agent parrain</label>
+            <select name="assignedAgentUserId" class="border rounded-lg px-3 py-2 w-full text-sm bg-white">
+              <option value="">— Retirer l'assignation —</option>
+              <option th:each="a : ${agentOptions}" th:value="${a.id()}" th:text="${a.fullName()}"></option>
+            </select>
+          </div>
+          <button type="submit" class="pf-btn pf-btn-secondary text-xs shrink-0"><i class="fa-solid fa-user-pen mr-1"></i>Enregistrer</button>
+        </form>
+      </dl>
+      <dl class="space-y-2">
+        <div class="flex gap-2" th:if="${client.catchupPending() != null && client.catchupPending() > 0}">
+          <dt class="text-slate-500 shrink-0">Carnet mobile</dt>
+          <dd class="font-medium text-amber-800" th:text="${client.catchupPending()} + ' jour(s) de rattrapage' + (client.catchupMonth() != null ? ' — ' + client.catchupMonth() : '')"></dd>
+        </div>
+        <div class="flex flex-wrap gap-2 pt-1">
+          <a th:href="@{/admin/support-chat(open=${client.id()})}" class="pf-btn pf-btn-primary text-xs"><i class="fa-solid fa-comments mr-1"></i>Chat support</a>
+          <button type="button" onclick="openClientEditModal()" class="pf-btn pf-btn-secondary text-xs"><i class="fa-regular fa-pen-to-square mr-1"></i>Modifier le compte</button>
+        </div>
+      </dl>
+    </div>
+  </section>
+
+  <section class="pf-detail-panel border-amber-100 bg-amber-50/30">
+    <h2 class="pf-detail-section-head"><i class="fa-solid fa-shield-halved"></i>Accès mobile (sensible)</h2>
+    <p class="text-xs text-slate-600 mb-3">PIN et mot de passe sont masqués. Cliquez sur l’œil puis saisissez votre mot de passe administrateur pour les afficher.</p>
+    <div class="grid grid-cols-1 md:grid-cols-2 gap-3 text-sm">
+      <div class="rounded-lg border border-slate-200 bg-white p-3">
+        <div class="flex items-center justify-between gap-2">
+          <span class="text-slate-500">Code PIN mobile</span>
+          <button type="button" class="text-slate-500 hover:text-blue-700 pf-cred-reveal-btn"
+                  th:attr="data-pf-client-id=${client.id()},data-pf-reveal-cred='pin'"
+                  title="Afficher (mot de passe admin requis)"><i class="fa-regular fa-eye"></i></button>
+        </div>
+        <p id="pfCredPin" class="font-mono font-semibold mt-1">******</p>
+        <p class="text-xs text-slate-400 mt-1" th:if="${!credentialSummary['hasPin']}">Non défini</p>
+      </div>
+      <div class="rounded-lg border border-slate-200 bg-white p-3">
+        <div class="flex items-center justify-between gap-2">
+          <span class="text-slate-500">Mot de passe compte</span>
+          <button type="button" class="text-slate-500 hover:text-blue-700 pf-cred-reveal-btn"
+                  th:attr="data-pf-client-id=${client.id()},data-pf-reveal-cred='accountPassword'"
+                  title="Afficher (mot de passe admin requis)"><i class="fa-regular fa-eye"></i></button>
+        </div>
+        <p id="pfCredPassword" class="font-mono font-semibold mt-1">******</p>
+        <p class="text-xs text-slate-400 mt-1" th:if="${!credentialSummary['hasAccountPassword']}">Non défini</p>
+      </div>
+    </div>
+    <div class="flex flex-wrap gap-2 mt-4">
+      <form th:if="${credentialSummary['recoveryOpen']}" method="post" th:action="@{/admin/clients/{id}/credentials/recovery-resolve(id=${client.id()})}">
+        <input type="hidden" th:name="${_csrf.parameterName}" th:value="${_csrf.token}">
+        <button type="submit" class="pf-btn pf-btn-secondary text-xs">Clôturer demande de rappel</button>
+      </form>
+      <form th:unless="${credentialSummary['recoveryOpen']}" method="post" th:action="@{/admin/clients/{id}/credentials/recovery-request(id=${client.id()})}">
+        <input type="hidden" th:name="${_csrf.parameterName}" th:value="${_csrf.token}">
+        <button type="submit" class="pf-btn pf-btn-secondary text-xs"><i class="fa-solid fa-phone mr-1"></i>Signaler oubli identifiants (rappel client)</button>
+      </form>
+    </div>
+    <p th:if="${credentialSummary['recoveryOpen']}" class="text-xs text-amber-800 mt-2 font-medium">
+      <i class="fa-solid fa-bell mr-1"></i>Demande de rappel identifiants en attente.
+    </p>
+  </section>
+
+  <section class="pf-detail-panel border-blue-100 bg-blue-50/30">
+    <h2 class="pf-detail-section-head"><i class="fa-solid fa-box-open"></i>Clôture &amp; livraison</h2>
+    <div th:if="${productProgress != null}" class="text-sm mb-4 grid grid-cols-1 md:grid-cols-3 gap-3">
+      <article class="pf-stat-tile">
+        <p class="pf-stat-label">Produit actif</p>
+        <p class="pf-stat-value text-base" th:text="${productProgress.productName()}">—</p>
+      </article>
+      <article class="pf-stat-tile pf-stat-tile--emerald">
+        <p class="pf-stat-label">Solde validé / objectif</p>
+        <p class="pf-stat-value text-base"
+           th:text="${#numbers.formatInteger(productProgress.totalValidated(),0,'POINT')} + ' / ' + ${#numbers.formatInteger(productProgress.productPrice(),0,'POINT')} + ' FCFA'"></p>
+      </article>
+      <article class="pf-stat-tile" th:classappend="${productProgress.goalReached()} ? ' pf-stat-tile--emerald' : ' pf-stat-tile--amber'">
+        <p class="pf-stat-label">Objectif</p>
+        <p class="pf-stat-value text-base" th:text="${productProgress.goalReached()} ? 'Atteint' : 'En cours'"></p>
+      </article>
+    </div>
+    <div th:if="${deliveryCase != null}" class="rounded-lg border border-slate-200 bg-white p-4 text-sm space-y-2">
+      <p><span class="font-semibold">Dossier #</span><span th:text="${deliveryCase.id()}"></span>
+        — <span class="pf-badge-soft text-xs font-bold pf-badge-soft--amber" th:text="${deliveryCase.statusLabel()}"></span></p>
+      <p th:if="${deliveryCase.catchupDaysSnapshot() > 0}" class="text-amber-800 text-xs">
+        <i class="fa-solid fa-calendar-day mr-1"></i>Snapshot carnet : <span th:text="${deliveryCase.catchupDaysSnapshot()}"></span> jour(s) orange au moment de l’ouverture.
+      </p>
+      <p th:if="${deliveryCase.adminNote() != null}" class="text-slate-600 text-xs whitespace-pre-wrap" th:text="${deliveryCase.adminNote()}"></p>
+      <a href="/admin/deliveries" class="pf-btn pf-btn-primary text-xs inline-flex"><i class="fa-solid fa-arrow-right mr-1"></i>Traiter dans la file clôture / livraison</a>
+    </div>
+    <div th:if="${deliveryCase == null && productProgress != null && productProgress.goalReached()}" class="flex flex-wrap gap-2">
+      <form method="post" th:action="@{/admin/clients/{id}/delivery/open(id=${client.id()})}">
+        <input type="hidden" th:name="${_csrf.parameterName}" th:value="${_csrf.token}">
+        <button type="submit" class="pf-btn pf-btn-primary text-xs"><i class="fa-solid fa-folder-open mr-1"></i>Ouvrir dossier clôture</button>
+      </form>
+      <a href="/admin/deliveries" class="pf-btn pf-btn-secondary text-xs">Voir toutes les livraisons</a>
+    </div>
+    <p th:if="${productProgress == null}" class="text-sm text-slate-500">Aucune cotisation produit enregistrée pour ce client.</p>
+    <p th:if="${deliveryCase == null && productProgress != null && !productProgress.goalReached()}" class="text-sm text-slate-600">
+      L’objectif n’est pas encore atteint. La clôture sera proposée automatiquement lorsque le solde validé couvrira le prix du produit.
+    </p>
+  </section>
+
+  <section class="pf-detail-panel" th:if="${clientContributions != null && !clientContributions.isEmpty()}">
+    <h2 class="pf-detail-section-head"><i class="fa-solid fa-receipt"></i>Dernières cotisations</h2>
+    <div class="pf-detail-table-card overflow-x-auto">
+      <table class="w-full text-sm min-w-[640px]">
+        <thead><tr>
+          <th class="text-left py-2 px-3">Date</th><th class="text-left py-2 px-3">Produit</th><th class="text-left py-2 px-3">Agent</th>
+          <th class="text-right py-2 px-3">Montant</th><th class="text-left py-2 px-3">Statut</th><th class="text-left py-2 px-3">Réf.</th>
+        </tr></thead>
+        <tbody>
+        <tr th:each="row : ${clientContributions}" class="border-t border-slate-100">
+          <td class="py-2 px-3 text-xs text-slate-600" th:text="${row.createdAt()}"></td>
+          <td class="py-2 px-3" th:text="${row.productName()}"></td>
+          <td class="py-2 px-3" th:text="${row.agentName()}"></td>
+          <td class="py-2 px-3 text-right font-medium tabular-nums" th:text="${#numbers.formatInteger(row.amount(),0,'POINT')} + ' FCFA'"></td>
+          <td class="py-2 px-3 text-xs" th:text="${row.status() == 'validated' ? 'Validée' : (row.status() == 'pending' ? 'En attente' : row.status())}"></td>
+          <td class="py-2 px-3 text-xs font-mono" th:text="${row.referenceCode()}"></td>
+        </tr>
+        </tbody>
+      </table>
+    </div>
+    <p class="text-xs text-slate-500 mt-2"><a href="/admin/contributions" class="text-blue-700 hover:underline">Toutes les cotisations</a></p>
+  </section>
+
+  <section class="pf-detail-panel border-red-100" th:if="${adminFullAccess || adminIsGestionnaire}">
+    <h2 class="pf-detail-section-head text-red-800"><i class="fa-regular fa-trash-can"></i>Zone sensible</h2>
+    <p class="text-xs text-red-800 mb-3" th:if="${adminFullAccess}">
+      Suppression définitive du compte client et de ses cotisations associées.
+    </p>
+    <p class="text-xs text-red-800 mb-3" th:unless="${adminFullAccess}">
+      Votre demande sera transmise à l'administrateur pour validation définitive.
+    </p>
+    <form method="post" action="/admin/clients/delete"
+          th:attr="data-admin-full=${adminFullAccess}"
+          onsubmit="return pfConfirmDeleteWithReason(event, this.dataset.adminFull === 'true' ? 'Supprimer définitivement ce client ?' : 'Demander la suppression de ce client ?', false);">
+      <input type="hidden" th:name="${_csrf.parameterName}" th:value="${_csrf.token}">
+      <input type="hidden" name="id" th:value="${client.id()}">
+      <button type="submit" class="pf-btn pf-btn-danger text-sm">Supprimer ce client</button>
+    </form>
+  </section>
+
+  <section class="pf-detail-panel">
+    <h2 class="pf-detail-section-head"><i class="fa-solid fa-chart-area"></i>Évolution des versements (12 derniers mois)</h2>
+    <div class="rounded-xl bg-slate-50 border border-slate-200 p-4">
+      <div class="h-[300px]"><canvas id="clientMonthlyChart"></canvas></div>
+    </div>
+  </section>
+
+<th:block th:replace="~{fragments/admin-chrome :: endMain}"/>
+
+<div id="clientEditModal" class="hidden fixed inset-0 bg-black/40 items-center justify-center z-50 p-4">
+  <div class="bg-white w-full max-w-2xl rounded-xl p-6 border border-slate-200 shadow-lg max-h-[90vh] overflow-y-auto">
+    <h3 class="font-semibold text-lg text-slate-800 mb-1">Modifier le compte client</h3>
+    <p class="text-xs text-slate-500 mb-4">Téléphone et code unique non modifiables ici. Réinitialisez PIN / mot de passe uniquement si nécessaire.</p>
+    <form method="post" th:action="@{/admin/clients/{id}/profile/update(id=${client.id()})}" class="grid grid-cols-1 md:grid-cols-2 gap-x-4 gap-y-3">
+      <input type="hidden" th:name="${_csrf.parameterName}" th:value="${_csrf.token}">
+      <div class="md:col-span-2">
+        <label class="block text-xs font-medium text-slate-600 mb-1">Nom complet</label>
+        <input name="fullName" required class="border rounded-lg px-3 py-2 w-full text-sm"
+               th:value="${clientEdit['full_name']}">
+      </div>
+      <div>
+        <label class="block text-xs font-medium text-slate-600 mb-1">Téléphone (lecture seule)</label>
+        <input class="border rounded-lg px-3 py-2 w-full text-sm bg-slate-50" readonly th:value="${clientEdit['phone']}">
+      </div>
+      <div>
+        <label class="block text-xs font-medium text-slate-600 mb-1">Code unique (lecture seule)</label>
+        <input class="border rounded-lg px-3 py-2 w-full text-sm bg-slate-50 font-mono" readonly th:value="${clientEdit['unique_code']}">
+      </div>
+      <div>
+        <label class="block text-xs font-medium text-slate-600 mb-1">E-mail</label>
+        <input name="email" type="email" class="border rounded-lg px-3 py-2 w-full text-sm" th:value="${clientEdit['email']}">
+      </div>
+      <div>
+        <label class="block text-xs font-medium text-slate-600 mb-1">Genre</label>
+        <select name="gender" class="border rounded-lg px-3 py-2 w-full text-sm bg-white">
+          <option value="">—</option>
+          <option value="M" th:selected="${clientEdit['gender'] == 'M'}">Homme</option>
+          <option value="F" th:selected="${clientEdit['gender'] == 'F'}">Femme</option>
+          <option value="Autre" th:selected="${clientEdit['gender'] == 'Autre'}">Autre</option>
+        </select>
+      </div>
+      <div>
+        <label class="block text-xs font-medium text-slate-600 mb-1">Ville</label>
+        <input name="city" class="border rounded-lg px-3 py-2 w-full text-sm" th:value="${clientEdit['city']}">
+      </div>
+      <div>
+        <label class="block text-xs font-medium text-slate-600 mb-1">Métier</label>
+        <input name="profession" class="border rounded-lg px-3 py-2 w-full text-sm" th:value="${clientEdit['profession']}">
+      </div>
+      <div class="md:col-span-2">
+        <label class="block text-xs font-medium text-slate-600 mb-1">Statut du compte</label>
+        <select name="status" class="border rounded-lg px-3 py-2 w-full text-sm bg-white">
+          <option value="pending" th:selected="${clientEdit['status'] == 'pending'}">En attente</option>
+          <option value="valide" th:selected="${clientEdit['status'] == 'valide'}">Actif (en attente adhésion)</option>
+          <option value="adhere" th:selected="${clientEdit['status'] == 'adhere'}">Adhérent</option>
+          <option value="bloque" th:selected="${clientEdit['status'] == 'bloque'}">Bloqué</option>
+        </select>
+      </div>
+      <div class="md:col-span-2 border-t border-slate-100 pt-2">
+        <p class="text-xs font-semibold text-slate-600 mb-2">Lieu de travail (optionnel)</p>
+      </div>
+      <div><label class="block text-xs text-slate-600 mb-1">Entreprise</label><input name="workplaceName" class="border rounded-lg px-3 py-2 w-full text-sm" th:value="${clientEdit['workplace_name']}"></div>
+      <div><label class="block text-xs text-slate-600 mb-1">Adresse</label><input name="workplaceAddress" class="border rounded-lg px-3 py-2 w-full text-sm" th:value="${clientEdit['workplace_address']}"></div>
+      <div><label class="block text-xs text-slate-600 mb-1">Responsable</label><input name="bossName" class="border rounded-lg px-3 py-2 w-full text-sm" th:value="${clientEdit['boss_name']}"></div>
+      <div><label class="block text-xs text-slate-600 mb-1">Tél. responsable</label><input name="bossPhone" class="border rounded-lg px-3 py-2 w-full text-sm" th:value="${clientEdit['boss_phone']}"></div>
+      <div class="md:col-span-2 border-t border-slate-100 pt-2">
+        <p class="text-xs font-semibold text-slate-600 mb-2">Réinitialisation identifiants (laisser vide pour ne pas changer)</p>
+      </div>
+      <div><label class="block text-xs text-slate-600 mb-1">Nouveau PIN</label><input name="newPin" type="password" autocomplete="new-password" class="border rounded-lg px-3 py-2 w-full text-sm" placeholder="4–12 chiffres"></div>
+      <div><label class="block text-xs text-slate-600 mb-1">Nouveau mot de passe</label><input name="newAccountPassword" type="password" autocomplete="new-password" class="border rounded-lg px-3 py-2 w-full text-sm" placeholder="8–64 caractères"></div>
+      <th:block th:replace="~{fragments/admin-moderation-fields :: changeReason}"/>
+      <div class="md:col-span-2 flex justify-end gap-2 pt-2">
+        <button type="button" onclick="closeClientEditModal()" class="pf-btn pf-btn-secondary py-2 px-4 text-sm">Annuler</button>
+        <button type="submit" class="pf-btn pf-btn-primary py-2 px-4 text-sm">Enregistrer</button>
+      </div>
+    </form>
+  </div>
+</div>
+
+<script src="/js/chart-palette.js"></script>
+<script src="/js/admin-wow.js"></script>
+<script th:inline="javascript">
+  function openClientEditModal() {
+    const m = document.getElementById('clientEditModal');
+    m.classList.remove('hidden');
+    m.classList.add('flex');
+  }
+  function closeClientEditModal() {
+    const m = document.getElementById('clientEditModal');
+    m.classList.remove('flex');
+    m.classList.add('hidden');
+  }
+  document.addEventListener('DOMContentLoaded', () => {
+    if (typeof pfFlashFromParams === 'function') {
+      pfFlashFromParams({
+        success: /*[[${success}]]*/ false,
+        successText: /*[[${successText}]]*/ '',
+        error: /*[[${error}]]*/ false,
+        errorText: /*[[${errorText}]]*/ '',
+      });
+    }
+  });
+</script>
+<script th:inline="javascript">
+  const points = [[${clientMonthly}]];
+  const canvas = document.getElementById('clientMonthlyChart');
+  if (canvas) {
+    const lbls = (points || []).map(x => x.label);
+    const vals = (points || []).map(x => x.value);
+    const pointColors = lbls.map((_, i) => (typeof pfChartColor === 'function' ? pfChartColor(i) : '#2563eb'));
+    new Chart(canvas, {
+      type: 'line',
+      data: {
+        labels: lbls,
+        datasets: [{
+          label: 'Montant',
+          data: vals,
+          borderColor: '#64748b',
+          backgroundColor: 'rgba(100, 116, 139, 0.1)',
+          borderWidth: 2,
+          fill: true,
+          tension: 0.35,
+          pointRadius: 4,
+          pointHoverRadius: 6,
+          pointBackgroundColor: pointColors,
+          pointBorderColor: '#ffffff',
+          pointBorderWidth: 2
+        }]
+      },
+      options: {
+        responsive: true,
+        maintainAspectRatio: false,
+        plugins: {
+          legend: { display: false },
+          tooltip: {
+            backgroundColor: 'rgba(15, 23, 42, 0.92)',
+            padding: 12,
+            cornerRadius: 8
+          }
+        },
+        scales: {
+          x: {
+            grid: { display: false },
+            ticks: { color: '#64748b', font: { size: 11 } }
+          },
+          y: {
+            border: { dash: [4, 4] },
+            grid: { color: 'rgba(148, 163, 184, 0.2)' },
+            ticks: { color: '#64748b', font: { size: 11 } }
+          }
+        }
+      }
+    });
+  }
+</script>
+</body>
+</html>

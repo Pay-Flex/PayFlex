@@ -1,0 +1,277 @@
+<!doctype html>
+<html lang="fr" xmlns:th="http://www.thymeleaf.org">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Admin — Dossier d'inscription</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.2/css/all.min.css">
+  <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
+  <link rel="stylesheet" href="/css/admin-wow.css">
+  <th:block th:replace="~{fragments/admin-chrome :: phoneInputHead}"/>
+</head>
+<body class="pf-admin bg-slate-100 min-h-screen">
+<th:block th:replace="~{fragments/admin-chrome :: startMain('space-y-4')}"/>
+
+  <div class="bg-white rounded-xl shadow-sm border border-slate-200/80 p-4 md:p-5">
+    <th:block th:replace="~{fragments/admin-chrome :: recordBack('/admin/registrations', 'Retour aux inscriptions')}"/>
+    <div class="flex flex-wrap items-start justify-between gap-3 mt-1">
+      <div class="min-w-0">
+        <h2 class="text-xl md:text-2xl font-bold text-slate-900" th:text="${reg.fullName()}">Demande</h2>
+        <p class="text-sm text-slate-600 mt-1" th:text="${reg.phone()}"></p>
+      </div>
+      <span class="pf-badge-soft text-xs font-bold shrink-0"
+            th:classappend="${reg.status() == 'pending'} ? ' pf-badge-soft--amber' : (${reg.status() == 'approved'} ? ' pf-badge-soft--emerald' : ' pf-badge-soft--red')"
+            th:text="${reg.status() == 'pending' ? 'En attente de validation' : (reg.status() == 'approved' ? 'Approuvée' : (reg.status() == 'rejected' ? 'Refusée' : reg.status()))}"></span>
+    </div>
+  </div>
+
+  <section class="pf-detail-panel border-amber-200 bg-amber-50/40">
+    <h2 class="pf-detail-section-head text-amber-900"><i class="fa-solid fa-coins"></i>Adhésion PayFlex</h2>
+    <p class="text-sm text-amber-950 leading-relaxed">
+      L'inscription client est <strong>payante en espèces : 250 FCFA</strong>.
+      Le client choisit son <strong>agent parrain</strong> à l'inscription ; cet agent confirme l'adhésion dans l'app agent (« Adhésion payée »).
+      Vous pouvez remplacer cet agent avant validation. À l'approbation : statut <em>En attente adhésion</em>, puis <em>Adhérent</em> après encaissement par le parrain.
+    </p>
+  </section>
+
+  <section class="pf-detail-panel">
+    <h2 class="pf-detail-section-head"><i class="fa-solid fa-clipboard-list"></i>Données reçues (application mobile)</h2>
+    <div class="grid grid-cols-1 md:grid-cols-2 gap-x-8 gap-y-2 text-sm mb-4">
+      <p><span class="text-slate-500">Nom :</span> <strong th:text="${reg.fullName()}">—</strong></p>
+      <p><span class="text-slate-500">Téléphone :</span> <strong th:text="${reg.phone()}">—</strong></p>
+      <p><span class="text-slate-500">Ville :</span> <span th:text="${reg.city() != null && !#strings.isEmpty(reg.city())} ? ${reg.city()} : '—'">—</span></p>
+      <p><span class="text-slate-500">Métier :</span> <span th:text="${reg.profession() != null && !#strings.isEmpty(reg.profession())} ? ${reg.profession()} : '—'">—</span></p>
+      <p><span class="text-slate-500">Genre :</span>
+        <span th:switch="${reg.gender()}">
+          <span th:case="'M'">Homme</span>
+          <span th:case="'Homme'">Homme</span>
+          <span th:case="'F'">Femme</span>
+          <span th:case="'Femme'">Femme</span>
+          <span th:case="'Autre'">Autre</span>
+          <span th:case="*" th:text="${reg.gender() != null && !#strings.isEmpty(reg.gender())} ? ${reg.gender()} : '—'">—</span>
+        </span>
+      </p>
+      <p><span class="text-slate-500">Lieu de travail :</span>
+        <span th:text="${reg.workplaceName() != null && !#strings.isEmpty(reg.workplaceName())} ? ${reg.workplaceName()} : (${reg.workplaceAddress() != null && !#strings.isEmpty(reg.workplaceAddress())} ? ${reg.workplaceAddress()} : '—')">—</span>
+      </p>
+      <p class="md:col-span-2" th:if="${reg.workplaceAddress() != null && !#strings.isEmpty(reg.workplaceAddress()) && reg.workplaceName() != reg.workplaceAddress()}">
+        <span class="text-slate-500">Complément lieu :</span> <span th:text="${reg.workplaceAddress()}"></span>
+      </p>
+      <p><span class="text-slate-500">Responsable :</span> <span th:text="${reg.bossName() != null && !#strings.isEmpty(reg.bossName())} ? ${reg.bossName()} : '—'">—</span></p>
+      <p><span class="text-slate-500">Tél. responsable :</span> <span th:text="${reg.bossPhone() != null && !#strings.isEmpty(reg.bossPhone())} ? ${reg.bossPhone()} : '—'">—</span></p>
+      <p class="md:col-span-2"><span class="text-slate-500">Agent parrain (choix client) :</span>
+        <strong th:text="${reg.assignedAgentName() != null ? reg.assignedAgentName() : '— Non indiqué —'}">—</strong>
+        <span class="text-slate-400 text-xs" th:if="${reg.assignedAgentUserId() != null}" th:text="| (#${reg.assignedAgentUserId()})|"></span>
+      </p>
+    </div>
+    <p class="text-xs text-slate-500 mb-4">
+      L'agent parrain choisi par le client confirmera l'adhésion (250 FCFA) après validation.
+      Vous pouvez le remplacer ci-dessous avant d'approuver, puis approuver ou refuser.
+    </p>
+  </section>
+
+  <section class="pf-detail-panel">
+    <h2 class="pf-detail-section-head"><i class="fa-solid fa-images"></i>Documents et photo</h2>
+    <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+      <div class="rounded-xl border border-slate-200 bg-white p-4">
+        <p class="text-xs font-semibold text-slate-500 mb-2">Photo de profil</p>
+        <div th:if="${reg.profilePhotoPath() != null && !#strings.isEmpty(reg.profilePhotoPath())}" class="flex justify-center">
+          <img th:src="@{/admin/registrations/{id}/photo(id=${reg.id()})}" alt="Photo" class="max-h-72 rounded-lg border border-slate-200 shadow-sm object-contain"/>
+        </div>
+        <p th:if="${reg.profilePhotoPath() == null || #strings.isEmpty(reg.profilePhotoPath())}" class="text-sm text-slate-500">Aucune photo déposée.</p>
+      </div>
+      <div class="rounded-xl border border-slate-200 bg-white p-4">
+        <p class="text-xs font-semibold text-slate-500 mb-2">Pièce d'identité</p>
+        <div th:if="${reg.idDocumentPath() != null && !#strings.isEmpty(reg.idDocumentPath())}">
+          <img th:if="${#strings.endsWith(#strings.toLowerCase(reg.idDocumentPath()), '.jpg')
+                        || #strings.endsWith(#strings.toLowerCase(reg.idDocumentPath()), '.jpeg')
+                        || #strings.endsWith(#strings.toLowerCase(reg.idDocumentPath()), '.png')
+                        || #strings.endsWith(#strings.toLowerCase(reg.idDocumentPath()), '.webp')}"
+               th:src="@{/admin/registrations/{id}/identity(id=${reg.id()})}"
+               alt="Pièce d'identité"
+               class="max-h-72 rounded-lg border border-slate-200 shadow-sm object-contain mb-2"/>
+          <a th:href="@{/admin/registrations/{id}/identity(id=${reg.id()})}"
+             target="_blank" rel="noopener"
+             class="pf-btn pf-btn-secondary inline-flex items-center gap-2 text-sm">
+            <i class="fa-regular fa-file-lines"></i> Ouvrir le document
+          </a>
+        </div>
+        <p th:if="${reg.idDocumentWaived()}" class="text-sm text-amber-900 bg-amber-50 border border-amber-200 rounded-lg px-3 py-2">
+          <i class="fa-solid fa-circle-info mr-1"></i>Le client a indiqué ne pas disposer de carte d'identité ni de passeport.
+        </p>
+        <p th:if="${!reg.idDocumentWaived() && (reg.idDocumentPath() == null || #strings.isEmpty(reg.idDocumentPath()))}" class="text-sm text-slate-500">Aucun document déposé.</p>
+      </div>
+    </div>
+  </section>
+
+  <section class="pf-detail-panel" id="modifier" th:if="${reg.isPending()}">
+    <h2 class="pf-detail-section-head"><i class="fa-regular fa-pen-to-square"></i>Corrections éventuelles (optionnel)</h2>
+    <form method="post" th:action="@{/admin/registrations/{id}/update(id=${reg.id()})}" class="pf-track-change grid grid-cols-1 md:grid-cols-2 gap-4 text-sm">
+      <th:block th:replace="~{fragments/admin-moderation-fields :: changeReason}"/>
+      <input type="hidden" th:name="${_csrf.parameterName}" th:value="${_csrf.token}">
+      <div>
+        <label class="block text-xs font-medium text-slate-600 mb-1">Nom complet *</label>
+        <input name="fullName" required th:value="${reg.fullName()}" class="border rounded-lg px-3 py-2 w-full">
+      </div>
+      <div>
+        <label class="block text-xs font-medium text-slate-600 mb-1">Téléphone *</label>
+        <input name="phone" type="tel" required th:value="${reg.phone()}" class="pf-intl-phone border rounded-lg px-3 py-2 w-full">
+      </div>
+      <div>
+        <label class="block text-xs font-medium text-slate-600 mb-1">Ville</label>
+        <input name="city" th:value="${reg.city()}" class="border rounded-lg px-3 py-2 w-full">
+      </div>
+      <div>
+        <label class="block text-xs font-medium text-slate-600 mb-1">Métier</label>
+        <input name="profession" th:value="${reg.profession()}" class="border rounded-lg px-3 py-2 w-full">
+      </div>
+      <div>
+        <label class="block text-xs font-medium text-slate-600 mb-1">Genre</label>
+        <select name="gender" class="border rounded-lg px-3 py-2 w-full bg-white">
+          <option value="">— Non précisé —</option>
+          <option value="F" th:selected="${reg.gender() == 'F' || reg.gender() == 'Femme'}">Femme</option>
+          <option value="M" th:selected="${reg.gender() == 'M' || reg.gender() == 'Homme'}">Homme</option>
+          <option value="Autre" th:selected="${reg.gender() == 'Autre'}">Autre</option>
+        </select>
+      </div>
+      <div class="md:col-span-2">
+        <label class="block text-xs font-medium text-slate-600 mb-1">Lieu de travail / formation</label>
+        <input name="workplaceName" th:value="${reg.workplaceName()}" placeholder="Établissement" class="border rounded-lg px-3 py-2 w-full mb-2">
+        <input name="workplaceAddress" th:value="${reg.workplaceAddress()}" placeholder="Adresse" class="border rounded-lg px-3 py-2 w-full">
+      </div>
+      <div>
+        <label class="block text-xs font-medium text-slate-600 mb-1">Nom du responsable / formateur</label>
+        <input name="bossName" th:value="${reg.bossName()}" class="border rounded-lg px-3 py-2 w-full">
+      </div>
+      <div>
+        <label class="block text-xs font-medium text-slate-600 mb-1">Téléphone du responsable</label>
+        <input name="bossPhone" type="tel" th:value="${reg.bossPhone()}" class="pf-intl-phone border rounded-lg px-3 py-2 w-full">
+      </div>
+      <div class="md:col-span-2">
+        <label class="block text-xs font-medium text-slate-600 mb-1">Agent parrain (remplacer le choix client)</label>
+        <select name="assignedAgentUserId" class="border rounded-lg px-3 py-2 w-full max-w-md">
+          <option value="">— Conserver le choix du client —</option>
+          <option th:each="a : ${agentOptions}"
+                  th:value="${a.id()}"
+                  th:selected="${reg.assignedAgentUserId() != null && reg.assignedAgentUserId() == a.id()}"
+                  th:text="${a.fullName()}"></option>
+        </select>
+      </div>
+      <div class="md:col-span-2">
+        <button type="submit" class="pf-btn pf-btn-primary"><i class="fa-regular fa-floppy-disk mr-1"></i>Enregistrer les modifications</button>
+      </div>
+    </form>
+  </section>
+
+  <section class="pf-detail-panel">
+    <h2 class="pf-detail-section-head"><i class="fa-solid fa-id-card"></i>Informations du dossier</h2>
+    <div class="grid grid-cols-1 md:grid-cols-2 gap-x-8 gap-y-3 text-sm">
+      <dl class="space-y-2">
+        <div class="flex gap-2"><dt class="text-slate-500 shrink-0 w-40">Code dossier</dt><dd class="font-mono text-xs" th:text="${reg.uniqueCode()}"></dd></div>
+        <div class="flex gap-2"><dt class="text-slate-500 shrink-0 w-40">Profil demandé</dt><dd th:text="${reg.requestedRole() != null ? reg.requestedRole() : '—'}"></dd></div>
+        <div class="flex gap-2"><dt class="text-slate-500 shrink-0 w-40">Soumission</dt><dd th:text="${reg.submittedBy() == 'agent' ? 'Par un agent terrain' : 'Depuis l’application mobile'}"></dd></div>
+        <div class="flex gap-2" th:if="${reg.submittedBy() == 'agent' && (reg.submittedByAgentName() != null || reg.submittedByAgentUserId() != null)}">
+          <dt class="text-slate-500 shrink-0 w-40">Agent déposaire</dt>
+          <dd><span th:text="${reg.submittedByAgentName() != null ? reg.submittedByAgentName() : '—'}"></span>
+            <span class="text-slate-400 text-xs" th:if="${reg.submittedByAgentUserId() != null}" th:text="| (#${reg.submittedByAgentUserId()})|"></span>
+          </dd>
+        </div>
+        <div class="flex gap-2"><dt class="text-slate-500 shrink-0 w-40">PIN / accès</dt><dd th:text="${reg.pinDefined() ? 'Défini à l’inscription (mobile)' : '—'}"></dd></div>
+        <div class="flex gap-2"><dt class="text-slate-500 shrink-0 w-40">Code secret cotisation</dt><dd th:text="${reg.secretDefined() ? 'Défini à l’inscription' : '—'}"></dd></div>
+      </dl>
+      <dl class="space-y-2">
+        <div class="flex gap-2"><dt class="text-slate-500 shrink-0 w-40">Créée le</dt><dd th:text="${reg.createdAt()}"></dd></div>
+        <div class="flex gap-2" th:if="${reg.status() != 'pending'}"><dt class="text-slate-500 shrink-0 w-40">Traitée le</dt><dd th:text="${reg.reviewedAt() != null ? reg.reviewedAt() : '—'}"></dd></div>
+        <div class="flex gap-2" th:if="${reg.status() != 'pending'}"><dt class="text-slate-500 shrink-0 w-40">Par</dt><dd th:text="${reg.reviewedByAdmin() != null ? reg.reviewedByAdmin() : '—'}"></dd></div>
+        <div class="flex gap-2" th:if="${reg.assignedAgentName() != null || reg.assignedAgentUserId() != null}">
+          <dt class="text-slate-500 shrink-0 w-40">Agent assigné</dt>
+          <dd>
+            <span th:text="${reg.assignedAgentName() != null ? reg.assignedAgentName() : '—'}"></span>
+            <span class="text-slate-400 text-xs" th:if="${reg.assignedAgentUserId() != null}" th:text="| (#${reg.assignedAgentUserId()})|"></span>
+          </dd>
+        </div>
+        <div class="flex gap-2" th:if="${reg.adminNote() != null && !#strings.isEmpty(reg.adminNote())}">
+          <dt class="text-slate-500 shrink-0 w-40">Note interne</dt><dd class="text-slate-700" th:text="${reg.adminNote()}"></dd>
+        </div>
+      </dl>
+    </div>
+  </section>
+
+  <section class="pf-detail-panel" th:if="${reg.isPending()}">
+    <h2 class="pf-detail-section-head"><i class="fa-solid fa-check-double"></i>Décision</h2>
+    <p class="text-sm text-slate-600 mb-4">
+      Les inscriptions client sont activées automatiquement à la soumission mobile.
+      Le compte est utilisable ; l’adhésion 250 FCFA (agent ou PayDunya) débloque cotisations et paiements.
+      Vous pouvez encore refuser un dossier frauduleux ou modifier l’agent parrain ci-dessus.
+    </p>
+    <form method="post" action="/admin/registrations/decision" class="space-y-4 max-w-2xl">
+      <input type="hidden" th:name="${_csrf.parameterName}" th:value="${_csrf.token}">
+      <input type="hidden" name="requestId" th:value="${reg.id()}">
+      <div>
+        <label class="block text-xs font-medium text-slate-600 mb-1">Motif / commentaire <span class="text-red-600">(obligatoire en cas de refus)</span></label>
+        <textarea name="adminNote" rows="2" placeholder="Note visible dans l'historique du dossier" class="border rounded-lg px-3 py-2 w-full"></textarea>
+      </div>
+      <div class="flex flex-wrap gap-3">
+        <button type="submit" name="decision" value="rejected" class="pf-btn pf-btn-danger">
+          <i class="fa-solid fa-xmark mr-2"></i>Refuser le dossier
+        </button>
+      </div>
+    </form>
+  </section>
+
+  <section class="pf-detail-panel border-red-100" th:if="${adminFullAccess || adminIsGestionnaire}">
+    <h2 class="pf-detail-section-head text-red-800"><i class="fa-regular fa-trash-can"></i>Zone sensible</h2>
+    <p class="text-sm text-slate-600 mb-3" th:if="${reg.isApproved()}">
+      Ce dossier est approuvé : la suppression retire uniquement l'historique ici. Le compte client reste actif
+      (<a th:if="${linkedClientUserId != null}" th:href="@{/admin/clients/{id}(id=${linkedClientUserId})}" class="text-blue-700 underline">voir la fiche client</a>).
+    </p>
+    <form method="post" action="/admin/registrations/delete"
+          th:attr="data-status=${reg.status()}, data-admin-full=${adminFullAccess}"
+          onsubmit="return pfConfirmRegistrationDelete(event, this);">
+      <input type="hidden" th:name="${_csrf.parameterName}" th:value="${_csrf.token}">
+      <input type="hidden" name="id" th:value="${reg.id()}">
+      <button type="submit" class="pf-btn pf-btn-danger text-sm">
+        <i class="fa-regular fa-trash-can mr-1"></i>
+        <span th:if="${reg.isApproved()}">Retirer de l'historique</span>
+        <span th:unless="${reg.isApproved()}">Supprimer ce dossier</span>
+      </button>
+    </form>
+  </section>
+
+<th:block th:replace="~{fragments/admin-chrome :: endMain}"/>
+<script>
+  function pfConfirmRegistrationDelete(event, form) {
+    const st = form.dataset.status || '';
+    const full = form.dataset.adminFull === 'true';
+    let text;
+    if (st === 'approved') {
+      text = full
+        ? 'Retirer ce dossier de l\'historique ? Le compte client PayFlex restera actif.'
+        : 'Demander le retrait de ce dossier de l\'historique ?';
+    } else if (st === 'pending') {
+      text = full ? 'Supprimer définitivement cette demande en attente ?' : 'Demander la suppression ?';
+    } else {
+      text = full ? 'Supprimer définitivement ce dossier ?' : 'Demander la suppression ?';
+    }
+    return pfConfirmDeleteWithReason(event, text, full);
+  }
+  function confirmDelete(event, text) {
+    event.preventDefault();
+    const form = event.target;
+    Swal.fire({icon:'warning',title:'Confirmation',text,showCancelButton:true,confirmButtonText:'Oui',cancelButtonText:'Annuler'})
+      .then((r) => { if (r.isConfirmed) form.submit(); });
+    return false;
+  }
+  (() => {
+    const p = new URLSearchParams(window.location.search);
+    const s = p.get('success');
+    const e = p.get('error');
+    if (s === 'updated') Swal.fire({icon:'success',title:'Modifications enregistrées',timer:1800,showConfirmButton:false});
+    if (e) Swal.fire({icon:'error',title:'Action impossible',text: decodeURIComponent(e)});
+  })();
+</script>
+<th:block th:replace="~{fragments/admin-chrome :: phoneInputFoot}"/>
+<script src="/js/admin-wow.js"></script>
+</body>
+</html>

@@ -1,0 +1,325 @@
+<!doctype html>
+<html lang="fr" xmlns:th="http://www.thymeleaf.org">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Admin — Produits</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.2/css/all.min.css">
+  <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
+  <link rel="stylesheet" href="/css/admin-wow.css">
+</head>
+<body class="pf-admin bg-slate-100 min-h-screen">
+<th:block th:replace="~{fragments/admin-chrome :: startMain('space-y-4')}"/>
+<th:block th:replace="~{fragments/admin-chrome :: pageHeader('Gestion des produits','Catalogue et disponibilité')}"/>
+
+    <form method="get" action="/admin/products" class="bg-white rounded-xl p-4 shadow-sm grid grid-cols-1 md:grid-cols-6 gap-3 items-end">
+      <div class="md:col-span-2">
+        <label class="block text-xs font-medium text-slate-600 mb-1">Recherche</label>
+        <input name="q" th:value="${q}" placeholder="Code ou nom" class="border rounded-lg px-3 py-2 w-full text-sm">
+      </div>
+      <div>
+        <label class="block text-xs font-medium text-slate-600 mb-1">Catégorie</label>
+        <select name="categoryId" class="border rounded-lg px-3 py-2 w-full text-sm bg-white">
+          <option value="">Toutes</option>
+          <option th:each="cat : ${productCategories}" th:value="${cat.id()}" th:text="${cat.label()}"
+                  th:selected="${categoryId != null && categoryId == cat.id()}"></option>
+        </select>
+      </div>
+      <div>
+        <label class="block text-xs font-medium text-slate-600 mb-1">Disponibilité</label>
+        <select name="availability" class="border rounded-lg px-3 py-2 w-full text-sm bg-white">
+          <option value="">Toutes</option>
+          <option value="in_stock" th:selected="${availability == 'in_stock'}">En stock</option>
+          <option value="on_order" th:selected="${availability == 'on_order'}">Sur commande</option>
+        </select>
+      </div>
+      <div>
+        <button type="submit" class="pf-btn pf-btn-primary w-full md:w-auto py-2 px-4 text-sm">Filtrer</button>
+      </div>
+    </form>
+
+    <div class="flex flex-wrap justify-end gap-2">
+      <a href="/admin/product-categories" class="pf-btn pf-btn-secondary text-sm"><i class="fa-solid fa-tags mr-2"></i>Catégories</a>
+    </div>
+
+    <section class="bg-white rounded-xl p-5 shadow-sm border border-slate-200">
+      <h3 class="font-semibold text-slate-800 mb-1">Ajouter un produit</h3>
+      <p class="text-xs text-slate-500 mb-4">Code interne généré automatiquement (<span class="font-mono">PF-…</span>). Jusqu'à 3 visuels : couverture catalogue + 2 photos supplémentaires affichées dans le détail mobile.</p>
+      <form id="createProductForm" method="post" action="/admin/products" enctype="multipart/form-data" class="space-y-5">
+        <input type="hidden" th:name="${_csrf.parameterName}" th:value="${_csrf.token}">
+
+        <div class="pf-product-form-section">
+          <h4><i class="fa-solid fa-circle-info mr-1 text-slate-400"></i> Informations</h4>
+          <div class="grid grid-cols-1 md:grid-cols-3 gap-x-4 gap-y-3">
+            <div>
+              <label class="block text-xs font-medium text-slate-600 mb-1">Nom <span class="text-red-600">*</span></label>
+              <input name="name" required class="border rounded-lg px-3 py-2 w-full text-sm" placeholder="ex. Machine à coudre industrielle">
+            </div>
+            <div>
+              <label class="block text-xs font-medium text-slate-600 mb-1">Catégorie <span class="text-red-600">*</span></label>
+              <div class="pf-category-picker" id="createCategoryPicker">
+                <input type="hidden" name="categoryId" required>
+                <button type="button" class="pf-cat-picker-trigger" aria-haspopup="listbox">
+                  <span class="pf-cat-picker-label text-slate-400">Rechercher ou choisir…</span>
+                  <i class="fa-solid fa-chevron-down text-slate-400 text-xs"></i>
+                </button>
+                <div class="pf-cat-picker-panel">
+                  <input type="search" class="pf-cat-picker-search" placeholder="Tapez pour filtrer…" autocomplete="off">
+                  <ul class="pf-cat-picker-list" role="listbox"></ul>
+                </div>
+              </div>
+            </div>
+            <div>
+              <label class="block text-xs font-medium text-slate-600 mb-1">Disponibilité</label>
+              <select name="availability" class="border rounded-lg px-3 py-2 w-full text-sm bg-white">
+                <option value="in_stock">En stock</option>
+                <option value="on_order">Sur commande</option>
+              </select>
+            </div>
+            <div>
+              <label class="block text-xs font-medium text-slate-600 mb-1">Prix catalogue (FCFA) <span class="text-red-600">*</span></label>
+              <input name="price" type="number" step="0.01" min="1" required class="border rounded-lg px-3 py-2 w-full text-sm">
+            </div>
+            <div>
+              <label class="block text-xs font-medium text-slate-600 mb-1">Cotisation min. / jour (FCFA) <span class="text-red-600">*</span></label>
+              <input name="minDailyContribution" type="number" step="1" min="1" required class="border rounded-lg px-3 py-2 w-full text-sm" placeholder="Montant minimum par jour">
+            </div>
+            <div class="md:col-span-3">
+              <label class="block text-xs font-medium text-slate-600 mb-1">Description</label>
+              <textarea name="description" rows="2" class="border rounded-lg px-3 py-2 w-full text-sm" placeholder="Caractéristiques, usage, garantie…"></textarea>
+            </div>
+            <div class="md:col-span-3 flex items-center gap-2">
+              <input type="checkbox" name="featured" value="true" id="createFeatured" class="rounded border-slate-300">
+              <label for="createFeatured" class="text-sm text-slate-700">Produit à la une (vedette catalogue mobile)</label>
+            </div>
+          </div>
+        </div>
+
+        <div class="pf-product-form-section">
+          <h4><i class="fa-regular fa-images mr-1 text-slate-400"></i> Visuels (max. 3 sur l'app mobile)</h4>
+          <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+            <div class="pf-image-upload-slot">
+              <label>1 — Couverture (liste &amp; fiche) <span class="text-red-600">*</span></label>
+              <input name="imageMain" type="file" accept="image/*" required class="border rounded-lg px-3 py-2 w-full text-sm bg-white">
+            </div>
+            <div class="pf-image-upload-slot">
+              <label>2 — Galerie détail</label>
+              <input name="imageDetail1" type="file" accept="image/*" class="border rounded-lg px-3 py-2 w-full text-sm bg-white">
+            </div>
+            <div class="pf-image-upload-slot">
+              <label>3 — Galerie détail</label>
+              <input name="imageDetail2" type="file" accept="image/*" class="border rounded-lg px-3 py-2 w-full text-sm bg-white">
+            </div>
+          </div>
+        </div>
+
+        <div class="flex justify-end pt-1">
+          <button type="submit" class="pf-btn pf-btn-primary py-2 px-5 text-sm"><i class="fa-solid fa-plus mr-2"></i>Enregistrer le produit</button>
+        </div>
+      </form>
+    </section>
+
+    <section class="bg-white rounded-xl p-4 shadow-sm overflow-auto">
+      <div class="flex justify-end gap-2 mb-3">
+        <a href="/admin/export/products.csv" class="pf-btn pf-btn-secondary text-sm">Export CSV</a>
+        <a href="/admin/export/products.pdf" class="pf-btn pf-btn-secondary text-sm">Export PDF</a>
+      </div>
+      <table class="w-full text-sm">
+        <thead class="bg-slate-100">
+        <tr>
+          <th class="text-left py-2 px-2">Visuel</th>
+          <th class="text-left py-2 px-2">Code</th>
+          <th class="text-left py-2 px-2">Nom</th>
+          <th class="text-left py-2 px-2">Catégorie</th>
+          <th class="text-right py-2 px-2">Prix</th>
+          <th class="text-right py-2 px-2">Min./jour</th>
+          <th class="text-left py-2 px-2">Dispo.</th>
+          <th class="text-center py-2 px-2">Vedette</th>
+          <th class="text-right py-2 px-2">Actions</th>
+        </tr>
+        </thead>
+        <tbody>
+        <tr th:each="p : ${productsPage.items()}">
+          <td class="py-2 px-2 align-middle">
+            <img th:if="${p.previewSrc() != null && !#strings.isEmpty(p.previewSrc())}" th:src="${p.previewSrc()}" alt="" class="w-11 h-11 rounded border border-slate-200 object-cover"/>
+            <div th:if="${p.previewSrc() == null || #strings.isEmpty(p.previewSrc())}" class="w-11 h-11 rounded border border-slate-200 bg-slate-100 flex items-center justify-center text-slate-400"><i class="fa-regular fa-image"></i></div>
+          </td>
+          <td class="py-2 px-2 align-middle font-mono text-xs" th:text="${p.code()}"></td>
+          <td class="py-2 px-2 align-middle font-medium" th:text="${p.name()}"></td>
+          <td class="py-2 px-2 align-middle text-slate-600" th:text="${p.category()}"></td>
+          <td class="py-2 px-2 align-middle text-right whitespace-nowrap" th:text="${#numbers.formatInteger(p.price(), 0, 'POINT')} + ' FCFA'"></td>
+          <td class="py-2 px-2 align-middle text-right whitespace-nowrap text-slate-600" th:text="${#numbers.formatInteger(p.minDailyContribution(), 0, 'POINT')} + ' F'"></td>
+          <td class="py-2 px-2 align-middle text-slate-600" th:text="${p.availability()}"></td>
+          <td class="py-2 px-2 align-middle text-center">
+            <span th:if="${p.featured()}" class="text-amber-500" title="À la une"><i class="fa-solid fa-star"></i></span>
+            <span th:if="${!p.featured()}" class="text-slate-300">—</span>
+          </td>
+          <td class="py-2 px-2 align-middle">
+            <div class="flex flex-wrap gap-2 justify-end">
+              <a th:href="@{/admin/products/{id}(id=${p.id()})}" class="pf-btn pf-btn-secondary"><i class="fa-regular fa-eye"></i> Fiche</a>
+              <button type="button" class="pf-btn pf-btn-primary"
+                      th:attr="data-id=${p.id()},data-name=${p.name()},data-category-id=${p.categoryId()},data-price=${p.price()},data-min-daily=${p.minDailyContribution()},data-availability=${p.availability()},data-desc=${p.description()},data-featured=${p.featured()}"
+                      onclick="openEditProductModal(this)"><i class="fa-regular fa-pen-to-square"></i> Modifier</button>
+              <form th:if="${adminFullAccess || adminIsGestionnaire}" method="post" action="/admin/products/delete" class="inline"
+                    th:attr="data-admin-full=${adminFullAccess}"
+                    onsubmit="return pfConfirmDeleteWithReason(event, this.dataset.adminFull === 'true' ? 'Supprimer ce produit ?' : 'Demander la suppression de ce produit ?', this.dataset.adminFull === 'true');">
+                <input type="hidden" th:name="${_csrf.parameterName}" th:value="${_csrf.token}">
+                <input type="hidden" name="id" th:value="${p.id()}">
+                <button type="submit" class="pf-btn pf-btn-danger"><i class="fa-regular fa-trash-can"></i></button>
+              </form>
+            </div>
+          </td>
+        </tr>
+        </tbody>
+      </table>
+      <th:block th:replace="~{fragments/admin-chrome :: pagination(${productsPage}, '/admin/products', ${filterQuery})}"/>
+    </section>
+
+<th:block th:replace="~{fragments/admin-chrome :: endMain}"/>
+
+<div id="editProductModal" class="hidden fixed inset-0 bg-black/40 items-center justify-center z-50 p-4">
+  <div class="bg-white w-full max-w-xl rounded-xl p-6 border border-slate-200 shadow-lg">
+    <h3 class="font-semibold text-lg text-slate-800 mb-4">Modifier le produit</h3>
+    <form method="post" action="/admin/products/update" enctype="multipart/form-data" class="grid grid-cols-1 md:grid-cols-2 gap-x-4 gap-y-3">
+      <input type="hidden" th:name="${_csrf.parameterName}" th:value="${_csrf.token}">
+      <input type="hidden" id="editProductId" name="id">
+      <div>
+        <label class="block text-xs font-medium text-slate-600 mb-1">Nom</label>
+        <input id="editProductName" name="name" required class="border rounded-lg px-3 py-2 w-full text-sm">
+      </div>
+      <div>
+        <label class="block text-xs font-medium text-slate-600 mb-1">Catégorie</label>
+        <div class="pf-category-picker" id="editCategoryPicker">
+          <input type="hidden" id="editProductCategoryId" name="categoryId" required>
+          <button type="button" class="pf-cat-picker-trigger" aria-haspopup="listbox">
+            <span class="pf-cat-picker-label text-slate-400">Rechercher ou choisir…</span>
+            <i class="fa-solid fa-chevron-down text-slate-400 text-xs"></i>
+          </button>
+          <div class="pf-cat-picker-panel">
+            <input type="search" class="pf-cat-picker-search" placeholder="Tapez pour filtrer…" autocomplete="off">
+            <ul class="pf-cat-picker-list" role="listbox"></ul>
+          </div>
+        </div>
+      </div>
+      <div>
+        <label class="block text-xs font-medium text-slate-600 mb-1">Prix catalogue (FCFA)</label>
+        <input id="editProductPrice" name="price" type="number" step="0.01" required class="border rounded-lg px-3 py-2 w-full text-sm">
+      </div>
+      <div>
+        <label class="block text-xs font-medium text-slate-600 mb-1">Cotisation journalière min. (FCFA)</label>
+        <input id="editProductMinDaily" name="minDailyContribution" type="number" step="1" min="1" required class="border rounded-lg px-3 py-2 w-full text-sm">
+      </div>
+      <div>
+        <label class="block text-xs font-medium text-slate-600 mb-1">Disponibilité</label>
+        <select id="editProductAvailability" name="availability" class="border rounded-lg px-3 py-2 w-full text-sm">
+          <option value="in_stock">En stock</option>
+          <option value="on_order">Sur commande</option>
+        </select>
+      </div>
+      <div class="md:col-span-2">
+        <label class="block text-xs font-medium text-slate-600 mb-1">Description</label>
+        <textarea id="editProductDescription" name="description" rows="2" class="border rounded-lg px-3 py-2 w-full text-sm"></textarea>
+      </div>
+      <div class="md:col-span-2 text-xs text-slate-500">Remplacer uniquement les fichiers à modifier (galerie mobile, max. 3 images).</div>
+      <div class="pf-image-upload-slot">
+        <label>Couverture</label>
+        <input id="editImageMain" name="imageMain" type="file" accept="image/*" class="border rounded-lg px-3 py-2 w-full text-sm bg-white">
+      </div>
+      <div class="pf-image-upload-slot">
+        <label>Galerie 2</label>
+        <input id="editImageDetail1" name="imageDetail1" type="file" accept="image/*" class="border rounded-lg px-3 py-2 w-full text-sm bg-white">
+      </div>
+      <div class="pf-image-upload-slot md:col-span-2">
+        <label>Galerie 3</label>
+        <input id="editImageDetail2" name="imageDetail2" type="file" accept="image/*" class="border rounded-lg px-3 py-2 w-full text-sm bg-white">
+      </div>
+      <div class="md:col-span-2 flex items-center gap-2">
+        <input type="checkbox" name="featured" value="true" id="editProductFeatured" class="rounded border-slate-300">
+        <label for="editProductFeatured" class="text-sm text-slate-700">Produit à la une (vedette)</label>
+      </div>
+      <div class="md:col-span-2 flex justify-end gap-2 pt-2">
+        <button type="button" onclick="closeEditProductModal()" class="pf-btn pf-btn-secondary py-2 px-4 text-sm">Annuler</button>
+        <button type="submit" class="pf-btn pf-btn-primary py-2 px-4 text-sm">Enregistrer</button>
+      </div>
+    </form>
+  </div>
+</div>
+<script src="/js/admin-category-picker.js"></script>
+<script th:inline="javascript">
+  /*<![CDATA[*/
+  const PF_PRODUCT_CATEGORIES = /*[[${productCategoriesJs}]]*/ [];
+  const successParam = /*[[${param.success}]]*/ null;
+  const errorParam = /*[[${param.error}]]*/ null;
+  let editCategoryPickerApi = null;
+
+  function bootCategoryPickers() {
+    if (typeof PfCategoryPicker === 'undefined') return;
+    const cats = Array.isArray(PF_PRODUCT_CATEGORIES) ? PF_PRODUCT_CATEGORIES : [];
+    PfCategoryPicker.initAll(cats);
+    const editRoot = document.getElementById('editCategoryPicker');
+    if (editRoot) editCategoryPickerApi = PfCategoryPicker.mount(editRoot, cats);
+    const createForm = document.getElementById('createProductForm');
+    if (createForm) {
+      createForm.addEventListener('submit', (e) => {
+        const picker = document.getElementById('createCategoryPicker');
+        const api = picker ? PfCategoryPicker.mount(picker, cats) : null;
+        if (api && !api.validate()) e.preventDefault();
+      });
+    }
+  }
+
+  if (successParam && successParam.length) {
+    Swal.fire({icon:'success',title:'Succès',text:'Produit enregistré',timer:1600,showConfirmButton:false});
+  }
+  if (errorParam && errorParam.length) {
+    Swal.fire({icon:'error',title:'Erreur',text:decodeURIComponent(errorParam[0].replace(/\+/g,' '))});
+  }
+  if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', bootCategoryPickers);
+  } else {
+    bootCategoryPickers();
+  }
+  /*]]>*/
+  function openEditProductModal(btn) {
+    document.getElementById('editProductId').value = btn.dataset.id || '';
+    document.getElementById('editProductName').value = btn.dataset.name || '';
+    if (editCategoryPickerApi) editCategoryPickerApi.setValue(btn.dataset.categoryId || '');
+    else document.getElementById('editProductCategoryId').value = btn.dataset.categoryId || '';
+    document.getElementById('editProductPrice').value = btn.dataset.price || '';
+    document.getElementById('editProductMinDaily').value = btn.dataset.minDaily || '';
+    document.getElementById('editProductAvailability').value = btn.dataset.availability || 'in_stock';
+    document.getElementById('editProductDescription').value = btn.dataset.desc || '';
+    document.getElementById('editProductFeatured').checked = btn.dataset.featured === 'true';
+    document.getElementById('editImageMain').value = '';
+    document.getElementById('editImageDetail1').value = '';
+    document.getElementById('editImageDetail2').value = '';
+    const modal = document.getElementById('editProductModal');
+    modal.classList.remove('hidden');
+    modal.classList.add('flex');
+  }
+  function closeEditProductModal() {
+    const modal = document.getElementById('editProductModal');
+    modal.classList.remove('flex');
+    modal.classList.add('hidden');
+  }
+  function confirmDelete(event, text) {
+    event.preventDefault();
+    const form = event.target;
+    Swal.fire({icon:'warning',title:'Confirmation',text,showCancelButton:true,confirmButtonText:'Oui',cancelButtonText:'Annuler'})
+      .then((r) => { if (r.isConfirmed) form.submit(); });
+    return false;
+  }
+  (() => {
+    const qInput = document.querySelector('form[action="/admin/products"] input[name="q"]');
+    if (!qInput) return;
+    let t;
+    qInput.addEventListener('input', () => {
+      clearTimeout(t);
+      t = setTimeout(() => qInput.form.submit(), 450);
+    });
+  })();
+</script>
+<script src="/js/admin-wow.js"></script>
+</body>
+</html>

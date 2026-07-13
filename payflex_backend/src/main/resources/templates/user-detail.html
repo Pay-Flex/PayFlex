@@ -1,0 +1,64 @@
+<!doctype html>
+<html lang="fr" xmlns:th="http://www.thymeleaf.org">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Admin — Fiche utilisateur</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.2/css/all.min.css">
+  <link rel="stylesheet" href="/css/admin-wow.css">
+</head>
+<body class="pf-admin bg-slate-100 min-h-screen">
+<th:block th:replace="~{fragments/admin-chrome :: startMain('space-y-4')}"/>
+
+  <div class="bg-white rounded-xl shadow-sm border border-slate-200/80 p-4 md:p-5">
+    <th:block th:replace="~{fragments/admin-chrome :: recordBack('/admin/users', 'Retour à la liste des utilisateurs')}"/>
+    <div class="flex flex-wrap items-start justify-between gap-3 mt-1">
+      <div class="min-w-0">
+        <h2 class="text-xl md:text-2xl font-bold text-slate-900" th:text="${u.fullName()}">Nom</h2>
+        <p class="text-sm text-slate-600 mt-1"><i class="fa-solid fa-phone me-1 opacity-70"></i><span th:text="${u.phone()}"></span></p>
+      </div>
+      <div class="flex flex-wrap gap-2 shrink-0">
+        <span class="inline-flex px-2.5 py-1 rounded-full text-xs font-semibold bg-slate-100 text-slate-800"
+              th:text="${u.roleLabel() != null ? u.roleLabel() : u.role()}">Profil</span>
+        <span class="inline-flex px-2.5 py-1 rounded-full text-xs font-semibold"
+              th:classappend="${u.status() == 'pending'} ? ' bg-amber-100 text-amber-900' : (${u.status() == 'valide'} ? ' bg-emerald-100 text-emerald-800' : ' bg-red-100 text-red-800')"
+              th:text="${u.status() == 'pending' ? 'En attente' : (u.status() == 'valide' ? 'Compte actif' : (u.status() == 'bloque' ? 'Compte bloqué' : u.status()))}"></span>
+      </div>
+    </div>
+  </div>
+
+  <section class="pf-detail-panel space-y-5">
+    <h2 class="pf-detail-section-head"><i class="fa-solid fa-address-card"></i>Informations générales</h2>
+    <dl class="grid grid-cols-1 sm:grid-cols-2 gap-5">
+      <div class="rounded-xl bg-slate-50/80 border border-slate-100 px-4 py-3">
+        <dt class="pf-stat-label">Ville</dt>
+        <dd class="mt-1 text-slate-900 font-semibold" th:text="${u.city() != null && !u.city().isBlank() ? u.city() : '—'}"></dd>
+      </div>
+      <div class="rounded-xl bg-slate-50/80 border border-slate-100 px-4 py-3">
+        <dt class="pf-stat-label">Métier</dt>
+        <dd class="mt-1 text-slate-900 font-semibold" th:text="${u.profession() != null && !u.profession().isBlank() ? u.profession() : '—'}"></dd>
+      </div>
+    </dl>
+
+    <div class="pt-2 border-t border-slate-100">
+      <h2 class="pf-detail-section-head mb-3"><i class="fa-solid fa-link"></i>Aller plus loin</h2>
+      <div class="flex flex-wrap gap-3">
+        <a th:if="${u.role() == 'client'}" th:href="@{/admin/clients/{id}(id=${u.id()})}" class="pf-btn pf-btn-primary text-sm py-2 px-4 rounded-lg shadow-sm">
+          <i class="fa-solid fa-chart-line"></i>Fiche client détaillée
+        </a>
+        <a th:if="${u.agentRecordId() != null}" th:href="@{/admin/agents/{id}(id=${u.agentRecordId()})}" class="pf-btn pf-btn-primary text-sm py-2 px-4 rounded-lg shadow-sm">
+          <i class="fa-solid fa-user-tie"></i>Fiche agent &amp; équipe
+        </a>
+        <p th:if="${u.role() != 'client' && u.agentRecordId() == null}" class="text-sm text-slate-600 leading-relaxed max-w-xl">
+          <i class="fa-regular fa-circle-info text-blue-700 mr-1"></i>
+          Pas de page métier dédiée pour ce profil. Pour modifier les informations, utilisez la liste des utilisateurs.
+        </p>
+      </div>
+    </div>
+  </section>
+
+<th:block th:replace="~{fragments/admin-chrome :: endMain}"/>
+<script src="/js/admin-wow.js"></script>
+</body>
+</html>

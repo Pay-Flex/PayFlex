@@ -30,6 +30,7 @@
 
     <!-- Template Stylesheet -->
     <link href="css/style.css" rel="stylesheet">
+    <link href="css/premium.css" rel="stylesheet">
 </head>
 
 <body>
@@ -46,14 +47,14 @@
             <div class="col-lg-6 ps-5 text-start">
                 <div class="h-100 d-inline-flex align-items-center text-light">
                     <span>Suivez-nous :</span>
-                    <a class="btn btn-link text-light" href=""><i class="fab fa-facebook-f"></i></a>
-                    <a class="btn btn-link text-light" href=""><i class="fab fa-twitter"></i></a>
-                    <a class="btn btn-link text-light" href=""><i class="fab fa-linkedin-in"></i></a>
-                    <a class="btn btn-link text-light" href=""><i class="fab fa-instagram"></i></a>
+                    <a class="btn btn-link text-light" href="feature.html"><i class="fab fa-facebook-f"></i></a>
+                    <a class="btn btn-link text-light" href="feature.html"><i class="fab fa-twitter"></i></a>
+                    <a class="btn btn-link text-light" href="feature.html"><i class="fab fa-linkedin-in"></i></a>
+                    <a class="btn btn-link text-light" href="feature.html"><i class="fab fa-instagram"></i></a>
                 </div>
             </div>
             <div class="col-lg-6 text-end">
-                <div class=" h-100 d-inline-flex align-items-center text-white py-2 px-4" style="background-color:#0360ecd8;">
+                <div class=" h-100 d-inline-flex align-items-center text-white py-1 px-4 topbar-premium" style="background-color:#0360ecd8;">
                     <span class="me-2 fw-semi-bold"><i class="fa fa-phone-alt me-2"></i>Appelez-nous :</span>
                     <span>+228  345 6789</span>
                 </div>
@@ -64,7 +65,7 @@
 
 
     <!-- Navbar Start -->
-    <nav class="navbar navbar-expand-lg bg-white navbar-light sticky-top px-4 px-lg-5">
+    <nav class="navbar navbar-expand-lg glass-nav navbar-light sticky-top px-4 px-lg-5">
         <a href="index.html" class="navbar-brand d-flex align-items-center">
             <img src="img/logo.png" alt="PayFlex Logo" style="height: 70px;">
         </a>
@@ -78,15 +79,16 @@
                     <a href="#" class="nav-link dropdown-toggle" data-bs-toggle="dropdown">À Propos</a>
                     <div class="dropdown-menu bg-light m-0">
                         <a href="about.html" class="dropdown-item">À Propos de Nous</a>
-                        <a href="about.html#features" class="dropdown-item">Fonctionnalités</a>
+                        <a href="feature.html" class="dropdown-item">Fonctionnalités</a>
                         <a href="about.html#team" class="dropdown-item">Notre Équipe</a>
                         <a href="about.html#testimonials" class="dropdown-item">Témoignages</a>
                     </div>
                 </div>
                 <a href="service.html" class="nav-item nav-link">Services</a>
-                <a href="catalogue.html" class="nav-item nav-link active">Catalogue</a>
+                <a href="catalogue.html" class="nav-item nav-link">Catalogue</a>
                 <a href="contact.html" class="nav-item nav-link">Contact</a>
             </div>
+            <button id="darkModeToggle" class="btn btn-sm btn-outline-secondary rounded-circle ms-3 d-flex align-items-center justify-content-center" style="width:38px; height:38px; border-width:2px; min-width: 38px;"><i class="fas fa-moon" style="font-size: 1.1rem;"></i></button>
             <!-- <div class="border-start ps-4 d-none d-lg-block">
                 <button type="button" class="btn btn-sm p-0"><i class="fa fa-search"></i></button>
             </div> -->
@@ -96,7 +98,7 @@
 
 
     <!-- Page Header Start -->
-    <div class="container-fluid page-header py-5 mb-5 wow fadeIn" data-wow-delay="0.1s">
+    <div class="container-fluid page-header py-4 mb-4 wow fadeIn" data-wow-delay="0.1s">
         <div class="container text-center py-5">
             <h1 class="display-3 text-white mb-4 animated slideInDown">Nos Produits</h1>
             <nav aria-label="breadcrumb animated slideInDown">
@@ -120,66 +122,66 @@
             </div>
             <div class="row gx-4">
                 <div class="col-md-6 col-lg-4 col-xl-3 wow fadeInUp" data-wow-delay="0.1s">
-                    <div class="product-item">
+                    <div class="product-item h-100 shadow-sm border-0 rounded-4 overflow-hidden">
                         <div class="position-relative">
-                            <img class="img-fluid" src="img/product-1.jpg" alt="">
+                            <img class="img-fluid w-100" src="img/product-mech.png" alt="Kit Mécanique Auto" style="height: 250px; object-fit: cover;">
                             <div class="product-overlay">
                                 <a class="btn btn-square btn-secondary rounded-circle m-1" href="catalogue.html"><i class="bi bi-link"></i></a>
                                 <a class="btn btn-square btn-secondary rounded-circle m-1" href="catalogue.html"><i class="bi bi-cart"></i></a>
                             </div>
                         </div>
                         <div class="text-center p-4">
-                            <a class="d-block h5" href="">Kit de Mécanique Auto</a>
-                            <p class="text-muted small">L'essentiel pour tout mécanicien débutant.</p>
-                            <span class="text-primary me-1">À partir de 5000 XOF/mois</span>
+                            <a class="d-block h5 mb-2" href="feature.html">Kit de Mécanique Auto</a>
+                            <p class="text-muted small">L'essentiel pour tout mécanicien débutant avec outils de précision.</p>
+                            <span class="text-primary fw-bold">À partir de 5000 XOF/mois</span>
                         </div>
                     </div>
                 </div>
                 <div class="col-md-6 col-lg-4 col-xl-3 wow fadeInUp" data-wow-delay="0.3s">
-                    <div class="product-item">
+                    <div class="product-item h-100 shadow-sm border-0 rounded-4 overflow-hidden">
                         <div class="position-relative">
-                            <img class="img-fluid" src="img/product-2.jpg" alt="">
+                            <img class="img-fluid w-100" src="img/product-hair.jpg" alt="Kit Coiffure Homme" style="height: 250px; object-fit: cover;">
                             <div class="product-overlay">
                                 <a class="btn btn-square btn-secondary rounded-circle m-1" href="catalogue.html"><i class="bi bi-link"></i></a>
                                 <a class="btn btn-square btn-secondary rounded-circle m-1" href="catalogue.html"><i class="bi bi-cart"></i></a>
                             </div>
                         </div>
                         <div class="text-center p-4">
-                            <a class="d-block h5" href="">Kit de Coiffure Homme</a>
-                            <p class="text-muted small">Tondeuses, ciseaux et accessoires de qualité.</p>
-                            <span class="text-primary me-1">À partir de 3000 XOF/mois</span>
+                            <a class="d-block h5 mb-2" href="feature.html">Kit de Coiffure Homme</a>
+                            <p class="text-muted small">Tondeuses, ciseaux et accessoires de qualité professionnelle.</p>
+                            <span class="text-primary fw-bold">À partir de 3000 XOF/mois</span>
                         </div>
                     </div>
                 </div>
                 <div class="col-md-6 col-lg-4 col-xl-3 wow fadeInUp" data-wow-delay="0.5s">
-                    <div class="product-.item">
+                    <div class="product-item h-100 shadow-sm border-0 rounded-4 overflow-hidden">
                         <div class="position-relative">
-                            <img class="img-fluid" src="img/product-3.jpg" alt="">
+                            <img class="img-fluid w-100" src="img/product-sew.png" alt="Kit Couture Dame" style="height: 250px; object-fit: cover;">
                             <div class="product-overlay">
                                 <a class="btn btn-square btn-secondary rounded-circle m-1" href="catalogue.html"><i class="bi bi-link"></i></a>
                                 <a class="btn btn-square btn-secondary rounded-circle m-1" href="catalogue.html"><i class="bi bi-cart"></i></a>
                             </div>
                         </div>
                         <div class="text-center p-4">
-                            <a class="d-block h5" href="">Kit de Couture Dame</a>
-                            <p class="text-muted small">Idéale pour les créations complexes et robustes.</p>
-                            <span class="text-primary me-1">À partir de 4000 XOF/mois</span>
+                            <a class="d-block h5 mb-2" href="feature.html">Kit de Couture Dame</a>
+                            <p class="text-muted small">Idéale pour les créations complexes et robustes sur tous tissus.</p>
+                            <span class="text-primary fw-bold">À partir de 4000 XOF/mois</span>
                         </div>
                     </div>
                 </div>
                 <div class="col-md-6 col-lg-4 col-xl-3 wow fadeInUp" data-wow-delay="0.7s">
-                    <div class="product-item">
+                    <div class="product-item h-100 shadow-sm border-0 rounded-4 overflow-hidden">
                         <div class="position-relative">
-                            <img class="img-fluid" src="img/product-4.jpg" alt="">
+                            <img class="img-fluid w-100" src="img/product-plumb.jpg" alt="Outils de Plomberie" style="height: 250px; object-fit: cover;">
                             <div class="product-overlay">
                                 <a class="btn btn-square btn-secondary rounded-circle m-1" href="catalogue.html"><i class="bi bi-link"></i></a>
                                 <a class="btn btn-square btn-secondary rounded-circle m-1" href="catalogue.html"><i class="bi bi-cart"></i></a>
                             </div>
                         </div>
                         <div class="text-center p-4">
-                            <a class="d-block h5" href="">Outils de Plomberie</a>
-                            <p class="text-muted small">Tout le nécessaire pour les installations et réparations.</p>
-                            <span class="text-primary me-1">À partir de 4500 XOF/mois</span>
+                            <a class="d-block h5 mb-2" href="feature.html">Outils de Plomberie</a>
+                            <p class="text-muted small">Tout le nécessaire pour les installations et réparations sanitaires.</p>
+                            <span class="text-primary fw-bold">À partir de 4500 XOF/mois</span>
                         </div>
                     </div>
                 </div>
@@ -193,7 +195,7 @@
 
 
     <!-- Footer Start -->
-    <div class="container-fluid bg-dark footer mt-5 py-5 wow fadeIn" data-wow-delay="0.1s">
+    <div class="container-fluid footer-premium footer mt-5 py-5 wow fadeIn" data-wow-delay="0.1s">
         <div class="container py-5">
             <div class="row g-5">
                 <div class="col-lg-3 col-md-6">
@@ -202,10 +204,10 @@
                     <p class="mb-2"><i class="fa fa-phone-alt me-3"></i>+228 90 00 00 00</p>
                     <p class="mb-2"><i class="fa fa-envelope me-3"></i>contact@payflex.com</p>
                     <div class="d-flex pt-3">
-                        <a class="btn btn-square btn-secondary rounded-circle me-2" href=""><i class="fab fa-twitter"></i></a>
-                        <a class="btn btn-square btn-secondary rounded-circle me-2" href=""><i class="fab fa-facebook-f"></i></a>
-                        <a class="btn btn-square btn-secondary rounded-circle me-2" href=""><i class="fab fa-youtube"></i></a>
-                        <a class="btn btn-square btn-secondary rounded-circle me-2" href=""><i class="fab fa-linkedin-in"></i></a>
+                        <a class="btn btn-square btn-secondary rounded-circle me-2" href="feature.html"><i class="fab fa-twitter"></i></a>
+                        <a class="btn btn-square btn-secondary rounded-circle me-2" href="feature.html"><i class="fab fa-facebook-f"></i></a>
+                        <a class="btn btn-square btn-secondary rounded-circle me-2" href="feature.html"><i class="fab fa-youtube"></i></a>
+                        <a class="btn btn-square btn-secondary rounded-circle me-2" href="feature.html"><i class="fab fa-linkedin-in"></i></a>
                     </div>
                 </div>
                 <div class="col-lg-3 col-md-6">
@@ -213,8 +215,8 @@
                     <a class="btn btn-link" href="about.html">À Propos de Nous</a>
                     <a class="btn btn-link" href="contact.html">Contactez-nous</a>
                     <a class="btn btn-link" href="service.html">Nos Services</a>
-                    <a class="btn btn-link" href="">Termes & Conditions</a>
-                    <a class="btn btn-link" href="">Support</a>
+                    <a class="btn btn-link" href="feature.html">Termes & Conditions</a>
+                    <a class="btn btn-link" href="feature.html">Support</a>
                 </div>
                 <div class="col-lg-3 col-md-6">
                     <h5 class="text-white mb-4">Horaires</h5>
@@ -240,15 +242,15 @@
 
 
     <!-- Copyright Start -->
-    <div class="container-fluid bg-secondary text-body copyright py-4">
+    <div class="container-fluid copyright-premium copyright py-4">
         <div class="container">
             <div class="row">
                 <div class="col-md-6 text-center text-md-start mb-3 mb-md-0">
-                    &copy; <a class="fw-semi-bold" href="#">PayFlex</a>, Tous Droits Réservés.
+                    &copy; <script>document.write(new Date().getFullYear());</script> <a class="fw-semi-bold" href="#">PayFlex</a>, Tous Droits Réservés.
                 </div>
                 <div class="col-md-6 text-center text-md-end">
                     <!--/*** This template is free as long as you keep the footer author’s credit link/attribution link/backlink. If you'd like to use the template without the footer author’s credit link/attribution link/backlink, you can purchase the Credit Removal License from "https://htmlcodex.com/credit-removal". Thank you for your support. ***/-->
-                    Designed By <a class="fw-semi-bold" href="https://htmlcodex.com">HTML Codex</a>
+                    Designed By <a class="fw-semi-bold" href="https://donchaminade-alpha.vercel.app">PayFlex</a>
                 </div>
             </div>
         </div>
@@ -273,6 +275,9 @@
 
     <!-- Template Javascript -->
     <script src="js/main.js"></script>
+    <script src="js/darkmode.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/canvas-confetti@1.6.0/dist/confetti.browser.min.js"></script>
+    <script src="js/premium.js"></script>
 </body>
 
 </html>

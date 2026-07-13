@@ -1,0 +1,129 @@
+<!doctype html>
+<html lang="fr" xmlns:th="http://www.thymeleaf.org">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Admin — Détail zone</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.2/css/all.min.css">
+  <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
+  <link rel="stylesheet" href="/css/admin-wow.css">
+</head>
+<body class="pf-admin bg-slate-100 min-h-screen">
+<th:block th:replace="~{fragments/admin-chrome :: startMain('space-y-4')}"/>
+
+  <div class="bg-white rounded-xl shadow-sm border border-slate-200/80 p-4 md:p-5">
+    <th:block th:replace="~{fragments/admin-chrome :: recordBack('/admin/zones', 'Toutes les zones')}"/>
+    <div class="mt-1">
+      <h2 class="text-xl md:text-2xl font-bold text-slate-900" th:text="${zone.name()}"></h2>
+      <p class="text-sm text-slate-600 mt-1" th:text="${zone.description() != null && !zone.description().isBlank() ? zone.description() : 'Aucune description.'}"></p>
+      <p class="text-xs mt-2 text-slate-500">
+        <span th:text="${zone.agentsCount()} + ' agent(s)'"></span> ·
+        <span th:text="${zone.clientsCount()} + ' client(s) lié(s)'"></span> ·
+        <span th:text="${zone.active() ? 'Active' : 'Inactive'}"></span>
+      </p>
+    </div>
+  </div>
+
+  <section class="bg-white rounded-xl p-5 shadow-sm border border-slate-200">
+    <h2 class="font-semibold text-slate-800 mb-4 border-b border-slate-100 pb-2">Modifier la zone</h2>
+    <form method="post" th:action="@{/admin/zones/update}" class="space-y-4">
+      <input type="hidden" th:name="${_csrf.parameterName}" th:value="${_csrf.token}">
+      <input type="hidden" name="id" th:value="${zone.id()}">
+      <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+        <div>
+          <label class="block text-xs font-medium text-slate-600 mb-1">Nom</label>
+          <input name="name" required th:value="${zone.name()}" class="border rounded-lg px-3 py-2 w-full text-sm">
+        </div>
+        <div class="flex items-end">
+          <label class="inline-flex items-center gap-2 text-sm text-slate-700 cursor-pointer">
+            <input type="checkbox" name="active" value="true" th:checked="${zone.active()}">
+            Zone active (proposée lors de l’affectation agent)
+          </label>
+        </div>
+        <div class="md:col-span-2">
+          <label class="block text-xs font-medium text-slate-600 mb-1">Description</label>
+          <textarea name="description" rows="2" class="border rounded-lg px-3 py-2 w-full text-sm" th:text="${zone.description()}"></textarea>
+        </div>
+      </div>
+      <button type="submit" class="pf-btn pf-btn-primary text-sm">Enregistrer</button>
+    </form>
+  </section>
+
+  <section class="bg-white rounded-xl p-5 shadow-sm border border-slate-200 overflow-auto">
+    <h2 class="font-semibold text-slate-800 mb-3"><i class="fa-solid fa-user-tie me-2 text-blue-800"></i>Agents dans cette zone</h2>
+    <table class="w-full text-sm">
+      <thead class="bg-slate-100">
+      <tr>
+        <th class="text-left py-2 px-2">Nom</th>
+        <th class="text-left py-2 px-2">Ville</th>
+        <th class="text-center py-2 px-2">Actif</th>
+        <th class="text-right py-2 px-2">Fiche</th>
+      </tr>
+      </thead>
+      <tbody>
+      <tr th:each="ag : ${zoneAgents}" class="border-t border-slate-100">
+        <td class="py-2 px-2" th:text="${ag.fullName()}"></td>
+        <td class="py-2 px-2" th:text="${ag.city() != null ? ag.city() : '—'}"></td>
+        <td class="py-2 px-2 text-center" th:text="${ag.active() ? 'Oui' : 'Non'}"></td>
+        <td class="py-2 px-2 text-right">
+          <a th:href="@{/admin/agents/{id}(id=${ag.agentId()})}" class="text-blue-700 hover:underline text-xs">Ouvrir</a>
+        </td>
+      </tr>
+      <tr th:if="${#lists.isEmpty(zoneAgents)}">
+        <td colspan="4" class="py-6 text-center text-slate-500 text-sm">Aucun agent affecté à cette zone.</td>
+      </tr>
+      </tbody>
+    </table>
+  </section>
+
+  <section class="bg-white rounded-xl p-5 shadow-sm border border-slate-200 overflow-auto">
+    <h2 class="font-semibold text-slate-800 mb-3"><i class="fa-solid fa-address-card me-2 text-emerald-800"></i>Clients liés (rattachés ou cotisation via un agent de la zone)</h2>
+    <table class="w-full text-sm">
+      <thead class="bg-slate-100">
+      <tr>
+        <th class="text-left py-2 px-2">Nom</th>
+        <th class="text-left py-2 px-2">Téléphone</th>
+        <th class="text-left py-2 px-2">Ville</th>
+        <th class="text-left py-2 px-2">Statut</th>
+        <th class="text-right py-2 px-2">Fiche</th>
+      </tr>
+      </thead>
+      <tbody>
+      <tr th:each="cl : ${zoneClients}" class="border-t border-slate-100">
+        <td class="py-2 px-2 font-medium" th:text="${cl.fullName()}"></td>
+        <td class="py-2 px-2" th:text="${cl.phone()}"></td>
+        <td class="py-2 px-2" th:text="${cl.city() != null ? cl.city() : '—'}"></td>
+        <td class="py-2 px-2" th:text="${cl.status()}"></td>
+        <td class="py-2 px-2 text-right">
+          <a th:href="@{/admin/clients/{id}(id=${cl.userId()})}" class="text-blue-700 hover:underline text-xs">Ouvrir</a>
+        </td>
+      </tr>
+      <tr th:if="${#lists.isEmpty(zoneClients)}">
+        <td colspan="5" class="py-6 text-center text-slate-500 text-sm">Aucun client rattaché à cette zone pour l’instant.</td>
+      </tr>
+      </tbody>
+    </table>
+  </section>
+
+  <section th:if="${adminFullAccess || adminIsGestionnaire}" class="border border-red-200 bg-red-50 rounded-xl p-4">
+    <h3 class="text-sm font-semibold text-red-900 mb-2">Zone sensible</h3>
+    <p class="text-xs text-red-800 mb-3" th:text="${adminFullAccess ? 'La suppression n’est possible que s’il n’y a plus d’agent affecté à cette zone.' : 'Votre demande sera transmise à l’administrateur pour validation définitive.'}"></p>
+    <form method="post" action="/admin/zones/delete"
+          th:attr="data-admin-full=${adminFullAccess}"
+          onsubmit="return pfConfirmDeleteWithReason(event, this.dataset.adminFull === 'true' ? 'Supprimer cette zone ?' : 'Demander la suppression de cette zone ?', this.dataset.adminFull === 'true');">
+      <input type="hidden" th:name="${_csrf.parameterName}" th:value="${_csrf.token}">
+      <input type="hidden" name="id" th:value="${zone.id()}">
+      <button type="submit" class="pf-btn pf-btn-danger text-sm">Supprimer la zone</button>
+    </form>
+  </section>
+
+<th:block th:replace="~{fragments/admin-chrome :: endMain}"/>
+<script th:inline="javascript">
+  const p = new URLSearchParams(window.location.search);
+  if (p.get('success')) Swal.fire({icon:'success',title:'Enregistré',timer:1400,showConfirmButton:false});
+  if (p.get('error')) Swal.fire({icon:'error',title:'Erreur', text: decodeURIComponent(p.get('error'))});
+</script>
+<script src="/js/admin-wow.js"></script>
+</body>
+</html>

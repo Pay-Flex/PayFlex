@@ -1,0 +1,76 @@
+# Port déjà utilisé (Windows) : netstat -ano | findstr :8088   puis   taskkill /PID <pid> /F
+# Ou changer temporairement server.port (ex. 8089).
+server:
+  port: 8088
+  # Obligatoire derrière Cloudflare Tunnel, LocalTunnel, nginx, etc. : évite les
+  # redirections admin/login en http:// alors que le client est en HTTPS (boucle navigateur).
+  forward-headers-strategy: framework
+  servlet:
+    session:
+      cookie:
+        # Activé automatiquement au démarrage si PAYFLEX_PUBLIC_URL commence par https://
+        same-site: lax
+
+# Fichiers de log — écrits dans un sous-dossier dédié (logs/) hors racine projet.
+# Dossier configurable via PAYFLEX_LOG_DIR (défaut : logs). Voir logback-spring.xml
+payflex:
+  logging:
+    log-dir: ${PAYFLEX_LOG_DIR:logs}
+    error-log-file: erreur.log
+    diagnostic-log-file: diagnostic.log
+    mobile-api-log-file: mobile-api.log
+  # Jours « orange » carnet avant alerte push inbox client + agent
+  catchup-alert-threshold: ${PAYFLEX_CATCHUP_ALERT_THRESHOLD:5}
+  vault-key: ${PAYFLEX_VAULT_KEY:payflex-dev-vault-key-change-me}
+  # Notifications push réelles. Tout est optionnel : si non configuré, l'app
+  # retombe automatiquement sur le modèle « pull » (poll mobile + inbox admin).
+  push:
+    fcm:
+      # Chemin ABSOLU vers le service account JSON Firebase. Vide = FCM désactivé.
+      credentials: ${PAYFLEX_FIREBASE_CREDENTIALS:}
+    web-push:
+      # Clés VAPID (générer une paire, voir PAYFLEX_PUSH.md). Vides = Web Push désactivé.
+      public-key: ${PAYFLEX_VAPID_PUBLIC_KEY:}
+      private-key: ${PAYFLEX_VAPID_PRIVATE_KEY:}
+      subject: ${PAYFLEX_VAPID_SUBJECT:mailto:support@payflex.app}
+  contributions:
+    # Validation auto mobile money si l'agent n'a pas réagi (0 = désactivé)
+    auto-validate-mobile-money-hours: ${PAYFLEX_AUTO_VALIDATE_HOURS:24}
+    # false = espèces agent en « attente » jusqu’au rapprochement fin de journée au centre admin
+    agent-cash-auto-validate: ${PAYFLEX_AGENT_CASH_AUTO_VALIDATE:false}
+  paydunya:
+    # Passerelle mobile money unique (Flooz Moov, T-Money / Mixx by Yas, cartes).
+    # Repli gracieux : clés absentes = mobile money masqué côté mobile (déclaration classique).
+    enabled: ${PAYDUNYA_ENABLED:true}
+    # test = sandbox PayDunya (aucun argent réel) ; live = production.
+    mode: ${PAYDUNYA_MODE:test}
+    # Clés d'API PayDunya : uniquement via variables d'environnement / .env local — jamais dans Git.
+    master-key: ${PAYDUNYA_MASTER_KEY:}
+    private-key: ${PAYDUNYA_PRIVATE_KEY:}
+    token: ${PAYDUNYA_TOKEN:}
+    public-key: ${PAYDUNYA_PUBLIC_KEY:}
+    public-base-url: ${PAYFLEX_PUBLIC_URL:http://localhost:8088}
+
+spring:
+  application:
+    name: payflex-backend
+  servlet:
+    multipart:
+      max-file-size: 15MB
+      max-request-size: 20MB
+  thymeleaf:
+    cache: false
+  datasource:
+    url: ${PAYFLEX_DB_URL:jdbc:mysql://localhost:3306/payflexdb?createDatabaseIfNotExist=true&useSSL=false&allowPublicKeyRetrieval=true&serverTimezone=UTC}
+    username: ${PAYFLEX_DB_USER:root}
+    password: ${PAYFLEX_DB_PASSWORD:}
+    driver-class-name: com.mysql.cj.jdbc.Driver
+  flyway:
+    enabled: true
+    locations: classpath:db/migration
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info

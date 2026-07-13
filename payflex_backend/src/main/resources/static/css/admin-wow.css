@@ -1,0 +1,1117 @@
+/* PayFlex Admin — bleu sombre + jaune aligné sur l’app mobile (#F9A825), pas de dégradés */
+:root {
+  --pf-admin-blue: #0f2744;
+  --pf-admin-blue-hover: #153456;
+  --pf-admin-gold: #f9a825;
+  --pf-admin-gold-hover: #fbc02d;
+  --pf-admin-gold-muted: #e6a000;
+  --pf-admin-on-gold: #0f172a;
+  --pf-main-bg: #eef1f5;
+  --pf-border: #e2e8f0;
+  --pf-muted: #64748b;
+}
+
+body.pf-admin {
+  background: var(--pf-main-bg);
+  color: #0f172a;
+}
+
+/* SweetAlert2 au-dessus du menu latéral / overlays admin */
+.swal2-container {
+  z-index: 20000 !important;
+}
+
+/* Bandeau supérieur décoratif (plein bleu sombre) */
+.pf-admin-top-strip {
+  background: var(--pf-admin-blue);
+  background-image: none;
+}
+
+/* Menu latéral */
+.pf-admin-sidebar {
+  background: var(--pf-admin-blue) !important;
+  background-image: none !important;
+}
+
+.pf-admin-sidebar a.pf-admin-nav-idle {
+  color: rgba(255, 255, 255, 0.92);
+}
+
+.pf-admin-nav-active {
+  background: var(--pf-admin-gold) !important;
+  color: var(--pf-admin-on-gold) !important;
+  border: 1px solid rgba(15, 23, 42, 0.08) !important;
+  font-weight: 600;
+}
+
+.pf-admin-nav-idle:hover {
+  background: rgba(255, 255, 255, 0.08) !important;
+  color: #ffffff !important;
+}
+
+/* ------------------------------------------------------------------
+   En-tête de page (liste) : bandeau bleu, titres et sous-titres blancs
+   ------------------------------------------------------------------ */
+.pf-admin-page-header {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 1rem;
+  background: var(--pf-admin-blue);
+  color: #ffffff;
+  border-radius: 1rem;
+  padding: 1.25rem 1.5rem;
+  margin-bottom: 1rem;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  box-shadow: 0 8px 24px -12px rgba(15, 23, 42, 0.45);
+}
+
+.pf-admin-page-title {
+  color: #ffffff !important;
+  margin: 0;
+}
+
+.pf-admin-page-sub {
+  color: rgba(255, 255, 255, 0.95) !important;
+  margin: 0.35rem 0 0;
+}
+
+a.pf-admin-page-back {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  font-size: 0.8125rem;
+  font-weight: 600;
+  color: rgba(255, 255, 255, 0.9) !important;
+  text-decoration: none;
+  margin-bottom: 0.65rem;
+  transition: color 0.15s ease;
+}
+
+a.pf-admin-page-back:hover {
+  color: #ffffff !important;
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+
+.pf-admin-page-header .pf-btn-secondary {
+  background: rgba(255, 255, 255, 0.14) !important;
+  color: #ffffff !important;
+  border-color: rgba(255, 255, 255, 0.35) !important;
+}
+
+.pf-admin-page-header .pf-btn-secondary:hover {
+  background: rgba(255, 255, 255, 0.22) !important;
+  border-color: rgba(255, 255, 255, 0.5) !important;
+}
+
+/* Pastille session admin (icône + nom + rôle) */
+.pf-admin-user-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.75rem;
+  padding: 0.45rem 1rem 0.45rem 0.5rem;
+  border-radius: 9999px;
+  background: rgba(255, 255, 255, 0.12);
+  border: 1px solid rgba(255, 255, 255, 0.22);
+  box-shadow: 0 2px 12px rgba(0, 0, 0, 0.12);
+  flex-shrink: 0;
+}
+
+.pf-admin-user-chip-badge {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 2.5rem;
+  height: 2.5rem;
+  border-radius: 9999px;
+  background: var(--pf-admin-gold);
+  color: var(--pf-admin-on-gold);
+  font-size: 1.05rem;
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.12);
+}
+
+.pf-admin-user-chip-name {
+  display: block;
+  color: #ffffff;
+  font-weight: 700;
+  font-size: 0.9rem;
+  line-height: 1.2;
+  text-align: right;
+}
+
+.pf-admin-user-chip-role {
+  display: block;
+  margin-top: 0.1rem;
+  font-size: 0.68rem;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: rgba(255, 255, 255, 0.88);
+  text-align: right;
+}
+
+/* Compat : ancienne pastille (si encore présente quelque part) */
+.pf-admin-badge-header {
+  background: rgba(255, 255, 255, 0.14);
+  color: #ffffff;
+  border: 1px solid rgba(255, 255, 255, 0.22);
+}
+
+/* Tuiles d’action rapide (dashboard) */
+.pf-admin-action-tile {
+  background: var(--pf-admin-blue);
+  color: #fff;
+  border: 1px solid rgba(255, 255, 255, 0.06);
+}
+.pf-admin-action-tile:hover {
+  background: var(--pf-admin-blue-hover);
+}
+
+.pf-admin-action-tile i {
+  color: var(--pf-admin-gold);
+  font-size: 1.35rem;
+}
+
+/* Accent carte stat (bord gauche) */
+.pf-admin-stat-accent {
+  border-left-color: var(--pf-admin-gold) !important;
+}
+
+/* Bannière pleine largeur (ex. encart agents) */
+.pf-admin-banner {
+  background: var(--pf-admin-blue);
+  color: #fff;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+/* Avatars initiales (chat) */
+.pf-admin-avatar {
+  background: var(--pf-admin-blue);
+  color: #fff;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+}
+
+/* Logo marque PayFlex */
+.pf-brand-logo {
+  height: 3.5rem;
+  width: auto;
+  max-width: 100%;
+  object-fit: contain;
+  display: block;
+}
+
+.pf-brand-logo--on-dark {
+  background: #fff;
+  border-radius: 0.75rem;
+  padding: 0.5rem 0.75rem;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.12);
+}
+
+.pf-brand-logo--sidebar {
+  height: 2.75rem;
+  width: auto;
+  max-width: 7.5rem;
+  background: #fff;
+  border-radius: 0.5rem;
+  padding: 0.25rem 0.45rem;
+}
+
+.pf-brand-logo--login-panel {
+  height: 4.5rem;
+  max-width: 12rem;
+}
+
+.pf-brand-logo--login-form {
+  height: 5rem;
+  max-width: 11rem;
+  margin-left: auto;
+  margin-right: auto;
+}
+
+/* Liens navigation sidebar */
+.pf-admin-nav-link {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  position: relative;
+}
+
+.pf-admin-nav-link .pf-nav-icon {
+  width: 1.25rem;
+  flex-shrink: 0;
+  text-align: center;
+}
+
+.pf-admin-nav-link .pf-nav-text {
+  flex: 1;
+  min-width: 0;
+}
+
+.pf-admin-nav-link .pf-nav-badge {
+  margin-left: auto;
+  flex-shrink: 0;
+}
+
+.pf-sidebar-footer button {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+/* Sidebar repliée = rail icônes uniquement (desktop) */
+@media (min-width: 1024px) {
+  body.pf-admin.pf-sidebar-collapsed #pf-admin-sidebar {
+    width: 4.75rem !important;
+    min-width: 4.75rem !important;
+    max-width: 4.75rem !important;
+    padding: 1rem 0.4rem !important;
+    transform: none !important;
+    opacity: 1;
+    pointer-events: auto;
+  }
+
+  body.pf-admin.pf-sidebar-collapsed .pf-admin-layout-grid > aside {
+    width: 4.75rem !important;
+    flex: 0 0 4.75rem !important;
+  }
+
+  body.pf-admin.pf-sidebar-collapsed .pf-sidebar-header {
+    flex-direction: column;
+    align-items: center;
+    gap: 0.65rem;
+    margin-bottom: 1rem;
+  }
+
+  body.pf-admin.pf-sidebar-collapsed .pf-sidebar-brand {
+    flex: none;
+    width: 100%;
+    justify-content: center;
+  }
+
+  body.pf-admin.pf-sidebar-collapsed .pf-sidebar-brand-text,
+  body.pf-admin.pf-sidebar-collapsed .pf-nav-text {
+    display: none !important;
+  }
+
+  body.pf-admin.pf-sidebar-collapsed .pf-brand-logo--sidebar {
+    height: 2rem;
+    max-width: 2.35rem;
+    margin: 0 auto;
+    padding: 0.15rem 0.25rem;
+  }
+
+  body.pf-admin.pf-sidebar-collapsed .pf-admin-nav-link {
+    justify-content: center;
+    padding: 0.65rem 0.35rem !important;
+    gap: 0;
+  }
+
+  body.pf-admin.pf-sidebar-collapsed .pf-admin-nav-link--nested {
+    padding-left: 0.35rem !important;
+  }
+
+  body.pf-admin.pf-sidebar-collapsed .pf-admin-nav-link .pf-nav-icon {
+    margin: 0 !important;
+    font-size: 1.125rem;
+  }
+
+  body.pf-admin.pf-sidebar-collapsed .pf-admin-nav-link .pf-nav-badge {
+    position: absolute;
+    top: 0.15rem;
+    right: 0.1rem;
+    margin: 0;
+    min-width: 1rem;
+    height: 1rem;
+    padding: 0 0.2rem;
+    font-size: 0.55rem;
+  }
+
+  body.pf-admin.pf-sidebar-collapsed .pf-sidebar-footer {
+    margin-top: 1.5rem;
+    padding-top: 1rem;
+  }
+
+  body.pf-admin.pf-sidebar-collapsed .pf-sidebar-footer button {
+    justify-content: center;
+    padding: 0.65rem 0.35rem;
+  }
+
+  body.pf-admin.pf-sidebar-collapsed .pf-sidebar-collapse-btn {
+    width: 100%;
+  }
+}
+
+body.pf-admin.pf-sidebar-collapsed .pf-sidebar-expand-fab {
+  display: none !important;
+}
+
+/* Zone login marque (panneau gauche) — image + voile bleu semi-transparent */
+.pf-admin-login-brand {
+  position: relative;
+  isolation: isolate;
+  background-color: var(--pf-admin-blue);
+  background-image: url('/img/image.png');
+  background-size: cover;
+  background-position: center;
+  background-repeat: no-repeat;
+  color: #fff;
+  min-height: 22rem;
+}
+
+.pf-admin-login-brand::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  z-index: 0;
+  /* Haut : image bien visible · Bas : bleu plus marqué */
+  background: linear-gradient(
+    to bottom,
+    rgba(15, 39, 68, 0.08) 0%,
+    rgba(15, 39, 68, 0.35) 45%,
+    rgba(15, 39, 68, 0.72) 78%,
+    rgba(15, 39, 68, 0.92) 100%
+  );
+  pointer-events: none;
+}
+
+.pf-admin-login-brand-copy {
+  position: relative;
+  z-index: 1;
+}
+
+.pf-admin-login-brand-kicker {
+  color: rgba(255, 255, 255, 0.88);
+  text-shadow: 0 1px 10px rgba(15, 39, 68, 0.45);
+}
+
+.pf-admin-login-brand-desc {
+  color: rgba(255, 255, 255, 0.95);
+  max-width: 28rem;
+  text-shadow: 0 1px 12px rgba(15, 39, 68, 0.35);
+}
+
+/* Panneau info Rôles (encart explicatif) */
+.pf-rp-info-box {
+  background: #fffbf0;
+  border: 1px solid rgba(249, 168, 37, 0.35);
+  color: #1e293b;
+}
+
+/* Grand écran : menu latéral fixe, seul le contenu principal défile */
+@media (min-width: 1024px) {
+  body.pf-admin > div.pf-admin-layout-grid {
+    display: flex !important;
+    flex-direction: row;
+    align-items: stretch;
+    height: 100vh;
+    min-height: 100vh;
+    max-height: 100vh;
+    overflow: hidden;
+  }
+
+  body.pf-admin > div.pf-admin-layout-grid > aside {
+    width: 260px;
+    flex-shrink: 0;
+    align-self: stretch;
+    height: 100%;
+    overflow-y: auto;
+    overscroll-behavior: contain;
+    transition: transform 0.3s ease, width 0.3s ease, opacity 0.25s ease;
+  }
+
+  body.pf-admin > div.pf-admin-layout-grid > main {
+    flex: 1 1 0%;
+    min-width: 0;
+    min-height: 0;
+    height: 100%;
+    overflow-y: auto;
+    overscroll-behavior: contain;
+    transition: flex 0.3s ease, width 0.3s ease;
+  }
+}
+
+.pf-admin aside {
+  box-shadow: none;
+}
+
+.pf-admin input[type="text"],
+.pf-admin input[type="number"],
+.pf-admin input[type="tel"],
+.pf-admin input[type="search"],
+.pf-admin input[type="password"],
+.pf-admin select,
+.pf-admin textarea {
+  border-color: #cbd5e1 !important;
+}
+
+.pf-admin input:focus,
+.pf-admin select:focus,
+.pf-admin textarea:focus {
+  outline: none;
+  border-color: var(--pf-admin-gold) !important;
+  box-shadow: 0 0 0 2px rgba(249, 168, 37, 0.28);
+}
+
+.pf-admin .bg-white {
+  background: #ffffff !important;
+  -webkit-backdrop-filter: none;
+  backdrop-filter: none;
+  border: 1px solid var(--pf-border) !important;
+  box-shadow: 0 1px 2px rgba(15, 23, 42, 0.05) !important;
+}
+
+.pf-admin table {
+  border-collapse: collapse;
+}
+
+.pf-admin table thead th {
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+  color: var(--pf-muted);
+  font-weight: 600;
+}
+
+.pf-admin table tbody tr:hover {
+  background: #e8edf3;
+}
+
+/* Boutons d’action grille admin */
+.pf-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.35rem;
+  padding: 0.35rem 0.65rem;
+  border-radius: 0.375rem;
+  font-size: 0.75rem;
+  font-weight: 500;
+  line-height: 1.2;
+  border: 1px solid transparent;
+  cursor: pointer;
+  white-space: nowrap;
+}
+
+.pf-btn-primary {
+  background: var(--pf-admin-gold);
+  color: #fff;
+  border-color: var(--pf-admin-gold);
+}
+
+.pf-btn-primary:hover {
+  background: var(--pf-admin-gold-hover);
+  border-color: var(--pf-admin-gold-hover);
+}
+
+.pf-btn-secondary {
+  background: #fff;
+  color: var(--pf-admin-blue);
+  border-color: rgba(15, 39, 68, 0.18);
+}
+
+.pf-btn-secondary:hover {
+  background: #f8fafc;
+  border-color: var(--pf-admin-blue);
+}
+
+.pf-btn-danger {
+  background: #b91c1c;
+  color: #fff;
+  border-color: #b91c1c;
+}
+
+.pf-btn-danger:hover {
+  background: #991b1b;
+}
+
+.pf-btn-success {
+  background: #047857;
+  color: #fff;
+  border-color: #047857;
+}
+
+.pf-btn-success:hover {
+  background: #065f46;
+}
+
+/* intl-tel-input (champs .pf-intl-phone) */
+.pf-admin .iti {
+  width: 100%;
+  display: block;
+}
+
+.pf-admin .iti__country-container {
+  z-index: 3;
+}
+
+.pf-admin input.pf-intl-phone {
+  width: 100%;
+  padding-top: 0.5rem;
+  padding-bottom: 0.5rem;
+}
+
+/* ------------------------------------------------------------------
+   Fiches détail (utilisateur, client, agent, produit) — cartes
+   ------------------------------------------------------------------ */
+.pf-detail-page {
+  position: relative;
+  min-height: 100vh;
+}
+
+.pf-detail-bg {
+  pointer-events: none;
+  position: fixed;
+  inset: 0;
+  z-index: 0;
+  background: var(--pf-main-bg);
+  background-image: none;
+}
+
+.pf-detail-inner {
+  position: relative;
+  z-index: 1;
+}
+
+.pf-detail-hero {
+  position: relative;
+  overflow: hidden;
+  border-radius: 1rem;
+  padding: 1.5rem 1.5rem 1.75rem;
+  margin-bottom: 1.25rem;
+  background: var(--pf-admin-blue);
+  background-image: none;
+  color: #fff;
+  border: 1px solid rgba(255, 255, 255, 0.06);
+  box-shadow: 0 4px 6px -1px rgba(15, 23, 42, 0.12);
+}
+
+.pf-detail-hero::after {
+  display: none;
+}
+
+.pf-detail-hero > .pf-detail-hero-content {
+  position: relative;
+  z-index: 1;
+}
+
+.pf-detail-back {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.45rem;
+  font-size: 0.8125rem;
+  font-weight: 600;
+  color: rgba(255, 255, 255, 0.88);
+  text-decoration: none;
+  margin-bottom: 1rem;
+  transition: color 0.15s ease, transform 0.15s ease;
+}
+
+.pf-detail-back:hover {
+  color: #fde68a;
+}
+
+.pf-detail-title {
+  font-size: clamp(1.375rem, 3vw, 1.875rem);
+  font-weight: 800;
+  letter-spacing: -0.025em;
+  line-height: 1.15;
+  color: #ffffff;
+}
+
+.pf-detail-meta {
+  margin-top: 0.45rem;
+  font-size: 0.9375rem;
+  color: rgba(255, 255, 255, 0.92);
+  line-height: 1.45;
+}
+
+.pf-detail-badges {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  margin-top: 1rem;
+}
+
+.pf-detail-panel {
+  background: #ffffff;
+  border: 1px solid var(--pf-border);
+  border-radius: 1rem;
+  padding: 1.25rem 1.5rem;
+  box-shadow: 0 1px 3px rgba(15, 23, 42, 0.06);
+}
+
+.pf-detail-panel + .pf-detail-panel {
+  margin-top: 0;
+}
+
+.pf-detail-section-head {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  font-size: 1.05rem;
+  font-weight: 700;
+  color: #1e293b;
+  margin-bottom: 1rem;
+}
+
+.pf-detail-section-head i {
+  color: var(--pf-admin-gold-muted);
+  font-size: 1rem;
+  opacity: 1;
+}
+
+.pf-stat-tile {
+  border-radius: 0.75rem;
+  padding: 0.9rem 1rem;
+  border: 1px solid #e2e8f0;
+  background: #ffffff;
+  border-top: 3px solid var(--pf-admin-blue);
+  transition: box-shadow 0.15s ease, border-color 0.15s ease;
+}
+
+.pf-stat-tile:hover {
+  box-shadow: 0 4px 16px -8px rgba(15, 39, 68, 0.2);
+  border-color: #cbd5e1;
+}
+
+.pf-stat-tile--amber {
+  border-top-color: var(--pf-admin-gold);
+}
+
+.pf-stat-tile--emerald {
+  border-top-color: #059669;
+}
+
+.pf-stat-tile--slate {
+  border-top-color: #64748b;
+}
+
+.pf-stat-tile--gold {
+  border-top-color: var(--pf-admin-gold-muted);
+}
+
+.pf-stat-label {
+  font-size: 0.625rem;
+  text-transform: uppercase;
+  letter-spacing: 0.07em;
+  color: var(--pf-muted);
+  font-weight: 600;
+}
+
+.pf-stat-value {
+  margin-top: 0.35rem;
+  font-size: 1.125rem;
+  font-weight: 800;
+  color: #0f172a;
+  line-height: 1.25;
+}
+
+.pf-detail-table-card {
+  border-radius: 0.75rem;
+  border: 1px solid var(--pf-border);
+  overflow: hidden;
+  background: #fff;
+}
+
+.pf-detail-table-card table {
+  margin: 0;
+}
+
+.pf-detail-table-card thead th {
+  background: #f1f5f9;
+}
+
+.pf-detail-product-img {
+  border-radius: 1rem;
+  overflow: hidden;
+  border: 1px solid var(--pf-border);
+  box-shadow: 0 10px 30px -12px rgba(15, 23, 42, 0.2);
+  background: #f1f5f9;
+}
+
+.pf-badge-soft {
+  display: inline-flex;
+  align-items: center;
+  padding: 0.25rem 0.65rem;
+  border-radius: 9999px;
+  font-size: 0.75rem;
+  font-weight: 600;
+}
+
+.pf-badge-soft--amber {
+  background: rgba(249, 168, 37, 0.2);
+  color: #713f12;
+}
+
+.pf-badge-soft--emerald {
+  background: rgba(52, 211, 153, 0.2);
+  color: #065f46;
+}
+
+.pf-badge-soft--red {
+  background: rgba(252, 165, 165, 0.25);
+  color: #991b1b;
+}
+
+.pf-badge-soft--slate {
+  background: rgba(148, 163, 184, 0.25);
+  color: #334155;
+}
+
+/* Rôles & permissions — fond et cartes (plats) */
+.pf-rp-main-bg {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  z-index: 0;
+  background: var(--pf-main-bg);
+  background-image: none;
+}
+
+.pf-rp-inner {
+  position: relative;
+  z-index: 1;
+}
+
+.pf-rp-hero {
+  position: relative;
+  overflow: hidden;
+  border-radius: 1rem;
+  padding: 1.4rem 1.55rem 1.55rem;
+  margin-bottom: 0.35rem;
+  background: var(--pf-admin-blue);
+  background-image: none;
+  color: #fff;
+  border: 1px solid rgba(255, 255, 255, 0.06);
+  box-shadow: 0 8px 20px -10px rgba(15, 23, 42, 0.35);
+}
+
+.pf-rp-hero::after {
+  display: none;
+}
+
+.pf-rp-hero-content {
+  position: relative;
+  z-index: 1;
+}
+
+.pf-rp-hero-title {
+  font-size: clamp(1.4rem, 2.4vw, 1.95rem);
+  font-weight: 800;
+  letter-spacing: -0.022em;
+  line-height: 1.18;
+  color: #ffffff;
+}
+
+.pf-rp-hero-kicker {
+  color: rgba(255, 255, 255, 0.95);
+  font-weight: 600;
+  letter-spacing: 0.14em;
+}
+
+.pf-rp-hero-sub {
+  margin-top: 0.55rem;
+  font-size: 0.9375rem;
+  color: rgba(255, 255, 255, 0.94);
+  max-width: 52rem;
+  line-height: 1.58;
+}
+
+.pf-rp-hero-sub strong {
+  color: #ffffff;
+}
+
+.pf-rp-edit-card {
+  border-radius: 1rem;
+  border: 1px solid rgba(249, 168, 37, 0.45);
+  background: #fffbf0;
+  box-shadow: 0 2px 8px rgba(15, 23, 42, 0.06);
+}
+
+/* Bulles messagerie admin (chat) */
+.pf-admin-chat-bubble {
+  background: var(--pf-admin-blue) !important;
+  color: #fff !important;
+}
+
+.pf-admin-chat-meta {
+  color: rgba(255, 255, 255, 0.78) !important;
+}
+
+/* Menu mobile */
+.pf-nav-toggle {
+  border: 1px solid rgba(255, 255, 255, 0.2);
+}
+
+.pf-admin-sidebar.translate-x-0 {
+  box-shadow: 8px 0 32px rgba(15, 23, 42, 0.35);
+}
+
+.pf-nav-badge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 1.35rem;
+  height: 1.35rem;
+  padding: 0 0.35rem;
+  border-radius: 9999px;
+  background: var(--pf-admin-gold);
+  color: var(--pf-admin-on-gold);
+  font-size: 0.65rem;
+  font-weight: 800;
+  line-height: 1;
+}
+
+.pf-nav-badge--muted {
+  background: rgba(255, 255, 255, 0.22);
+  color: #fff;
+}
+
+.pf-admin-pagination {
+  font-variant-numeric: tabular-nums;
+}
+
+.pf-nav-badge--urgent {
+  background: #dc2626;
+  color: #fff;
+  animation: pf-badge-pulse 1.1s ease-in-out infinite;
+}
+
+@keyframes pf-badge-pulse {
+  0%, 100% { opacity: 1; transform: scale(1); }
+  50% { opacity: 0.75; transform: scale(1.08); }
+}
+
+.pf-swal-urgence-adhesion {
+  animation: pf-urgence-blink 0.85s ease-in-out infinite !important;
+}
+
+@keyframes pf-urgence-blink {
+  0%, 100% { box-shadow: 0 0 0 0 rgba(220, 38, 38, 0.55); }
+  50% { box-shadow: 0 0 28px 6px rgba(220, 38, 38, 0.75); }
+}
+
+.pf-dash-alert {
+  border-radius: 1rem;
+  border: 1px solid #fcd34d;
+  background: #fffbeb;
+  padding: 1rem 1.25rem;
+}
+
+.pf-dash-kpi-link {
+  text-decoration: none;
+  color: inherit;
+  display: block;
+  transition: transform 0.15s ease, box-shadow 0.15s ease;
+}
+
+.pf-dash-kpi-link:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 8px 20px -8px rgba(15, 23, 42, 0.25);
+}
+
+@media (min-width: 1024px) {
+  body.pf-admin:not(.pf-sidebar-collapsed) #pf-admin-sidebar {
+    transform: none !important;
+  }
+}
+
+/* Sélecteur catégorie avec recherche */
+.pf-category-picker {
+  position: relative;
+}
+
+.pf-cat-picker-trigger {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem;
+  width: 100%;
+  border: 1px solid var(--pf-border);
+  border-radius: 0.5rem;
+  padding: 0.5rem 0.75rem;
+  font-size: 0.875rem;
+  background: #fff;
+  text-align: left;
+  cursor: pointer;
+}
+
+.pf-cat-picker-trigger:hover {
+  border-color: #94a3b8;
+}
+
+.pf-category-picker.pf-cat-picker-open .pf-cat-picker-trigger {
+  border-color: var(--pf-admin-gold);
+  box-shadow: 0 0 0 2px rgba(249, 168, 37, 0.25);
+}
+
+.pf-cat-picker-panel {
+  display: none;
+  position: absolute;
+  z-index: 200;
+  left: 0;
+  right: 0;
+  margin-top: 0.25rem;
+  background: #fff;
+  border: 1px solid var(--pf-border);
+  border-radius: 0.5rem;
+  box-shadow: 0 12px 28px -12px rgba(15, 23, 42, 0.35);
+  overflow: hidden;
+}
+
+.pf-category-picker.pf-cat-picker-open .pf-cat-picker-panel {
+  display: block;
+}
+
+.pf-product-form-section:has(.pf-cat-picker-open) {
+  overflow: visible;
+  position: relative;
+  z-index: 5;
+}
+
+.pf-cat-picker-search {
+  width: 100%;
+  border: 0;
+  border-bottom: 1px solid var(--pf-border);
+  padding: 0.5rem 0.75rem;
+  font-size: 0.875rem;
+  outline: none;
+}
+
+.pf-cat-picker-list {
+  max-height: 220px;
+  overflow-y: auto;
+  list-style: none;
+  margin: 0;
+  padding: 0.25rem 0;
+}
+
+.pf-cat-picker-option {
+  padding: 0.5rem 0.75rem;
+  font-size: 0.875rem;
+  cursor: pointer;
+}
+
+.pf-cat-picker-option:hover,
+.pf-cat-picker-option:focus {
+  background: #f1f5f9;
+}
+
+/* Sélecteur clients multi (message groupé) */
+.pf-client-multi-picker {
+  position: relative;
+  z-index: 1;
+}
+
+details:has(.pf-client-multi-picker.pf-cat-picker-open) {
+  overflow: visible;
+}
+
+.pf-client-multi-picker .pf-cat-picker-list {
+  max-height: 260px;
+}
+
+.pf-client-picker-option {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.5rem;
+}
+
+.pf-client-picker-option--on {
+  background: #ecfdf5;
+}
+
+.pf-client-picker-option--on:hover {
+  background: #d1fae5;
+}
+
+.pf-client-picker-check {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 1.1rem;
+  height: 1.1rem;
+  margin-top: 0.15rem;
+  border-radius: 0.25rem;
+  border: 1px solid #cbd5e1;
+  background: #fff;
+  flex-shrink: 0;
+  color: transparent;
+}
+
+.pf-client-picker-option--on .pf-client-picker-check {
+  background: var(--pf-admin-gold, #f59e0b);
+  border-color: var(--pf-admin-gold, #f59e0b);
+  color: #fff;
+}
+
+.pf-client-picker-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.35rem;
+  margin-top: 0.5rem;
+  min-height: 0;
+}
+
+.pf-client-picker-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  max-width: 100%;
+  padding: 0.2rem 0.5rem 0.2rem 0.65rem;
+  border-radius: 9999px;
+  background: #fff7ed;
+  border: 1px solid #fed7aa;
+  font-size: 0.75rem;
+  font-weight: 600;
+  color: #9a3412;
+}
+
+.pf-client-picker-chip-remove {
+  border: 0;
+  background: transparent;
+  color: #c2410c;
+  font-size: 1rem;
+  line-height: 1;
+  cursor: pointer;
+  padding: 0 0.15rem;
+}
+
+.pf-client-picker-chip-remove:hover {
+  color: #7c2d12;
+}
+
+.pf-client-multi-picker select.sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  border: 0;
+}
+
+.pf-product-form-section {
+  border: 1px solid var(--pf-border);
+  border-radius: 0.75rem;
+  padding: 1rem 1.25rem;
+  background: #fafbfc;
+}
+
+.pf-product-form-section h4 {
+  font-size: 0.8125rem;
+  font-weight: 600;
+  color: #334155;
+  margin: 0 0 0.75rem;
+}
+
+.pf-image-upload-slot label {
+  display: block;
+  font-size: 0.75rem;
+  font-weight: 500;
+  color: #64748b;
+  margin-bottom: 0.25rem;
+}
