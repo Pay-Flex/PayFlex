@@ -30,6 +30,7 @@ public class ContributionWorkflowService {
     private final PayflexProperties payflexProperties;
     private final UserInboxNotificationService inboxNotifications;
     private final ProductDeliveryService productDeliveryService;
+    private final AdminWebPushService adminWebPushService;
 
     public ContributionWorkflowService(
         JdbcTemplate jdbcTemplate,
@@ -38,7 +39,8 @@ public class ContributionWorkflowService {
         ContributionValidationAlertService alertService,
         PayflexProperties payflexProperties,
         UserInboxNotificationService inboxNotifications,
-        ProductDeliveryService productDeliveryService
+        ProductDeliveryService productDeliveryService,
+        AdminWebPushService adminWebPushService
     ) {
         this.jdbcTemplate = jdbcTemplate;
         this.permissionService = permissionService;
@@ -47,6 +49,7 @@ public class ContributionWorkflowService {
         this.payflexProperties = payflexProperties;
         this.inboxNotifications = inboxNotifications;
         this.productDeliveryService = productDeliveryService;
+        this.adminWebPushService = adminWebPushService;
     }
 
     public Long findAgentRowIdForClient(long clientUserId) {
@@ -371,10 +374,21 @@ public class ContributionWorkflowService {
         long expectedTotalFcfa,
         long collectedAmountFcfa,
         long debtRecordedFcfa,
-        int stillPendingCount
+        int stillPendingCount,
+        long surplusFcfa
     ) {}
 
     private record PendingCashLine(long id, double amount, Long agentUserId) {}
+
+    /** Ligne du tableau « Caisse par agent » : espèces en attente de rapprochement pour un agent. */
+    public record PendingCashAgentRow(
+        long agentId,
+        long agentUserId,
+        String fullName,
+        long pendingCount,
+        long expectedFcfa,
+        long cashDebtFcfa
+    ) {}
 
     /**
      * Rapprochement fin de journée : valide les espèces reçues en caisse (FIFO).
@@ -400,7 +414,7 @@ public class ContributionWorkflowService {
             )
         );
         if (lines.isEmpty()) {
-            return new CashReconcileResult(0, 0, 0, Math.round(collectedFcfa), 0, 0);
+            return new CashReconcileResult(0, 0, 0, Math.round(collectedFcfa), 0, 0, Math.round(collectedFcfa));
         }
 
         double totalExpected = lines.stream().mapToDouble(PendingCashLine::amount).sum();
@@ -475,7 +489,8 @@ public class ContributionWorkflowService {
             expectedRounded,
             collectedRounded,
             debtRecorded,
-            stillPending
+            stillPending,
+            Math.max(0, collectedRounded - expectedRounded)
         );
     }
 
@@ -486,6 +501,288 @@ public class ContributionWorkflowService {
     public int bulkValidatePendingCashCollections(String actorLogin) {
         CashReconcileResult r = reconcilePendingCash(pendingCashExpectedTotal(), actorLogin);
         return r.validatedCount();
+    }
+
+    /** Agents ayant des collectes espèces en attente de rapprochement (tableau « Caisse par agent »). */
+    public List<PendingCashAgentRow> listPendingCashByAgent() {
+        return jdbcTemplate.query(
+            """
+            SELECT a.id AS agent_id, a.user_id AS agent_user_id, u.full_name,
+                   COUNT(c.id) AS pending_count,
+                   COALESCE(SUM(c.amount), 0) AS expected_fcfa,
+                   COALESCE(a.cash_debt_fcfa, 0) AS cash_debt_fcfa
+            FROM contributions c
+            JOIN agents a ON a.id = c.agent_id
+            JOIN users u ON u.id = a.user_id
+            WHERE c.status = 'pending' AND LOWER(c.payment_mode) = 'cash'
+            GROUP BY a.id, a.user_id, u.full_name, a.cash_debt_fcfa
+            ORDER BY expected_fcfa DESC
+            """,
+            (rs, i) -> new PendingCashAgentRow(
+                rs.getLong("agent_id"),
+                rs.getLong("agent_user_id"),
+                rs.getString("full_name"),
+                rs.getLong("pending_count"),
+                Math.round(rs.getDouble("expected_fcfa")),
+                Math.round(rs.getDouble("cash_debt_fcfa"))
+            )
+        );
+    }
+
+    /** Espèces en attente d'un agent donné : {@code count} + {@code totalFcfa} (bloc Caisse fiche agent). */
+    public Map<String, Object> pendingCashSummaryForAgent(long agentId) {
+        Map<String, Object> row = jdbcTemplate.queryForMap(
+            """
+            SELECT COUNT(*) AS pending_count, COALESCE(SUM(amount), 0) AS expected_fcfa
+            FROM contributions
+            WHERE status = 'pending' AND LOWER(payment_mode) = 'cash' AND agent_id = ?
+            """,
+            agentId
+        );
+        Map<String, Object> out = new LinkedHashMap<>();
+        out.put("count", ((Number) row.get("pending_count")).longValue());
+        out.put("totalFcfa", Math.round(((Number) row.get("expected_fcfa")).doubleValue()));
+        return out;
+    }
+
+    /** Nombre de collectes espèces en attente sans agent rattaché (rapprochement global de secours). */
+    public long countPendingCashWithoutAgent() {
+        Long n = jdbcTemplate.queryForObject(
+            """
+            SELECT COUNT(*) FROM contributions
+            WHERE status = 'pending' AND LOWER(payment_mode) = 'cash' AND agent_id IS NULL
+            """,
+            Long.class
+        );
+        return n == null ? 0L : n;
+    }
+
+    /**
+     * Rapprochement de caisse PAR AGENT : valide les collectes espèces en attente de cet agent (FIFO)
+     * à hauteur du montant compté. En cas de manque, la dette est portée sur cet agent uniquement.
+     * Si le montant compté dépasse le total attendu, tout est validé et l'excédent est signalé
+     * dans le résultat (aucun crédit fictif enregistré en base).
+     */
+    @Transactional
+    public CashReconcileResult reconcilePendingCashForAgent(long agentId, double collectedFcfa, String actorLogin) {
+        if (collectedFcfa < 0) {
+            throw new IllegalArgumentException("Montant compté invalide.");
+        }
+        Long agentUserId;
+        try {
+            agentUserId = jdbcTemplate.queryForObject(
+                "SELECT user_id FROM agents WHERE id = ?",
+                Long.class,
+                agentId
+            );
+        } catch (EmptyResultDataAccessException ex) {
+            throw new IllegalArgumentException("Agent introuvable.");
+        }
+        if (agentUserId == null || agentUserId <= 0) {
+            throw new IllegalArgumentException("Agent introuvable.");
+        }
+        String agentName = agentDisplayName(agentUserId);
+        List<PendingCashLine> lines = jdbcTemplate.query(
+            """
+            SELECT c.id, c.amount, a.user_id AS agent_user_id
+            FROM contributions c
+            JOIN agents a ON a.id = c.agent_id
+            WHERE c.status = 'pending' AND LOWER(c.payment_mode) = 'cash' AND c.agent_id = ?
+            ORDER BY c.created_at ASC, c.id ASC
+            """,
+            (rs, i) -> new PendingCashLine(
+                rs.getLong("id"),
+                rs.getDouble("amount"),
+                rs.getObject("agent_user_id") == null ? null : rs.getLong("agent_user_id")
+            ),
+            agentId
+        );
+        long collectedRounded = Math.round(collectedFcfa);
+        if (lines.isEmpty()) {
+            return new CashReconcileResult(0, 0, 0, collectedRounded, 0, 0, collectedRounded);
+        }
+
+        double totalExpected = lines.stream().mapToDouble(PendingCashLine::amount).sum();
+        long expectedRounded = Math.round(totalExpected);
+        String actor = actorLogin == null ? "centre" : actorLogin;
+
+        double budget = collectedFcfa;
+        int validated = 0;
+        long validatedAmt = 0;
+        for (PendingCashLine line : lines) {
+            if (line.amount() <= budget + 0.009) {
+                applyValidation(line.id(), null, actor);
+                budget -= line.amount();
+                validated++;
+                validatedAmt += Math.round(line.amount());
+            } else {
+                break;
+            }
+        }
+
+        int stillPending = lines.size() - validated;
+        long debtRecorded = 0;
+        long surplus = Math.max(0, collectedRounded - expectedRounded);
+        if (collectedRounded < expectedRounded) {
+            debtRecorded = Math.max(0, Math.round(totalExpected - collectedFcfa));
+            if (debtRecorded > 0) {
+                recordAgentCashDebt(
+                    agentUserId,
+                    debtRecorded,
+                    collectedRounded,
+                    expectedRounded,
+                    "Rapprochement caisse agent incomplet — reliquat à rembourser au centre.",
+                    actor
+                );
+            }
+            auditService.logEquipe(
+                actor,
+                "Rapprochement caisse agent « " + agentName + " » incomplet : "
+                    + validated + " cotisation(s) validée(s) pour "
+                    + collectedRounded + " FCFA sur "
+                    + expectedRounded + " FCFA attendus. Dette agent : "
+                    + debtRecorded + " FCFA."
+            );
+        } else {
+            String surplusSuffix = surplus > 0
+                ? " Excédent compté de " + surplus + " FCFA à vérifier (non enregistré)."
+                : "";
+            auditService.logEquipe(
+                actor,
+                "Rapprochement caisse agent « " + agentName + " » complet : "
+                    + validated + " cotisation(s) validée(s) pour "
+                    + expectedRounded + " FCFA." + surplusSuffix
+            );
+        }
+
+        return new CashReconcileResult(
+            validated,
+            validatedAmt,
+            expectedRounded,
+            collectedRounded,
+            debtRecorded,
+            stillPending,
+            surplus
+        );
+    }
+
+    /** Historique des écarts de caisse (dettes) d'un agent — journal {@code agent_cash_debt_events}. */
+    public List<Map<String, Object>> listAgentCashDebtEvents(long agentUserId, int limit) {
+        return jdbcTemplate.queryForList(
+            """
+            SELECT id, amount_fcfa, collected_fcfa, expected_fcfa, note, created_by, created_at
+            FROM agent_cash_debt_events
+            WHERE agent_user_id = ?
+            ORDER BY created_at DESC, id DESC
+            LIMIT ?
+            """,
+            agentUserId,
+            Math.max(1, Math.min(limit, 100))
+        );
+    }
+
+    /** Historique des remboursements de dette d'un agent — table {@code agent_debt_repayments}. */
+    public List<Map<String, Object>> listAgentDebtRepayments(long agentUserId, int limit) {
+        return jdbcTemplate.queryForList(
+            """
+            SELECT id, amount_fcfa, note, created_by, created_at
+            FROM agent_debt_repayments
+            WHERE agent_user_id = ?
+            ORDER BY created_at DESC, id DESC
+            LIMIT ?
+            """,
+            agentUserId,
+            Math.max(1, Math.min(limit, 100))
+        );
+    }
+
+    /**
+     * Remboursement (total ou partiel) de la dette de caisse d'un agent, encaissé au centre.
+     */
+    @Transactional
+    public void recordAgentDebtRepayment(long agentId, long amountFcfa, String note, String adminUser) {
+        Long agentUserId;
+        try {
+            agentUserId = jdbcTemplate.queryForObject(
+                "SELECT user_id FROM agents WHERE id = ?",
+                Long.class,
+                agentId
+            );
+        } catch (EmptyResultDataAccessException ex) {
+            throw new IllegalArgumentException("Agent introuvable.");
+        }
+        if (agentUserId == null || agentUserId <= 0) {
+            throw new IllegalArgumentException("Agent introuvable.");
+        }
+        if (amountFcfa <= 0) {
+            throw new IllegalArgumentException("Montant de remboursement invalide.");
+        }
+        Double debt = jdbcTemplate.queryForObject(
+            "SELECT COALESCE(cash_debt_fcfa, 0) FROM agents WHERE id = ?",
+            Double.class,
+            agentId
+        );
+        long currentDebt = debt == null ? 0 : Math.round(debt);
+        if (currentDebt <= 0) {
+            throw new IllegalArgumentException("Cet agent n'a aucune dette de caisse à rembourser.");
+        }
+        if (amountFcfa > currentDebt) {
+            throw new IllegalArgumentException(
+                "Le remboursement (" + amountFcfa + " FCFA) dépasse la dette actuelle (" + currentDebt + " FCFA)."
+            );
+        }
+        String actor = adminUser == null ? "centre" : adminUser;
+        String cleanNote = note == null || note.isBlank() ? null : note.trim();
+        jdbcTemplate.update(
+            "UPDATE agents SET cash_debt_fcfa = cash_debt_fcfa - ? WHERE id = ?",
+            amountFcfa,
+            agentId
+        );
+        jdbcTemplate.update(
+            """
+            INSERT INTO agent_debt_repayments (agent_user_id, amount_fcfa, note, created_by)
+            VALUES (?, ?, ?, ?)
+            """,
+            agentUserId,
+            amountFcfa,
+            cleanNote,
+            actor
+        );
+        long remaining = currentDebt - amountFcfa;
+        auditService.logEquipe(
+            actor,
+            "Remboursement dette caisse de " + amountFcfa + " FCFA encaissé pour l'agent « "
+                + agentDisplayName(agentUserId) + " ». Dette restante : " + remaining + " FCFA."
+        );
+        auditService.logAgent(
+            agentUserId,
+            "Dette caisse -" + amountFcfa + " FCFA (remboursement au centre). Restant : " + remaining + " FCFA."
+        );
+        String inboxBody = remaining > 0
+            ? "Votre remboursement de " + amountFcfa + " FCFA a bien été enregistré au centre. "
+                + "Il vous reste " + remaining + " FCFA à régulariser."
+            : "Votre remboursement de " + amountFcfa + " FCFA a bien été enregistré au centre. "
+                + "Votre dette de caisse est entièrement soldée. Merci.";
+        inboxNotifications.notifyUser(
+            agentUserId,
+            "debt_repayment_recorded",
+            "Remboursement enregistré",
+            inboxBody,
+            null
+        );
+    }
+
+    private String agentDisplayName(long agentUserId) {
+        try {
+            String name = jdbcTemplate.queryForObject(
+                "SELECT full_name FROM users WHERE id = ?",
+                String.class,
+                agentUserId
+            );
+            return name != null && !name.isBlank() ? name.trim() : "Agent n° " + agentUserId;
+        } catch (EmptyResultDataAccessException ex) {
+            return "Agent n° " + agentUserId;
+        }
     }
 
     private double pendingCashExpectedTotal() {
@@ -529,6 +826,26 @@ public class ContributionWorkflowService {
         auditService.logAgent(
             agentUserId,
             "Dette caisse +" + amountFcfa + " FCFA (rapprochement incomplet — à rembourser)."
+        );
+        String agentName = agentDisplayName(agentUserId);
+        // Alerte centre (page cotisations) + Web Push admin + inbox agent.
+        alertService.createGeneral(
+            ContributionValidationAlertService.TYPE_AGENT_CASH_DEBT,
+            "Dette de caisse : manque de " + amountFcfa + " FCFA constaté pour l'agent " + agentName
+                + " (compté " + collectedFcfa + " FCFA sur " + expectedFcfa + " FCFA attendus)."
+        );
+        adminWebPushService.notifyAllAdmins(
+            "Dette de caisse agent",
+            "Manque de " + amountFcfa + " FCFA constaté pour " + agentName + " lors du comptage de caisse.",
+            "/admin/contributions?status=pending&paymentMode=cash"
+        );
+        inboxNotifications.notifyUser(
+            agentUserId,
+            "cash_debt_recorded",
+            "Écart de caisse constaté",
+            "Un manque de " + amountFcfa + " FCFA a été constaté lors du comptage de caisse. "
+                + "Merci de régulariser au centre.",
+            null
         );
     }
 

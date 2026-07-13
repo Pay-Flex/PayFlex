@@ -12,6 +12,7 @@ public class ContributionValidationAlertService {
     public static final String TYPE_AUTO_TIMEOUT = "auto_validated_timeout";
     public static final String TYPE_PAYDUNYA_APPROVED = "paydunya_approved";
     public static final String TYPE_PAYDUNYA_CANCELED = "paydunya_canceled";
+    public static final String TYPE_AGENT_CASH_DEBT = "agent_cash_debt";
 
     private final JdbcTemplate jdbcTemplate;
 
@@ -26,6 +27,18 @@ public class ContributionValidationAlertService {
             VALUES (?, ?, ?)
             """,
             contributionId,
+            alertType,
+            message
+        );
+    }
+
+    /** Alerte centre sans cotisation liée (ex. dette de caisse constatée sur un agent). */
+    public void createGeneral(String alertType, String message) {
+        jdbcTemplate.update(
+            """
+            INSERT INTO contribution_validation_alerts (contribution_id, alert_type, message)
+            VALUES (NULL, ?, ?)
+            """,
             alertType,
             message
         );

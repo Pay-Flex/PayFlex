@@ -1540,8 +1540,8 @@ public class AdminCrudService {
             """
             SELECT
               u.id AS user_id, u.full_name, u.phone, u.city, u.profession, u.status,
-              COALESCE(SUM(c.amount), 0) AS total_contributed,
-              COUNT(c.id) AS contributions_count,
+              COALESCE(SUM(CASE WHEN c.status = 'validated' THEN c.amount ELSE 0 END), 0) AS total_contributed,
+              COUNT(CASE WHEN c.status = 'validated' THEN 1 END) AS contributions_count,
               MAX(c.created_at) AS last_contribution_at
             FROM users u
             LEFT JOIN contributions c ON c.user_id = u.id AND c.agent_id = ?
@@ -1605,9 +1605,9 @@ public class AdminCrudService {
               u.id, u.full_name, u.phone, u.city, u.profession, u.status, u.unique_code,
               u.catchup_pending_cached, u.catchup_snapshot_month,
               ag.full_name AS assigned_agent_name, ag.phone AS assigned_agent_phone,
-              COALESCE(SUM(c.amount), 0) AS total_contributed,
-              COUNT(c.id) AS contributions_count,
-              COALESCE(AVG(c.amount), 0) AS avg_contribution,
+              COALESCE(SUM(CASE WHEN c.status = 'validated' THEN c.amount ELSE 0 END), 0) AS total_contributed,
+              COUNT(CASE WHEN c.status = 'validated' THEN 1 END) AS contributions_count,
+              COALESCE(AVG(CASE WHEN c.status = 'validated' THEN c.amount END), 0) AS avg_contribution,
               MAX(c.created_at) AS last_contribution_at,
               COUNT(DISTINCT c.product_id) AS distinct_products,
               COUNT(DISTINCT c.agent_id) AS distinct_agents
@@ -1724,7 +1724,8 @@ public class AdminCrudService {
             """
             SELECT DATE_FORMAT(created_at, '%Y-%m') AS label, COALESCE(SUM(amount), 0) AS value
             FROM contributions
-            WHERE user_id = ? AND created_at >= DATE_SUB(NOW(), INTERVAL 12 MONTH)
+            WHERE user_id = ? AND status = 'validated'
+              AND created_at >= DATE_SUB(NOW(), INTERVAL 12 MONTH)
             GROUP BY DATE_FORMAT(created_at, '%Y-%m')
             ORDER BY label
             """,
@@ -1740,9 +1741,9 @@ public class AdminCrudService {
               p.id, p.code, p.name, pc.label AS category, p.price, p.min_daily_contribution, p.availability, p.description, p.image_url,
               p.featured, p.image_main_path, p.image_detail_1_path, p.image_detail_2_path,
               COUNT(DISTINCT c.user_id) AS selected_by_clients,
-              COUNT(c.id) AS contributions_count,
-              COALESCE(SUM(c.amount), 0) AS total_amount,
-              COALESCE(AVG(c.amount), 0) AS avg_amount
+              COUNT(CASE WHEN c.status = 'validated' THEN 1 END) AS contributions_count,
+              COALESCE(SUM(CASE WHEN c.status = 'validated' THEN c.amount ELSE 0 END), 0) AS total_amount,
+              COALESCE(AVG(CASE WHEN c.status = 'validated' THEN c.amount END), 0) AS avg_amount
             FROM products p
             JOIN product_categories pc ON pc.id = p.category_id
             LEFT JOIN contributions c ON c.product_id = p.id

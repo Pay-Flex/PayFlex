@@ -68,6 +68,24 @@ public class AdminNavService {
         return n == null ? 0L : Math.round(n);
     }
 
+    /** Agents ayant une dette de caisse active (> 0) — à régulariser au centre. */
+    public long agentsWithActiveDebt() {
+        Long n = jdbcTemplate.queryForObject(
+            "SELECT COUNT(*) FROM agents WHERE COALESCE(cash_debt_fcfa, 0) > 0",
+            Long.class
+        );
+        return n == null ? 0L : n;
+    }
+
+    /** Montant total des dettes de caisse agents encore dues. */
+    public long agentsActiveDebtTotalFcfa() {
+        Double n = jdbcTemplate.queryForObject(
+            "SELECT COALESCE(SUM(cash_debt_fcfa), 0) FROM agents WHERE COALESCE(cash_debt_fcfa, 0) > 0",
+            Double.class
+        );
+        return n == null ? 0L : Math.round(n);
+    }
+
     /** Conversations avec au moins un message client (fil actif). */
     public long pendingDeletionRequests() {
         Long n = jdbcTemplate.queryForObject(

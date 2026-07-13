@@ -1139,6 +1139,8 @@ public class AdminViewController {
         if (contributionValidationAlertService.countUnread() > 0) {
             model.addAttribute("contributionAlerts", contributionValidationAlertService.listUnread(15));
         }
+        model.addAttribute("cashByAgent", contributionWorkflowService.listPendingCashByAgent());
+        model.addAttribute("pendingCashUnassigned", contributionWorkflowService.countPendingCashWithoutAgent());
         return "contributions";
     }
 
@@ -1216,6 +1218,60 @@ public class AdminViewController {
                 + "&status=pending&paymentMode=cash";
         } catch (IllegalArgumentException ex) {
             return redirectError("/admin/contributions", ex.getMessage());
+        }
+    }
+
+    /**
+     * Rapprochement de caisse PAR AGENT (flux principal) : le montant compté ne couvre que
+     * les collectes de cet agent ; un manque devient une dette de cet agent uniquement.
+     * {@code from=agent} : retour sur la fiche agent au lieu de la liste des cotisations.
+     */
+    @PostMapping("/admin/agents/{agentId}/reconcile-cash")
+    public String reconcileCashForAgent(
+        @PathVariable long agentId,
+        @RequestParam double collectedFcfa,
+        @RequestParam(required = false) String from,
+        Principal principal
+    ) {
+        String base = "agent".equals(from) ? "/admin/agents/" + agentId : "/admin/contributions";
+        try {
+            ContributionWorkflowService.CashReconcileResult r =
+                contributionWorkflowService.reconcilePendingCashForAgent(agentId, collectedFcfa, principal.getName());
+            adminAuditService.logEquipe(
+                principal.getName(),
+                "Rapprochement caisse agent #" + agentId + " : " + r.validatedCount()
+                    + " cotisation(s) validée(s), compté " + r.collectedAmountFcfa()
+                    + " FCFA / attendu " + r.expectedTotalFcfa() + " FCFA"
+                    + (r.debtRecordedFcfa() > 0 ? ", dette " + r.debtRecordedFcfa() + " FCFA" : "")
+                    + (r.surplusFcfa() > 0 ? ", excédent signalé " + r.surplusFcfa() + " FCFA" : "")
+                    + "."
+            );
+            return "redirect:" + base + "?success=reconcileAgent"
+                + "&validated=" + r.validatedCount()
+                + "&debt=" + r.debtRecordedFcfa()
+                + "&pending=" + r.stillPendingCount()
+                + "&collected=" + r.collectedAmountFcfa()
+                + "&expected=" + r.expectedTotalFcfa()
+                + "&surplus=" + r.surplusFcfa();
+        } catch (IllegalArgumentException ex) {
+            return redirectError(base, ex.getMessage());
+        }
+    }
+
+    /** Remboursement (total ou partiel) de la dette de caisse d'un agent, encaissé au centre. */
+    @PostMapping("/admin/agents/{agentId}/debt-repayment")
+    public String recordAgentDebtRepayment(
+        @PathVariable long agentId,
+        @RequestParam long amountFcfa,
+        @RequestParam(required = false) String note,
+        Principal principal
+    ) {
+        String base = "/admin/agents/" + agentId;
+        try {
+            contributionWorkflowService.recordAgentDebtRepayment(agentId, amountFcfa, note, principal.getName());
+            return "redirect:" + base + "?success=repayment&amount=" + amountFcfa;
+        } catch (IllegalArgumentException ex) {
+            return redirectError(base, ex.getMessage());
         }
     }
 
@@ -1654,9 +1710,13 @@ public class AdminViewController {
     @GetMapping("/admin/agents/{agentId}")
     public String agentDetails(@org.springframework.web.bind.annotation.PathVariable long agentId, Model model) {
         model.addAttribute("activePage", "agents");
-        model.addAttribute("agentDetails", adminCrudService.getAgentDetails(agentId));
+        var details = adminCrudService.getAgentDetails(agentId);
+        model.addAttribute("agentDetails", details);
         model.addAttribute("agentClients", adminCrudService.getAgentClients(agentId));
         model.addAttribute("agentRecentContributions", adminCrudService.getRecentContributionsForAgent(agentId, 25));
+        model.addAttribute("agentPendingCash", contributionWorkflowService.pendingCashSummaryForAgent(agentId));
+        model.addAttribute("agentDebtEvents", contributionWorkflowService.listAgentCashDebtEvents(details.userId(), 20));
+        model.addAttribute("agentDebtRepayments", contributionWorkflowService.listAgentDebtRepayments(details.userId(), 20));
         return "agent-detail";
     }
 

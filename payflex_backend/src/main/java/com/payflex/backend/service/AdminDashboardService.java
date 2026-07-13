@@ -51,7 +51,8 @@ public class AdminDashboardService {
             """
             SELECT DAYOFWEEK(created_at) AS dow, COALESCE(SUM(amount), 0) AS total
             FROM contributions
-            WHERE created_at >= DATE_SUB(NOW(), INTERVAL 7 DAY)
+            WHERE status = 'validated'
+              AND created_at >= DATE_SUB(NOW(), INTERVAL 7 DAY)
             GROUP BY DAYOFWEEK(created_at)
             """,
             rs -> {
@@ -84,10 +85,10 @@ public class AdminDashboardService {
             String agentsSql = """
                 SELECT u.full_name AS agent_name,
                        COUNT(DISTINCT c.user_id) AS clients_count,
-                       COALESCE(SUM(c.amount), 0) AS collected_amount,
+                       COALESCE(SUM(CASE WHEN c.status = 'validated' THEN c.amount ELSE 0 END), 0) AS collected_amount,
                        CASE
                          WHEN COALESCE(obj.terrain_objective, 0) <= 0 THEN 0
-                         ELSE LEAST((COALESCE(SUM(c.amount), 0) / NULLIF(obj.terrain_objective, 0)) * 100, 100)
+                         ELSE LEAST((COALESCE(SUM(CASE WHEN c.status = 'validated' THEN c.amount ELSE 0 END), 0) / NULLIF(obj.terrain_objective, 0)) * 100, 100)
                        END AS objective_percent
                 FROM agents a
                 JOIN users u ON u.id = a.user_id
@@ -116,7 +117,7 @@ public class AdminDashboardService {
                 """
                 SELECT u.full_name AS agent_name,
                        COUNT(DISTINCT c.user_id) AS clients_count,
-                       COALESCE(SUM(c.amount), 0) AS collected_amount
+                       COALESCE(SUM(CASE WHEN c.status = 'validated' THEN c.amount ELSE 0 END), 0) AS collected_amount
                 FROM agents a
                 JOIN users u ON u.id = a.user_id
                 LEFT JOIN contributions c ON c.agent_id = a.id
@@ -187,7 +188,8 @@ public class AdminDashboardService {
     public List<StatPoint> topClients() {
         return jdbcTemplate.query(
             """
-            SELECT u.full_name AS label, COALESCE(SUM(c.amount), 0) AS value
+            SELECT u.full_name AS label,
+                   COALESCE(SUM(CASE WHEN c.status = 'validated' THEN c.amount ELSE 0 END), 0) AS value
             FROM users u
             LEFT JOIN contributions c ON c.user_id = u.id
             WHERE u.role_id = (SELECT id FROM roles WHERE code = 'client' LIMIT 1)
@@ -204,7 +206,8 @@ public class AdminDashboardService {
             """
             SELECT DATE_FORMAT(created_at, '%Y-%m') AS label, COALESCE(SUM(amount), 0) AS value
             FROM contributions
-            WHERE created_at >= DATE_SUB(NOW(), INTERVAL 6 MONTH)
+            WHERE status = 'validated'
+              AND created_at >= DATE_SUB(NOW(), INTERVAL 6 MONTH)
             GROUP BY DATE_FORMAT(created_at, '%Y-%m')
             ORDER BY label
             """,

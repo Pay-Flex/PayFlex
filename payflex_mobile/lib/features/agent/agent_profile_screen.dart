@@ -301,12 +301,37 @@ class _AgentProfileScreenState extends ConsumerState<AgentProfileScreen> {
                   'Écart constaté lors du rapprochement. Merci de rembourser ce montant au centre.',
                   style: GoogleFonts.inter(fontSize: 12, color: const Color(0xFF9F1239), height: 1.35),
                 ),
+                if (_lastRepaymentLabel() != null) ...[
+                  const SizedBox(height: 6),
+                  Text(
+                    _lastRepaymentLabel()!,
+                    style: GoogleFonts.inter(fontSize: 12, fontWeight: FontWeight.w600, color: const Color(0xFFBE123C)),
+                  ),
+                ],
               ],
             ),
           ),
         ],
       ),
     );
+  }
+
+  String? _lastRepaymentLabel() {
+    if (!_hasData) return null;
+    final amount = (_profile!['lastDebtRepaymentFcfa'] as num?)?.toInt();
+    if (amount == null || amount <= 0) return null;
+    final rawDate = _profile!['lastDebtRepaymentAt']?.toString();
+    String? dateLabel;
+    if (rawDate != null && rawDate.isNotEmpty) {
+      final parsed = DateTime.tryParse(rawDate);
+      if (parsed != null) {
+        dateLabel = '${parsed.day.toString().padLeft(2, '0')}/'
+            '${parsed.month.toString().padLeft(2, '0')}/${parsed.year}';
+      }
+    }
+    return dateLabel != null
+        ? 'Dernier remboursement : $amount FCFA le $dateLabel.'
+        : 'Dernier remboursement : $amount FCFA.';
   }
 
   Widget _buildStatsGrid() {
