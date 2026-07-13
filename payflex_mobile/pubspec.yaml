@@ -49,7 +49,14 @@ dependencies:
   path_provider: ^2.1.5
   path: ^1.9.1
   flutter_local_notifications: ^19.0.0
+  workmanager: ^0.7.0
   intl_phone_field: ^3.2.0
+  url_launcher: ^6.3.1
+  shared_preferences: ^2.5.5
+  local_auth: ^3.0.1
+  flutter_native_splash: ^2.4.6
+  firebase_core: ^4.12.0
+  firebase_messaging: ^16.4.2
 
 dev_dependencies:
   flutter_test:
@@ -61,6 +68,7 @@ dev_dependencies:
   # package. See that file for information about deactivating specific lint
   # rules and activating additional ones.
   flutter_lints: ^6.0.0
+  flutter_launcher_icons: ^0.14.3
 
 # For information on the generic Dart part of this file, see the
 # following page: https://dart.dev/tools/pub/pubspec
@@ -76,6 +84,7 @@ flutter:
   assets:
     - assets/images/
     - assets/icons/
+    - assets/splash/
     - assets/animations/
 
   # An image asset can refer to one or more resolution-specific "variants", see
@@ -103,3 +112,26 @@ flutter:
   #
   # For details regarding fonts from package dependencies,
   # see https://flutter.dev/to/font-from-package
+
+flutter_launcher_icons:
+  android: true
+  ios: true
+  image_path: assets/icons/logo.png
+  adaptive_icon_background: "#FFFFFF"
+  adaptive_icon_foreground: assets/icons/logo.png
+  web:
+    generate: true
+    image_path: assets/icons/logo.png
+    background_color: "#FFFFFF"
+    theme_color: "#003366"
+
+flutter_native_splash:
+  color: "#FDFDFD"
+  background_image: assets/splash/splash_background.png
+  image: assets/splash/splash_branding.png
+  android: true
+  ios: true
+  web: true
+  android_12:
+    color: "#FDFDFD"
+    image: assets/splash/splash_android12.png

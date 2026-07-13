@@ -278,4 +278,157 @@
       });
     }
   };
+
+  function pfResolveCsrf() {
+    const metaToken = document.querySelector('meta[name="_csrf"]');
+    const metaParam = document.querySelector('meta[name="_csrf_parameter"]');
+    if (metaToken && metaToken.content) {
+      return {
+        name: (metaParam && metaParam.content) || '_csrf',
+        token: metaToken.content,
+      };
+    }
+    const input = document.querySelector('input[name="_csrf"]');
+    if (input && input.value) {
+      return { name: input.name || '_csrf', token: input.value };
+    }
+    return null;
+  }
+
+  async function pfAskAdminPassword() {
+    if (typeof Swal !== 'undefined') {
+      const result = await Swal.fire({
+        title: 'Mot de passe administrateur',
+        input: 'password',
+        inputLabel: 'Confirmez votre identité pour afficher les accès client',
+        inputAttributes: { autocapitalize: 'off', autocorrect: 'off', autocomplete: 'current-password' },
+        showCancelButton: true,
+        confirmButtonText: 'Afficher',
+        cancelButtonText: 'Annuler',
+        inputValidator: (value) => {
+          if (!value || !String(value).trim()) {
+            return 'Saisissez votre mot de passe administrateur.';
+          }
+          return undefined;
+        },
+      });
+      if (!result.isConfirmed) return null;
+      return String(result.value || '').trim();
+    }
+    const fallback = window.prompt('Mot de passe administrateur :');
+    return fallback && fallback.trim() ? fallback.trim() : null;
+  }
+
+  window.pfAdminRevealClientCredential = async function pfAdminRevealClientCredential(clientId, field) {
+    const cid = Number(clientId);
+    if (!cid || cid <= 0) {
+      if (typeof Swal !== 'undefined') {
+        Swal.fire({ icon: 'error', title: 'Erreur', text: 'Client introuvable sur cette fiche.' });
+      }
+      return;
+    }
+    const csrf = pfResolveCsrf();
+    if (!csrf || !csrf.token) {
+      if (typeof Swal !== 'undefined') {
+        Swal.fire({
+          icon: 'error',
+          title: 'Session expirée',
+          text: 'Rechargez la page puis réessayez.',
+        });
+      }
+      return;
+    }
+    const adminPassword = await pfAskAdminPassword();
+    if (!adminPassword) return;
+
+    const body = new URLSearchParams();
+    body.set(csrf.name, csrf.token);
+    body.set('adminPassword', adminPassword);
+
+    try {
+      const res = await fetch('/admin/clients/' + cid + '/credentials/reveal', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/x-www-form-urlencoded',
+          Accept: 'application/json',
+        },
+        credentials: 'same-origin',
+        body: body.toString(),
+      });
+      let data = {};
+      const contentType = res.headers.get('content-type') || '';
+      const raw = await res.text();
+      if (contentType.includes('application/json')) {
+        try {
+          data = raw ? JSON.parse(raw) : {};
+        } catch (parseErr) {
+          throw new Error('Réponse JSON invalide du serveur.');
+        }
+      } else if (raw.trim().startsWith('<')) {
+        throw new Error(
+          res.status === 403
+            ? 'Accès refusé. Rechargez la page ou reconnectez-vous.'
+            : 'Le serveur a renvoyé une page HTML au lieu des identifiants. Rechargez la page puis réessayez.'
+        );
+      } else if (!res.ok) {
+        throw new Error('Réponse serveur invalide (' + res.status + ').');
+      }
+      if (!res.ok || data.error) {
+        if (typeof Swal !== 'undefined') {
+          Swal.fire({
+            icon: 'error',
+            title: 'Accès refusé',
+            text: data.error || 'Mot de passe administrateur incorrect ou session expirée.',
+          });
+        }
+        return;
+      }
+      const pinEl = document.getElementById('pfCredPin');
+      const passEl = document.getElementById('pfCredPassword');
+      const pinValue = data.pin && data.pin !== '—' ? data.pin : '—';
+      const passValue = data.accountPassword && data.accountPassword !== '—' ? data.accountPassword : '—';
+      if (field === 'pin' || field === 'accountPassword') {
+        if (field === 'pin' && pinEl) pinEl.textContent = pinValue;
+        if (field === 'accountPassword' && passEl) passEl.textContent = passValue;
+      } else {
+        if (pinEl) pinEl.textContent = pinValue;
+        if (passEl) passEl.textContent = passValue;
+      }
+      const hint = field === 'pin' ? data.pinHint : data.passwordHint;
+      if (hint && typeof Swal !== 'undefined') {
+        Swal.fire({ icon: 'info', title: 'Identifiant non archivé', text: hint });
+      }
+      if (field === 'pin' && pinEl) pinEl.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+      if (field === 'accountPassword' && passEl) passEl.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+    } catch (err) {
+      if (typeof Swal !== 'undefined') {
+        Swal.fire({
+          icon: 'error',
+          title: 'Échec',
+          text: err && err.message ? err.message : 'Impossible d’afficher les identifiants.',
+        });
+      }
+    }
+  };
+
+  function pfBindCredentialRevealButtons() {
+    document.querySelectorAll('[data-pf-reveal-cred]').forEach((btn) => {
+      if (btn.dataset.pfRevealBound === '1') return;
+      btn.dataset.pfRevealBound = '1';
+      btn.addEventListener('click', (ev) => {
+        ev.preventDefault();
+        const clientId = btn.getAttribute('data-pf-client-id');
+        const field = btn.getAttribute('data-pf-reveal-cred');
+        if (typeof window.pfAdminRevealClientCredential === 'function') {
+          window.pfAdminRevealClientCredential(clientId, field);
+        }
+      });
+    });
+  }
+
+  if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', pfBindCredentialRevealButtons);
+  } else {
+    pfBindCredentialRevealButtons();
+  }
 })();

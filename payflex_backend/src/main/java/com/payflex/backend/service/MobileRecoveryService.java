@@ -21,11 +21,20 @@ public class MobileRecoveryService {
 
     private final JdbcTemplate jdbcTemplate;
     private final CredentialHashService credentialHashService;
+    private final CredentialVaultService credentialVaultService;
+    private final AdminClientCredentialService adminClientCredentialService;
     private final SecureRandom secureRandom = new SecureRandom();
 
-    public MobileRecoveryService(JdbcTemplate jdbcTemplate, CredentialHashService credentialHashService) {
+    public MobileRecoveryService(
+        JdbcTemplate jdbcTemplate,
+        CredentialHashService credentialHashService,
+        CredentialVaultService credentialVaultService,
+        AdminClientCredentialService adminClientCredentialService
+    ) {
         this.jdbcTemplate = jdbcTemplate;
         this.credentialHashService = credentialHashService;
+        this.credentialVaultService = credentialVaultService;
+        this.adminClientCredentialService = adminClientCredentialService;
     }
 
     /**
@@ -117,11 +126,22 @@ public class MobileRecoveryService {
         long userId = ((Number) rows.get(0).get("user_id")).longValue();
 
         String hashed = credentialHashService.hashMobileCredential(pin);
-        jdbcTemplate.update("UPDATE users SET pin = ?, secret_code = ? WHERE id = ?", hashed, hashed, userId);
+        jdbcTemplate.update(
+            "UPDATE users SET pin = ?, secret_code = ?, account_password = ? WHERE id = ?",
+            hashed,
+            hashed,
+            hashed,
+            userId
+        );
+        credentialVaultService.storeForUser(userId, pin, pin);
         jdbcTemplate.update(
             "UPDATE mobile_password_reset_tokens SET used_at = NOW() WHERE id = ?",
             tokenId
         );
+    }
+
+    public Map<String, Object> requestCallbackAssistance(String phone, String fullName) {
+        return adminClientCredentialService.requestMobileCallback(phone, fullName);
     }
 
     private static String normalizeInput(String s) {

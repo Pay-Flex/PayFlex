@@ -10,6 +10,11 @@ import '../../core/providers/finance_provider.dart';
 import '../../core/providers/navigation_provider.dart';
 import '../../core/providers/auth_provider.dart';
 import '../../core/network/mobile_api_service.dart';
+import '../../core/utils/money_format.dart';
+import '../../core/widgets/payflex_phone_field.dart';
+import '../../core/utils/phone_input_utils.dart';
+import 'contribution_receipt_screen.dart';
+import 'payment_success_screen.dart';
 
 class PaymentScreen extends ConsumerStatefulWidget {
   const PaymentScreen({super.key});
@@ -24,6 +29,9 @@ class _PaymentScreenState extends ConsumerState<PaymentScreen> {
   String _selectedMobileProvider = 'Flooz';
   String? _selectedProjectId;
   bool _isProcessing = false;
+  bool _useAlternatePayerPhone = false;
+  final TextEditingController _payerPhoneController = TextEditingController();
+  final GlobalKey<FormState> _payerPhoneFormKey = GlobalKey<FormState>();
 
   final List<String> _presetsExtra = ['1000', '2500', '5000', '10000', '25000'];
   final _mobileApi = MobileApiService();
@@ -31,6 +39,7 @@ class _PaymentScreenState extends ConsumerState<PaymentScreen> {
   @override
   void dispose() {
     _amountController.dispose();
+    _payerPhoneController.dispose();
     super.dispose();
   }
 
@@ -79,6 +88,7 @@ class _PaymentScreenState extends ConsumerState<PaymentScreen> {
 
     return Scaffold(
       backgroundColor: const Color(0xFFF8FAFC),
+      resizeToAvoidBottomInset: true,
       appBar: AppBar(
         backgroundColor: Colors.transparent,
         elevation: 0,
@@ -182,7 +192,7 @@ class _PaymentScreenState extends ConsumerState<PaymentScreen> {
                           border: Border.all(color: AppColors.primary.withOpacity(0.3)),
                         ),
                         child: Text(
-                          '${financeState.balance.toInt()} FCFA',
+                          formatFcfaLong(financeState.balance),
                           style: GoogleFonts.manrope(color: AppColors.primary, fontWeight: FontWeight.w900, fontSize: 12),
                         ),
                       ),
@@ -233,7 +243,7 @@ class _PaymentScreenState extends ConsumerState<PaymentScreen> {
                 if (daily > 0) ...[
                   const SizedBox(height: 8),
                   Text(
-                    'Référence plan : ~${daily.toStringAsFixed(0)} FCFA / jour pour ce projet.',
+                    'Référence plan : ~${formatFcfaLong(daily)} / jour pour ce projet.',
                     style: GoogleFonts.inter(fontSize: 11, color: AppColors.secondary.withOpacity(0.45)),
                   ),
                 ],
@@ -276,7 +286,7 @@ class _PaymentScreenState extends ConsumerState<PaymentScreen> {
                       const SizedBox(height: 16),
                       // Presets
                       Wrap(
-                        spacing: 8, runSpacing: 8,
+                        spacing: 10, runSpacing: 10,
                         alignment: WrapAlignment.center,
                         children: presets.map((p) {
                           final isSelected = _amountController.text == p;
@@ -284,18 +294,20 @@ class _PaymentScreenState extends ConsumerState<PaymentScreen> {
                             onTap: () => setState(() => _amountController.text = p),
                             child: AnimatedContainer(
                               duration: 200.ms,
-                              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+                              constraints: const BoxConstraints(minWidth: 64, minHeight: 48),
+                              alignment: Alignment.center,
+                              padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 12),
                               decoration: BoxDecoration(
                                 color: isSelected ? AppColors.primary : AppColors.secondary.withOpacity(0.05),
-                                borderRadius: BorderRadius.circular(12),
+                                borderRadius: BorderRadius.circular(14),
                                 border: Border.all(color: isSelected ? AppColors.primary : Colors.transparent),
                               ),
                               child: Text(
-                                '${int.parse(p) >= 1000 ? "${int.parse(p) ~/ 1000}k" : p} F',
+                                formatFcfa(int.parse(p)),
                                 style: GoogleFonts.manrope(
                                   fontWeight: FontWeight.w800,
-                                  color: isSelected ? AppColors.secondary : AppColors.secondary.withOpacity(0.5),
-                                  fontSize: 13,
+                                  color: isSelected ? AppColors.secondary : AppColors.secondary.withOpacity(0.6),
+                                  fontSize: 15,
                                 ),
                               ),
                             ),
@@ -378,6 +390,8 @@ class _PaymentScreenState extends ConsumerState<PaymentScreen> {
                       ],
                     ),
                   ),
+                  const SizedBox(height: 12),
+                  _payerPhoneSection(),
                 ],
 
                 const SizedBox(height: 36),
@@ -475,10 +489,20 @@ class _PaymentScreenState extends ConsumerState<PaymentScreen> {
     final amount = double.tryParse(_amountController.text) ?? 0;
     if (amount <= 0) return;
 
+    final paymentMode = _selectedMethod == 'mobile_money' ? 'mobile_money' : 'cash';
+
+    String? payerPhone;
+    if (paymentMode == 'mobile_money' && _useAlternatePayerPhone) {
+      if (!(_payerPhoneFormKey.currentState?.validate() ?? false)) {
+        return;
+      }
+      final entered = _payerPhoneController.text.trim();
+      if (entered.isNotEmpty) payerPhone = entered;
+    }
+
     setState(() => _isProcessing = true);
 
     final auth = ref.read(authProvider);
-    final paymentMode = _selectedMethod == 'mobile_money' ? 'mobile_money' : 'cash';
     final productIdApi = _selectedProjectId != null
         ? int.tryParse(_selectedProjectId!.replaceAll(RegExp(r'[^0-9]'), ''))
         : null;
@@ -490,6 +514,7 @@ class _PaymentScreenState extends ConsumerState<PaymentScreen> {
         userId: auth.userId!,
         amount: amount,
         productId: productIdApi,
+        payerPhone: payerPhone,
       );
       final fedapayOn = fedapayInit?['fedapayEnabled'] == true;
       if (fedapayOn && (fedapayInit?['paymentUrl']?.toString().isNotEmpty ?? false)) {
@@ -598,11 +623,15 @@ class _PaymentScreenState extends ConsumerState<PaymentScreen> {
   }) {
     final fin = ref.read(financeProvider);
     double rate = 0;
+    String? productName;
     if (_selectedProjectId != null) {
       try {
-        rate = fin.projects.firstWhere((p) => p.id == _selectedProjectId).dailySuggested;
+        final p = fin.projects.firstWhere((p) => p.id == _selectedProjectId);
+        rate = p.dailySuggested;
+        productName = p.title;
       } catch (_) {
         rate = fin.projects.isNotEmpty ? fin.projects.first.dailySuggested : 0;
+        productName = fin.projects.isNotEmpty ? fin.projects.first.title : null;
       }
     }
     final slotsApprox = rate > 0 ? (amount / rate).floor() : _casesCount;
@@ -610,117 +639,133 @@ class _PaymentScreenState extends ConsumerState<PaymentScreen> {
 
     final refTx = 'PF-${DateTime.now().millisecondsSinceEpoch}';
     final paidAt = DateTime.now();
-    showDialog(
-      context: context,
-      barrierDismissible: false,
-      builder: (dialogContext) => BackdropFilter(
-        filter: ImageFilter.blur(sigmaX: 5, sigmaY: 5),
-        child: AlertDialog(
-          backgroundColor: Colors.white,
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(32)),
-          content: Column(
-            mainAxisSize: MainAxisSize.min,
+    final paymentModeLabel =
+        _selectedMethod == 'mobile_money' ? 'Payé via $_selectedMobileProvider' : 'Payé en espèces (Agent)';
+
+    Navigator.of(context).push(
+      MaterialPageRoute<void>(
+        fullscreenDialog: true,
+        builder: (screenContext) => PaymentSuccessScreen(
+          amount: amount,
+          awaitingAgentValidation: awaitingAgentValidation,
+          fedapayConfirmed: fedapayConfirmed,
+          paymentModeLabel: paymentModeLabel,
+          slotsCount: slotsLabel,
+          productName: productName,
+          onDone: () {
+            ref.read(navigationIndexProvider.notifier).setIndex(0);
+            Navigator.of(screenContext).pop();
+          },
+          onViewReceipt: () {
+            Navigator.of(screenContext).pop();
+            Navigator.push(
+              context,
+              MaterialPageRoute(
+                builder: (_) => ContributionReceiptScreen(
+                  amount: amount,
+                  reference: refTx,
+                  paidAt: paidAt,
+                  paymentModeLabel: paymentModeLabel,
+                  slotsCount: slotsLabel,
+                  awaitingValidation: awaitingAgentValidation,
+                ),
+              ),
+            );
+          },
+        ),
+      ),
+    );
+  }
+
+  Widget _payerPhoneSection() {
+    final auth = ref.watch(authProvider);
+    final accountPhone = (auth.phone != null && auth.phone!.trim().isNotEmpty)
+        ? auth.phone!.trim()
+        : 'Numéro du compte';
+    return Container(
+      padding: const EdgeInsets.all(14),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: AppColors.secondary.withOpacity(0.08)),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
             children: [
-              const SizedBox(height: 16),
-              Container(
-                padding: const EdgeInsets.all(24),
-                decoration: BoxDecoration(
-                  color: awaitingAgentValidation
-                      ? const Color(0xFFFFF8E6)
-                      : const Color(0xFFF0FFF4),
-                  shape: BoxShape.circle,
-                ),
-                child: Icon(
-                  awaitingAgentValidation ? Icons.hourglass_top_rounded : Icons.check_rounded,
-                  color: awaitingAgentValidation ? const Color(0xFFB7791F) : const Color(0xFF38A169),
-                  size: 56,
-                ),
-              ).animate().scale(duration: 500.ms, curve: Curves.easeOutBack),
-              const SizedBox(height: 24),
-              Text(
-                awaitingAgentValidation
-                    ? 'Demande envoyée'
-                    : (fedapayConfirmed ? 'Paiement FedaPay confirmé' : 'Cotisation validée'),
-                style: GoogleFonts.manrope(fontWeight: FontWeight.w900, fontSize: 22, color: AppColors.secondary),
-              ),
-              const SizedBox(height: 8),
-              Text(
-                awaitingAgentValidation
-                    ? 'Votre cotisation sera créditée sur votre carnet après validation par votre agent (ou automatiquement après 24 h).'
-                    : (fedapayConfirmed
-                        ? 'FedaPay a confirmé votre versement. Votre carnet est à jour.'
-                        : 'Votre paiement est enregistré et votre carnet est à jour.'),
-                textAlign: TextAlign.center,
-                style: GoogleFonts.inter(color: AppColors.secondary.withOpacity(0.7), fontSize: 13),
-              ),
-              const SizedBox(height: 10),
-              Text(
-                awaitingAgentValidation
-                    ? '${amount.toInt()} FCFA — en attente de validation (${slotsLabel > 0 ? slotsLabel : 1} jour${slotsLabel > 1 ? "s" : ""} de plan après validation)'
-                    : '${amount.toInt()} FCFA ajoutés à votre carnet\n(${slotsLabel > 0 ? slotsLabel : 1} jour${slotsLabel > 1 ? "s" : ""} de plan)',
-                textAlign: TextAlign.center,
-                style: GoogleFonts.inter(color: AppColors.secondary.withOpacity(0.6), fontSize: 13, height: 1.5),
-              ),
-              const SizedBox(height: 8),
-              Container(
-                width: double.infinity,
-                padding: const EdgeInsets.all(12),
-                decoration: BoxDecoration(
-                  color: AppColors.secondary.withOpacity(0.04),
-                  borderRadius: BorderRadius.circular(12),
-                ),
+              Icon(Icons.smartphone_rounded, size: 18, color: AppColors.secondary.withOpacity(0.6)),
+              const SizedBox(width: 10),
+              Expanded(
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Text('Référence: $refTx', style: GoogleFonts.manrope(fontSize: 11, fontWeight: FontWeight.w700, color: AppColors.secondary)),
-                    Text('Date: ${paidAt.day}/${paidAt.month}/${paidAt.year} ${paidAt.hour}:${paidAt.minute.toString().padLeft(2, '0')}', style: GoogleFonts.inter(fontSize: 11, color: AppColors.secondary.withOpacity(0.7))),
-                  ],
-                ),
-              ),
-              const SizedBox(height: 8),
-              // Mode de paiement confirmé
-              Container(
-                padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-                decoration: BoxDecoration(
-                  color: AppColors.primary.withOpacity(0.1), borderRadius: BorderRadius.circular(12),
-                ),
-                child: Row(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    Icon(
-                      _selectedMethod == 'mobile_money' ? Icons.phone_android_rounded : Icons.payments_rounded,
-                      size: 16, color: AppColors.primary,
-                    ),
-                    const SizedBox(width: 8),
                     Text(
-                      _selectedMethod == 'mobile_money' ? 'Payé via $_selectedMobileProvider' : 'Payé en espèces (Agent)',
-                      style: GoogleFonts.manrope(color: AppColors.primary, fontWeight: FontWeight.w700, fontSize: 12),
+                      'Numéro de paiement',
+                      style: GoogleFonts.manrope(
+                        fontWeight: FontWeight.w800,
+                        fontSize: 12,
+                        color: AppColors.secondary,
+                      ),
+                    ),
+                    Text(
+                      _useAlternatePayerPhone ? 'Autre numéro Mobile Money' : accountPhone,
+                      style: GoogleFonts.inter(
+                        fontSize: 11,
+                        color: AppColors.secondary.withOpacity(0.55),
+                      ),
                     ),
                   ],
                 ),
               ),
-              const SizedBox(height: 32),
-              ElevatedButton(
-                onPressed: () {
-                  // 1. Switch vers onglet 0 (Dashboard) D'ABORD
-                  ref.read(navigationIndexProvider.notifier).setIndex(0);
-                  
-                  // 2. Ferme le dialog de succès
-                  Navigator.of(dialogContext).pop();
-                },
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: AppColors.secondary,
-                  foregroundColor: Colors.white,
-                  minimumSize: const Size(double.infinity, 56),
-                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-                ),
-                child: Text('RETOUR AU TABLEAU DE BORD',
-                  style: GoogleFonts.manrope(fontWeight: FontWeight.bold, fontSize: 13)),
-              ),
-              const SizedBox(height: 8),
             ],
           ),
-        ),
+          const SizedBox(height: 8),
+          GestureDetector(
+            onTap: () => setState(() => _useAlternatePayerPhone = !_useAlternatePayerPhone),
+            child: Row(
+              children: [
+                Icon(
+                  _useAlternatePayerPhone
+                      ? Icons.check_box_rounded
+                      : Icons.check_box_outline_blank_rounded,
+                  size: 20,
+                  color: AppColors.primary,
+                ),
+                const SizedBox(width: 8),
+                Flexible(
+                  child: Text(
+                    'Utiliser un autre numéro',
+                    style: GoogleFonts.manrope(
+                      fontWeight: FontWeight.w700,
+                      fontSize: 13,
+                      color: AppColors.secondary,
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
+          if (_useAlternatePayerPhone) ...[
+            const SizedBox(height: 12),
+            Form(
+              key: _payerPhoneFormKey,
+              child: PayflexPhoneField(
+                completeNumberController: _payerPhoneController,
+                hint: 'Numéro du payeur (Flooz / Mixx by Yas)',
+                validator: (v) => PayflexPhoneValidator.validate(v),
+              ),
+            ),
+            const SizedBox(height: 6),
+            Text(
+              'Le paiement Mobile Money sera demandé sur ce numéro.',
+              style: GoogleFonts.inter(
+                fontSize: 11,
+                color: AppColors.secondary.withOpacity(0.5),
+              ),
+            ),
+          ],
+        ],
       ),
     );
   }

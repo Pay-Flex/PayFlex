@@ -12,3 +12,11 @@ GeneratedPluginRegistrant.java
 key.properties
 **/*.keystore
 **/*.jks
+
+# Kotlin compiler session cache
+/.kotlin/
+*.salive
+
+# Firebase — ne jamais committer (secret projet)
+google-services.json
+**/google-services.json

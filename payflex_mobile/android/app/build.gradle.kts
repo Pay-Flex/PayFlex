@@ -5,6 +5,13 @@ plugins {
     id("dev.flutter.flutter-gradle-plugin")
 }
 
+// Firebase Cloud Messaging : le plugin google-services n'est appliqué que si
+// android/app/google-services.json existe. Ainsi, l'app se compile normalement
+// tant que le projet Firebase n'a pas été créé (push réel désactivé, repli poll).
+if (file("google-services.json").exists()) {
+    apply(plugin = "com.google.gms.google-services")
+}
+
 android {
     namespace = "com.payflex.app.payflex_mobile"
     compileSdk = flutter.compileSdkVersion
@@ -29,6 +36,11 @@ android {
         targetSdk = flutter.targetSdkVersion
         versionCode = flutter.versionCode
         versionName = flutter.versionName
+
+        // 32-bit (armeabi-v7a) + 64-bit (arm64-v8a) — couvre tous les téléphones Android réels.
+        ndk {
+            abiFilters += listOf("armeabi-v7a", "arm64-v8a")
+        }
     }
 
     buildTypes {

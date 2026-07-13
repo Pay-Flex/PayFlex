@@ -27,15 +27,18 @@ public class AdminCrudService {
 
     private final JdbcTemplate jdbcTemplate;
     private final CredentialHashService credentialHashService;
+    private final CredentialVaultService credentialVaultService;
     private final UserContactUniquenessService contactUniqueness;
 
     public AdminCrudService(
         JdbcTemplate jdbcTemplate,
         CredentialHashService credentialHashService,
+        CredentialVaultService credentialVaultService,
         UserContactUniquenessService contactUniqueness
     ) {
         this.jdbcTemplate = jdbcTemplate;
         this.credentialHashService = credentialHashService;
+        this.credentialVaultService = credentialVaultService;
         this.contactUniqueness = contactUniqueness;
     }
 
@@ -221,11 +224,13 @@ public class AdminCrudService {
         if (plainPin.isEmpty()) {
             throw new IllegalArgumentException("Code PIN mobile requis (4 à 12 chiffres).");
         }
+        if (plainPassword.length() < 8) {
+            throw new IllegalArgumentException("Mot de passe compte requis (8 caractères minimum).");
+        }
         credentialHashService.validateMobilePin(plainPin);
+        credentialHashService.validateMobileCredential(plainPassword);
         String hashedPin = credentialHashService.hashMobilePin(plainPin);
-        String hashedPassword = plainPassword.isEmpty()
-            ? hashedPin
-            : credentialHashService.hashMobileCredential(plainPassword);
+        String hashedPassword = credentialHashService.hashMobileCredential(plainPassword);
 
         contactUniqueness.assertPhoneAvailable(phone, null);
         String normalizedEmail = UserContactUniquenessService.normalizeEmail(email);
@@ -285,6 +290,7 @@ public class AdminCrudService {
         if (userId == null || userId <= 0) {
             throw new IllegalStateException("Création client impossible.");
         }
+        credentialVaultService.storeForUser(userId, plainPin, plainPassword);
         return userId;
     }
 
@@ -1246,7 +1252,8 @@ public class AdminCrudService {
         String internalNotes,
         String idDocumentPath,
         String contractDocumentPath,
-        String photoPath
+        String photoPath,
+        double cashDebtFcfa
     ) {}
     public record AgentClientRow(long userId, String fullName, String phone, String city, String profession, String status, double totalContributed, long contributionsCount, String lastContributionAt) {}
     public record ClientDetails(
@@ -1397,7 +1404,8 @@ public class AdminCrudService {
               a.internal_notes,
               a.id_document_path,
               a.contract_document_path,
-              a.photo_path
+              a.photo_path,
+              COALESCE(a.cash_debt_fcfa, 0) AS cash_debt_fcfa
             FROM agents a
             JOIN users u ON u.id = a.user_id
             LEFT JOIN zones z ON z.id = a.zone_id
@@ -1436,7 +1444,8 @@ public class AdminCrudService {
                     rs.getString("internal_notes"),
                     rs.getString("id_document_path"),
                     rs.getString("contract_document_path"),
-                    rs.getString("photo_path")
+                    rs.getString("photo_path"),
+                    rs.getDouble("cash_debt_fcfa")
                 ),
                 agentId
             );
@@ -1479,7 +1488,8 @@ public class AdminCrudService {
                   a.internal_notes,
                   a.id_document_path,
                   a.contract_document_path,
-                  a.photo_path
+                  a.photo_path,
+                  COALESCE(a.cash_debt_fcfa, 0) AS cash_debt_fcfa
                 FROM agents a
                 JOIN users u ON u.id = a.user_id
                 LEFT JOIN zones z ON z.id = a.zone_id
@@ -1517,7 +1527,8 @@ public class AdminCrudService {
                     rs.getString("internal_notes"),
                     rs.getString("id_document_path"),
                     rs.getString("contract_document_path"),
-                    rs.getString("photo_path")
+                    rs.getString("photo_path"),
+                    rs.getDouble("cash_debt_fcfa")
                 ),
                 agentId
             );
@@ -1791,6 +1802,7 @@ public class AdminCrudService {
         String fullName,
         String phone,
         String mobilePin,
+        String accountPassword,
         String city,
         String profession,
         long zoneId,
@@ -1816,8 +1828,16 @@ public class AdminCrudService {
         requireText(fullName, "Nom complet requis");
         requireText(phone, "Téléphone requis");
         requireText(mobilePin, "Code PIN mobile requis");
-        credentialHashService.validateMobileCredential(mobilePin);
-        String hashedPin = credentialHashService.hashMobileCredential(mobilePin.trim());
+        requireText(accountPassword, "Mot de passe de connexion requis");
+        String plainPin = mobilePin.trim();
+        String plainPassword = accountPassword.trim();
+        if (plainPassword.length() < 8) {
+            throw new IllegalArgumentException("Le mot de passe doit contenir au moins 8 caractères.");
+        }
+        credentialHashService.validateMobilePin(plainPin);
+        credentialHashService.validateMobileCredential(plainPassword);
+        String hashedPin = credentialHashService.hashMobilePin(plainPin);
+        String hashedPassword = credentialHashService.hashMobileCredential(plainPassword);
         if (zoneId <= 0) {
             throw new IllegalArgumentException("Zone d'affectation requise");
         }
@@ -1852,8 +1872,11 @@ public class AdminCrudService {
 
         jdbcTemplate.update(
             """
-            INSERT INTO users (full_name, phone, role_id, city, profession, status, pin, secret_code, unique_code)
-            VALUES (?, ?, ?, ?, ?, 'valide', ?, ?, ?)
+            INSERT INTO users (
+              full_name, phone, role_id, city, profession, status,
+              pin, secret_code, account_password, unique_code, adhesion_fee_paid
+            )
+            VALUES (?, ?, ?, ?, ?, 'valide', ?, ?, ?, ?, TRUE)
             """,
             fullName.trim(),
             phoneTrim,
@@ -1862,12 +1885,14 @@ public class AdminCrudService {
             emptyToNull(profession),
             hashedPin,
             hashedPin,
+            hashedPassword,
             uniqueCode
         );
         Long userId = jdbcTemplate.queryForObject("SELECT LAST_INSERT_ID()", Long.class);
         if (userId == null || userId <= 0) {
             throw new IllegalStateException("Création utilisateur impossible.");
         }
+        credentialVaultService.storeForUser(userId, plainPin, plainPassword);
 
         String mat = resolveAgentMatricule(matricule, userId);
 

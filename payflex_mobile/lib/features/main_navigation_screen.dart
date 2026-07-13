@@ -2,19 +2,53 @@ import 'dart:ui';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../core/constants/app_colors.dart';
+import '../core/theme/app_typography.dart';
 import '../core/providers/auth_provider.dart';
 import '../core/providers/client_inbox_provider.dart';
+import '../core/providers/finance_provider.dart';
 import '../core/providers/navigation_provider.dart';
 import '../core/widgets/inbox_banner.dart';
+import '../core/widgets/payflex_app_exit_guard.dart';
 import 'chat/chat_screen.dart';
 import 'notifications/client_notifications_screen.dart';
 import 'dashboard/dashboard_screen.dart';
 import 'catalogue/catalogue_screen.dart';
 import 'payment/payment_screen.dart';
-import 'profile/profile_screen.dart';
 import 'history/calendar_view_screen.dart';
+import 'history/transaction_history_screen.dart';
 import 'auth/widgets/registration_feature_guard.dart';
 import 'auth/widgets/registration_locked_tab.dart';
+
+/// Un seul onglet monté à la fois (moins de RAM / moins de requêtes parallèles).
+class _ClientTabPage extends StatelessWidget {
+  final int index;
+  final bool pendingApproval;
+
+  const _ClientTabPage({required this.index, required this.pendingApproval});
+
+  @override
+  Widget build(BuildContext context) {
+    switch (index) {
+      case 1:
+        return const CatalogueScreen();
+      case 2:
+        return pendingApproval
+            ? const RegistrationLockedTab(featureName: 'Paiement')
+            : const PaymentScreen();
+      case 3:
+        return pendingApproval
+            ? const RegistrationLockedTab(featureName: 'Suivi')
+            : const CalendarViewScreen();
+      case 4:
+        return pendingApproval
+            ? const RegistrationLockedTab(featureName: 'Historique')
+            : const TransactionHistoryScreen();
+      case 0:
+      default:
+        return const DashboardScreen();
+    }
+  }
+}
 
 class MainNavigationScreen extends ConsumerWidget {
   const MainNavigationScreen({super.key});
@@ -26,28 +60,14 @@ class MainNavigationScreen extends ConsumerWidget {
     final inbox = auth.role == 'client' ? ref.watch(clientInboxProvider) : null;
     final pendingApproval = auth.awaitingAdminApproval;
 
-    final pages = [
-      const DashboardScreen(),
-      const CatalogueScreen(),
-      pendingApproval
-          ? const RegistrationLockedTab(featureName: 'Paiement')
-          : const PaymentScreen(),
-      pendingApproval
-          ? const RegistrationLockedTab(featureName: 'Suivi')
-          : const CalendarViewScreen(),
-      const ProfileScreen(),
-    ];
-
     final topInset = MediaQuery.paddingOf(context).top;
 
-    return Scaffold(
+    return PayflexAppExitGuard(
+      child: Scaffold(
       extendBody: true,
       body: Stack(
         children: [
-          IndexedStack(
-            index: currentIndex,
-            children: pages,
-          ),
+          _ClientTabPage(index: currentIndex, pendingApproval: pendingApproval),
           if (pendingApproval)
             Positioned(
               top: topInset + 56,
@@ -102,6 +122,7 @@ class MainNavigationScreen extends ConsumerWidget {
         ],
       ),
       bottomNavigationBar: _FloatingNavbar(currentIndex: currentIndex, lockPaidFeatures: pendingApproval),
+    ),
     );
   }
 }
@@ -114,11 +135,11 @@ class _FloatingNavbar extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     return Container(
-      height: 72,
-      margin: const EdgeInsets.only(left: 28, right: 28, bottom: 20),
+      height: 78,
+      margin: const EdgeInsets.only(left: 20, right: 20, bottom: 18),
       decoration: BoxDecoration(
         color: Colors.white.withOpacity(0.92),
-        borderRadius: BorderRadius.circular(30),
+        borderRadius: BorderRadius.circular(28),
         boxShadow: [
           BoxShadow(
             color: Colors.black.withOpacity(0.09),
@@ -129,57 +150,87 @@ class _FloatingNavbar extends ConsumerWidget {
         border: Border.all(color: Colors.white.withOpacity(0.6), width: 1.2),
       ),
       child: ClipRRect(
-        borderRadius: BorderRadius.circular(30),
+        borderRadius: BorderRadius.circular(28),
         child: BackdropFilter(
           filter: ImageFilter.blur(sigmaX: 12, sigmaY: 12),
           child: Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 8),
+            padding: const EdgeInsets.symmetric(horizontal: 4),
             child: Row(
-              mainAxisAlignment: MainAxisAlignment.spaceEvenly,
               children: [
                 _navItem(context, ref, 0, Icons.home_rounded, 'Accueil'),
                 _navItem(context, ref, 1, Icons.grid_view_rounded, 'Catalogue'),
-                GestureDetector(
-                  onTap: () {
-                    if (lockPaidFeatures) {
-                      showRegistrationFeatureLockedSnackBar(context, 'Paiement');
-                      return;
-                    }
-                    ref.read(navigationIndexProvider.notifier).setIndex(2);
-                  },
-                  child: AnimatedContainer(
-                    duration: const Duration(milliseconds: 250),
-                    width: 52,
-                    height: 52,
-                    decoration: BoxDecoration(
-                      shape: BoxShape.circle,
-                      gradient: LinearGradient(
-                        begin: Alignment.topLeft,
-                        end: Alignment.bottomRight,
-                        colors: currentIndex == 2
-                            ? [AppColors.primary, AppColors.secondary]
-                            : [AppColors.primary, AppColors.primary.withOpacity(0.85)],
-                      ),
-                      boxShadow: [
-                        BoxShadow(
-                          color: AppColors.primary.withOpacity(0.35),
-                          blurRadius: 16,
-                          offset: const Offset(0, 6),
-                        ),
-                      ],
-                    ),
-                    child: Icon(
-                      Icons.account_balance_wallet_rounded,
-                      color: currentIndex == 2 ? Colors.white : AppColors.secondary,
-                      size: 22,
-                    ),
-                  ),
-                ),
+                _payButton(context, ref),
                 _navItem(context, ref, 3, Icons.calendar_today_rounded, 'Suivi'),
-                _navItem(context, ref, 4, Icons.person_rounded, 'Profil'),
+                _navItem(context, ref, 4, Icons.history_rounded, 'Historique'),
               ],
             ),
           ),
+        ),
+      ),
+    );
+  }
+
+  Widget _payButton(BuildContext context, WidgetRef ref) {
+    final isActive = currentIndex == 2;
+    return Expanded(
+      child: GestureDetector(
+        onTap: () {
+          if (lockPaidFeatures) {
+            showRegistrationFeatureLockedSnackBar(context, 'Paiement');
+            return;
+          }
+          ref.read(navigationIndexProvider.notifier).setIndex(2);
+        },
+        behavior: HitTestBehavior.opaque,
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            AnimatedContainer(
+              duration: const Duration(milliseconds: 250),
+              width: 46,
+              height: 46,
+              decoration: BoxDecoration(
+                shape: BoxShape.circle,
+                gradient: LinearGradient(
+                  begin: Alignment.topLeft,
+                  end: Alignment.bottomRight,
+                  colors: isActive
+                      ? [AppColors.primary, AppColors.secondary]
+                      : [AppColors.primary, AppColors.primary.withOpacity(0.85)],
+                ),
+                boxShadow: [
+                  BoxShadow(
+                    color: AppColors.primary.withOpacity(0.35),
+                    blurRadius: 14,
+                    offset: const Offset(0, 5),
+                  ),
+                ],
+              ),
+              child: Icon(
+                Icons.account_balance_wallet_rounded,
+                color: isActive ? Colors.white : AppColors.secondary,
+                size: 22,
+              ),
+            ),
+            const SizedBox(height: 3),
+            _navLabel('Payer', isActive),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _navLabel(String label, bool isActive) {
+    return FittedBox(
+      fit: BoxFit.scaleDown,
+      child: Text(
+        label,
+        maxLines: 1,
+        style: AppTypography.manrope(
+          fontSize: 11,
+          fontWeight: isActive ? FontWeight.w800 : FontWeight.w600,
+          color: isActive ? AppColors.primary : AppColors.secondary.withOpacity(0.5),
         ),
       ),
     );
@@ -189,23 +240,22 @@ class _FloatingNavbar extends ConsumerWidget {
     final isActive = currentIndex == index;
     final auth = ref.watch(authProvider);
     final pending = auth.awaitingAdminApproval;
-    return GestureDetector(
-      onTap: () {
-        if (lockPaidFeatures && (index == 3)) {
-          showRegistrationFeatureLockedSnackBar(context, 'Suivi');
-          return;
-        }
-        if (index == 4) {
-          ref.read(authProvider.notifier).refreshProfile();
-        }
-        ref.read(navigationIndexProvider.notifier).setIndex(index);
-      },
-      behavior: HitTestBehavior.opaque,
-      child: AnimatedContainer(
-        duration: const Duration(milliseconds: 250),
-        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+    return Expanded(
+      child: GestureDetector(
+        onTap: () {
+          if (lockPaidFeatures && (index == 3 || index == 4)) {
+            showRegistrationFeatureLockedSnackBar(context, index == 3 ? 'Suivi' : 'Historique');
+            return;
+          }
+          if (index == 4 && !lockPaidFeatures) {
+            ref.read(financeProvider.notifier).reload();
+          }
+          ref.read(navigationIndexProvider.notifier).setIndex(index);
+        },
+        behavior: HitTestBehavior.opaque,
         child: Column(
           mainAxisSize: MainAxisSize.min,
+          mainAxisAlignment: MainAxisAlignment.center,
           children: [
             Stack(
               clipBehavior: Clip.none,
@@ -213,7 +263,7 @@ class _FloatingNavbar extends ConsumerWidget {
                 Icon(
                   icon,
                   color: isActive ? AppColors.primary : AppColors.secondary.withOpacity(0.3),
-                  size: isActive ? 26 : 23,
+                  size: isActive ? 25 : 23,
                 ),
                 if (index == 4 && pending)
                   Positioned(
@@ -231,16 +281,8 @@ class _FloatingNavbar extends ConsumerWidget {
                   ),
               ],
             ),
-            if (isActive)
-              Container(
-                margin: const EdgeInsets.only(top: 4),
-                width: 4,
-                height: 4,
-                decoration: const BoxDecoration(
-                  color: AppColors.primary,
-                  shape: BoxShape.circle,
-                ),
-              ),
+            const SizedBox(height: 3),
+            _navLabel(label, isActive),
           ],
         ),
       ),

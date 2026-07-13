@@ -71,7 +71,8 @@ class MobileLoginResult {
       409 => 'Plusieurs comptes correspondent. Contactez le support PayFlex.',
       403 => 'Accès refusé.',
       404 => 'Service indisponible pour le moment.',
-      500 => 'Le service est surchargé. Réessayez dans quelques instants.',
+      502 || 503 || 504 => UserVisibleMessage.serverUnavailable,
+      >= 500 => UserVisibleMessage.serverUnavailable,
       _ => 'Connexion impossible. Réessayez ou contactez le support.',
     };
   }

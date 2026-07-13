@@ -95,7 +95,7 @@ class _ForgotPasswordVerifyScreenState extends State<ForgotPasswordVerifyScreen>
                 const SizedBox(height: 28),
                 if (_loading)
                   const Center(child: CircularProgressIndicator(color: AppColors.primary))
-                else
+                else ...[
                   SizedBox(
                     width: double.infinity,
                     child: ElevatedButton(
@@ -103,6 +103,19 @@ class _ForgotPasswordVerifyScreenState extends State<ForgotPasswordVerifyScreen>
                       child: Text('Vérifier mes informations', style: GoogleFonts.manrope(fontWeight: FontWeight.w700)),
                     ),
                   ).animate().fadeIn(delay: 400.ms),
+                  const SizedBox(height: 14),
+                  TextButton(
+                    onPressed: _requestCallback,
+                    child: Text(
+                      'J’ai tout oublié — demander un rappel PayFlex',
+                      style: GoogleFonts.manrope(
+                        fontWeight: FontWeight.w700,
+                        color: AppColors.primary,
+                        fontSize: 13,
+                      ),
+                    ),
+                  ),
+                ],
                 const SizedBox(height: 80),
               ],
             ),
@@ -136,6 +149,44 @@ class _ForgotPasswordVerifyScreenState extends State<ForgotPasswordVerifyScreen>
         ),
       ),
     );
+  }
+
+  Future<void> _requestCallback() async {
+    if (_phone.text.trim().isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Indiquez au minimum votre numéro de téléphone.')),
+      );
+      return;
+    }
+    setState(() => _loading = true);
+    final err = await _api.requestRecoveryCallback(
+      phone: _phone.text,
+      fullName: _fullName.text,
+    );
+    if (!mounted) return;
+    setState(() => _loading = false);
+    if (err == null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            'Demande enregistrée. Un conseiller PayFlex vous rappellera.',
+            style: GoogleFonts.manrope(fontWeight: FontWeight.w600),
+          ),
+          backgroundColor: const Color(0xFF38A169),
+          behavior: SnackBarBehavior.floating,
+        ),
+      );
+      Navigator.pop(context);
+    } else {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            UserVisibleMessage.apiOrFallback(err, UserVisibleMessage.unexpected),
+          ),
+          backgroundColor: Colors.redAccent,
+        ),
+      );
+    }
   }
 
   Future<void> _submit() async {

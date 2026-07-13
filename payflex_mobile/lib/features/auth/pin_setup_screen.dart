@@ -15,6 +15,7 @@ import '../../core/widgets/payflex_sweet_alert.dart';
 import '../agent/agent_main_navigation_screen.dart';
 import '../main_navigation_screen.dart';
 import '../../core/providers/navigation_provider.dart';
+import '../../core/services/notification_permission_flow.dart';
 
 class PinSetupScreen extends ConsumerStatefulWidget {
   const PinSetupScreen({super.key});
@@ -90,6 +91,9 @@ class _PinSetupScreenState extends ConsumerState<PinSetupScreen> {
       MaterialPageRoute<void>(builder: (_) => home),
       (_) => false,
     );
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      requestPayflexNotificationsIfNeeded();
+    });
     ref.read(tempRegistrationDataProvider.notifier).clear();
     ref.read(tempRoleProvider.notifier).setRole(null);
     ref.read(tempClientProfileProvider.notifier).setProfile(null);
@@ -139,6 +143,9 @@ class _PinSetupScreenState extends ConsumerState<PinSetupScreen> {
         MaterialPageRoute<void>(builder: (_) => const AgentMainNavigationScreen()),
         (_) => false,
       );
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        requestPayflexNotificationsIfNeeded();
+      });
       ref.read(tempRegistrationDataProvider.notifier).clear();
       ref.read(tempRoleProvider.notifier).setRole(null);
       _cachedRegistrationData = null;

@@ -18,6 +18,7 @@ public class FedaPayPaymentService {
 
     private final JdbcTemplate jdbcTemplate;
     private final FedaPayService fedaPayService;
+    private final FedaPaySimulateService fedaPaySimulateService;
     private final ContributionWorkflowService contributionWorkflowService;
     private final ContributionValidationAlertService alertService;
     private final AdminAuditService auditService;
@@ -27,6 +28,7 @@ public class FedaPayPaymentService {
     public FedaPayPaymentService(
         JdbcTemplate jdbcTemplate,
         FedaPayService fedaPayService,
+        FedaPaySimulateService fedaPaySimulateService,
         ContributionWorkflowService contributionWorkflowService,
         ContributionValidationAlertService alertService,
         AdminAuditService auditService,
@@ -35,6 +37,7 @@ public class FedaPayPaymentService {
     ) {
         this.jdbcTemplate = jdbcTemplate;
         this.fedaPayService = fedaPayService;
+        this.fedaPaySimulateService = fedaPaySimulateService;
         this.contributionWorkflowService = contributionWorkflowService;
         this.alertService = alertService;
         this.auditService = auditService;
@@ -52,6 +55,22 @@ public class FedaPayPaymentService {
         Long productId,
         Long agentRowId,
         double amount
+    ) {
+        return initMobileMoneyPayment(userId, productId, agentRowId, amount, null);
+    }
+
+    /**
+     * Variante avec numéro de payeur optionnel : permet de régler la cotisation depuis un autre
+     * numéro Mobile Money (Flooz / Mixx by Yas) que celui enregistré sur le compte. {@code payerPhone}
+     * nul ou vide → on retombe sur le numéro du compte.
+     */
+    @Transactional
+    public Map<String, Object> initMobileMoneyPayment(
+        long userId,
+        Long productId,
+        Long agentRowId,
+        double amount,
+        String payerPhone
     ) {
         if (!isAvailable()) {
             return Map.of("fedapayEnabled", false);
@@ -74,17 +93,17 @@ public class FedaPayPaymentService {
         );
         long contributionId = jdbcTemplate.queryForObject("SELECT LAST_INSERT_ID()", Long.class);
 
-        Map<String, Object> customer = buildCustomerPayload(userId);
+        Map<String, Object> customer = buildCustomerPayload(userId, payerPhone);
         String callbackUrl = fedapayConfig.getPublicBaseUrl().replaceAll("/$", "")
             + "/api/mobile/contributions/fedapay/callback?contributionId=" + contributionId;
         String description = "PayFlex cotisation #" + contributionId + " — " + ref;
 
-        FedaPayService.CheckoutResult checkout = fedaPayService.createCheckout(
-            amountFcfa,
-            description,
-            callbackUrl,
-            customer
-        );
+        boolean simulated = fedapayConfig.useSimulation();
+        FedaPayService.CheckoutResult checkout = simulated
+            ? fedaPaySimulateService.createCheckout(
+                "contribution", contributionId, userId, amountFcfa, description, callbackUrl
+            )
+            : fedaPayService.createCheckout(amountFcfa, description, callbackUrl, customer);
 
         jdbcTemplate.update(
             "UPDATE contributions SET fedapay_transaction_id = ? WHERE id = ?",
@@ -94,11 +113,13 @@ public class FedaPayPaymentService {
 
         auditService.logClient(
             userId,
-            "Paiement mobile money initié via FedaPay (" + amountFcfa + " FCFA, réf. " + ref + ")."
+            (simulated ? "Paiement simulé" : "Paiement mobile money initié via FedaPay")
+                + " (" + amountFcfa + " FCFA, réf. " + ref + ")."
         );
 
         Map<String, Object> out = new LinkedHashMap<>();
         out.put("fedapayEnabled", true);
+        out.put("simulated", simulated);
         out.put("contributionId", contributionId);
         out.put("referenceCode", ref);
         out.put("paymentUrl", checkout.paymentUrl());
@@ -106,7 +127,9 @@ public class FedaPayPaymentService {
         out.put("callbackUrl", callbackUrl);
         out.put("publicBaseUrl", fedapayConfig.getPublicBaseUrl());
         out.put("status", "pending");
-        out.put("message", "Ouvrez la page FedaPay pour finaliser le paiement.");
+        out.put("message", simulated
+            ? "Ouvrez la page de simulation PayFlex pour confirmer ou annuler le paiement."
+            : "Ouvrez la page FedaPay pour finaliser le paiement.");
         return out;
     }
 
@@ -121,12 +144,22 @@ public class FedaPayPaymentService {
             + "/api/mobile/adhesion/fedapay/callback?userId=" + userId;
         String description = "PayFlex adhésion — " + ClientAdhesionService.ADHESION_FEE_FCFA + " FCFA";
 
-        FedaPayService.CheckoutResult checkout = fedaPayService.createCheckout(
-            ClientAdhesionService.ADHESION_FEE_FCFA,
-            description,
-            callbackUrl,
-            customer
-        );
+        boolean simulated = fedapayConfig.useSimulation();
+        FedaPayService.CheckoutResult checkout = simulated
+            ? fedaPaySimulateService.createCheckout(
+                "adhesion",
+                userId,
+                userId,
+                ClientAdhesionService.ADHESION_FEE_FCFA,
+                description,
+                callbackUrl
+            )
+            : fedaPayService.createCheckout(
+                ClientAdhesionService.ADHESION_FEE_FCFA,
+                description,
+                callbackUrl,
+                customer
+            );
 
         jdbcTemplate.update(
             "UPDATE users SET adhesion_fedapay_transaction_id = ? WHERE id = ?",
@@ -136,18 +169,22 @@ public class FedaPayPaymentService {
 
         auditService.logClient(
             userId,
-            "Paiement adhésion initié via FedaPay (" + ClientAdhesionService.ADHESION_FEE_FCFA + " FCFA)."
+            (simulated ? "Paiement adhésion simulé" : "Paiement adhésion initié via FedaPay")
+                + " (" + ClientAdhesionService.ADHESION_FEE_FCFA + " FCFA)."
         );
 
         Map<String, Object> out = new LinkedHashMap<>();
         out.put("fedapayEnabled", true);
+        out.put("simulated", simulated);
         out.put("paymentUrl", checkout.paymentUrl());
         out.put("fedapayTransactionId", checkout.transactionId());
         out.put("callbackUrl", callbackUrl);
         out.put("publicBaseUrl", fedapayConfig.getPublicBaseUrl());
         out.put("amountFcfa", ClientAdhesionService.ADHESION_FEE_FCFA);
         out.put("status", "pending");
-        out.put("message", "Ouvrez FedaPay pour payer votre adhésion PayFlex.");
+        out.put("message", simulated
+            ? "Ouvrez la page de simulation PayFlex pour payer votre adhésion."
+            : "Ouvrez FedaPay pour payer votre adhésion PayFlex.");
         return out;
     }
 
@@ -166,7 +203,7 @@ public class FedaPayPaymentService {
         }
         String fedapayTx = Objects.toString(row.get("adhesion_fedapay_transaction_id"), "");
         if (!fedapayTx.isBlank()) {
-            fedaPayService.fetchTransactionStatus(fedapayTx).ifPresent(fpStatus -> {
+            fetchTransactionStatus(fedapayTx).ifPresent(fpStatus -> {
                 if (isApproved(fpStatus)) {
                     try {
                         clientAdhesionService.markAdhesionPaidByFedaPay(userId, fedapayTx);
@@ -200,7 +237,7 @@ public class FedaPayPaymentService {
         String status = Objects.toString(row.get("status"), "pending");
         String fedapayTx = Objects.toString(row.get("fedapay_transaction_id"), "");
         if ("pending".equals(status) && !fedapayTx.isBlank()) {
-            fedaPayService.fetchTransactionStatus(fedapayTx).ifPresent(fpStatus -> {
+            fetchTransactionStatus(fedapayTx).ifPresent(fpStatus -> {
                 if (isApproved(fpStatus)) {
                     try {
                         contributionWorkflowService.validateByFedaPay(contributionId, fedapayTx);
@@ -252,7 +289,7 @@ public class FedaPayPaymentService {
                 "Paiement FedaPay confirmé (transaction " + transactionId + ")."
             );
         } else if (isPaymentCanceledEvent(eventName, entity)) {
-            jdbcTemplate.update(
+            int updated = jdbcTemplate.update(
                 """
                 UPDATE contributions
                 SET status = 'rejected', rejection_reason = ?, paid_at = NULL
@@ -261,12 +298,22 @@ public class FedaPayPaymentService {
                 "Paiement FedaPay annulé ou expiré.",
                 contributionId
             );
+            if (updated > 0) {
+                contributionWorkflowService.notifyFedaPayContributionCanceled(contributionId);
+            }
             alertService.create(
                 contributionId,
                 ContributionValidationAlertService.TYPE_FEDAPAY_CANCELED,
                 "Paiement FedaPay annulé (transaction " + transactionId + ")."
             );
         }
+    }
+
+    private Optional<String> fetchTransactionStatus(String transactionId) {
+        if (fedaPaySimulateService.isSimulatedTransaction(transactionId)) {
+            return fedaPaySimulateService.fetchStatus(transactionId);
+        }
+        return fedaPayService.fetchTransactionStatus(transactionId);
     }
 
     /** Code pays FedaPay (ISO) à partir du préfixe international. */
@@ -287,6 +334,14 @@ public class FedaPayPaymentService {
     }
 
     private Map<String, Object> buildCustomerPayload(long userId) {
+        return buildCustomerPayload(userId, null);
+    }
+
+    /**
+     * @param overridePhone numéro de payeur choisi (Mobile Money d'un tiers). S'il est renseigné et
+     *                      valide, il remplace le numéro du compte pour la transaction FedaPay.
+     */
+    private Map<String, Object> buildCustomerPayload(long userId, String overridePhone) {
         try {
             Map<String, Object> u = jdbcTemplate.queryForMap(
                 "SELECT full_name, phone, email FROM users WHERE id = ?",
@@ -301,7 +356,8 @@ public class FedaPayPaymentService {
             if (!email.isBlank()) {
                 customer.put("email", email);
             }
-            String phone = Objects.toString(u.get("phone"), "");
+            String override = overridePhone == null ? "" : overridePhone.trim();
+            String phone = !override.isBlank() ? override : Objects.toString(u.get("phone"), "");
             if (!phone.isBlank()) {
                 String normalized = phone.startsWith("+") ? phone : "+" + phone.replaceAll("\\D", "");
                 Map<String, Object> phoneNode = new LinkedHashMap<>();

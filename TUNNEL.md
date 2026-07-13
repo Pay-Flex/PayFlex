@@ -26,7 +26,7 @@ Ordre obligatoire : **backend d’abord**, tunnel ensuite.
 
 ## Recommandé : sans tunnel (URL stable)
 
-Les quick tunnels `*.trycloudflare.com` **changent à chaque redémarrage**. Pour le dev mobile, préférez :
+Pour le dev quotidien sur le même réseau ou en USB, préférez :
 
 ### Option A — USB (le plus fiable)
 
@@ -51,11 +51,68 @@ cd payflex_mobile
 
 URL fixe : `http://192.168.1.68:8088` (tant que l’IP du PC ne change pas).
 
-En mode debug, l’app utilise **déjà le Wi‑Fi par défaut** — pas besoin de Cloudflare.
+En mode debug, l’app utilise **déjà le Wi‑Fi par défaut** — pas besoin de tunnel.
 
 ---
 
-## URL HTTPS publique fixe (webhooks FedaPay, tests 4G)
+## LocalTunnel (HTTPS public, tests 4G / webhooks)
+
+Prérequis : **Node.js** (`npx`), backend sur le port **8088**.
+
+```powershell
+# Terminal 1
+cd payflex_backend
+.\run-local.ps1
+
+# Terminal 2
+npx localtunnel --port 8088 --subdomain payflex-app
+
+# Terminal 3 (app)
+cd payflex_mobile
+.\scripts\run-tunnel.ps1
+```
+
+URL affichée : `https://payflex-app.loca.lt`
+
+### Configuration backend
+
+```env
+PAYFLEX_PUBLIC_URL=https://payflex-app.loca.lt
+```
+
+Redémarrer le backend après modification du `.env`. Webhook FedaPay : `{PAYFLEX_PUBLIC_URL}/api/fedapay/webhook`
+
+### URLs utiles
+
+| Service | URL |
+|---------|-----|
+| Santé API mobile | `https://payflex-app.loca.lt/api/mobile/health` |
+| Panneau admin | `https://payflex-app.loca.lt/admin` |
+| Connexion admin | `https://payflex-app.loca.lt/login` |
+
+### Page de vérification `loca.lt`
+
+LocalTunnel peut afficher une page « saisir l’IP » dans un navigateur. L’app PayFlex envoie automatiquement `Bypass-Tunnel-Reminder: true`.
+
+Test manuel :
+
+```powershell
+curl -H "Bypass-Tunnel-Reminder: true" https://payflex-app.loca.lt/api/mobile/health
+```
+
+### Build APK (testeurs distants)
+
+```powershell
+cd payflex_mobile
+.\scripts\build-apk.ps1
+# défaut : -Mode tunnel -TunnelUrl https://payflex-app.loca.lt
+```
+
+Le PC doit rester allumé avec backend + `npx localtunnel` actifs pendant les tests.
+
+---
+
+## URL HTTPS publique fixe (production)
 
 Les quick tunnels Cloudflare **ne conviennent pas** (URL aléatoire). Solutions stables :
 
@@ -64,6 +121,14 @@ Les quick tunnels Cloudflare **ne conviennent pas** (URL aléatoire). Solutions 
 | **Cloudflare Tunnel nommé** + votre domaine | `https://api.votredomaine.com` | Gratuit (domaine sur Cloudflare) |
 | **Serveur VPS** (OVH, Hetzner…) | IP ou domaine | Payant |
 | **ngrok** domaine réservé | `https://xxx.ngrok-free.app` | Payant |
+
+### Passer en production
+
+1. Backend : `PAYFLEX_PUBLIC_URL=https://api.votredomaine.com` dans `.env`
+2. Mobile : `.\scripts\build-apk.ps1 -Mode prod -ApiBase "https://api.votredomaine.com"`
+3. Dashboard FedaPay : webhook vers `https://api.votredomaine.com/api/fedapay/webhook`
+
+En prod, l’override URL dans l’app (SharedPreferences) est **ignoré** — seule l’URL compilée compte.
 
 ### Cloudflare Tunnel nommé (gratuit, URL fixe)
 
@@ -74,12 +139,6 @@ Les quick tunnels Cloudflare **ne conviennent pas** (URL aléatoire). Solutions 
 
 ```env
 PAYFLEX_PUBLIC_URL=https://api.votredomaine.com
-```
-
-5. App mobile :
-
-```text
-flutter run --dart-define=PAYFLEX_API_BASE=https://api.votredomaine.com
 ```
 
 Doc : https://developers.cloudflare.com/cloudflare-one/connections/connect-networks/
@@ -95,10 +154,12 @@ cd payflex_backend
 cloudflared tunnel --url http://localhost:8088
 ```
 
-Mettre à jour manuellement :
+Mettre à jour manuellement `PAYFLEX_PUBLIC_URL` dans `.env` et redémarrer le backend.
 
-- `payflex_backend/.env` → `PAYFLEX_PUBLIC_URL`
-- `payflex_mobile/lib/core/network/api_config.dart` → `defaultTunnelBase`
-- Dashboard FedaPay → webhook URL
+---
 
-Webhook FedaPay : `{PAYFLEX_PUBLIC_URL}/api/fedapay/webhook`
+## Admin inaccessible via tunnel HTTPS
+
+1. **`PAYFLEX_PUBLIC_URL`** = URL HTTPS exacte du tunnel (pas `localhost`).
+2. **Redémarrer** le backend après changement de `.env`.
+3. Boucle sur `/login` : vider les cookies du domaine tunnel ; vérifier `forward-headers-strategy: framework` dans `application.yml`.

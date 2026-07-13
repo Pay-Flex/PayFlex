@@ -24,6 +24,7 @@ class DatabaseService {
   static const String _kPendingRegRole = 'pending_reg_role';
   static const String _kPendingRegId = 'pending_reg_id';
   static const String _kPendingRegAgentId = 'pending_reg_agent_id';
+  static String _kPushCursorNotif(int userId) => 'push_cursor_notif_$userId';
 
   Future<Database> get database async {
     if (_database != null) return _database!;
@@ -454,6 +455,29 @@ class DatabaseService {
     }
   }
 
+  Future<void> savePushCursor({required int userId, required int notificationId}) async {
+    final db = await database;
+    await db.insert(
+      'config',
+      {'key': _kPushCursorNotif(userId), 'value': notificationId.toString()},
+      conflictAlgorithm: ConflictAlgorithm.replace,
+    );
+  }
+
+  Future<({int notificationId})?> loadPushCursor(int userId) async {
+    final db = await database;
+    final rows = await db.query(
+      'config',
+      where: 'key = ?',
+      whereArgs: [_kPushCursorNotif(userId)],
+      limit: 1,
+    );
+    if (rows.isEmpty) return null;
+    final id = int.tryParse(rows.first['value'] as String? ?? '');
+    if (id == null) return null;
+    return (notificationId: id);
+  }
+
   Future<void> clearRemoteSession() async {
     final db = await database;
     await db.delete('config', where: 'key IN (?, ?, ?, ?)', whereArgs: [
@@ -583,6 +607,70 @@ class DatabaseService {
   Future<List<Map<String, dynamic>>> getTransactions() async {
     final db = await database;
     return await db.query('transactions', orderBy: 'id DESC');
+  }
+
+  Future<List<Map<String, dynamic>>> getTransactionsForClient(int clientUserId) async {
+    final db = await database;
+    return await db.query(
+      'transactions',
+      where: 'client_user_id = ?',
+      whereArgs: [clientUserId],
+      orderBy: 'date DESC',
+    );
+  }
+
+  Future<List<Map<String, dynamic>>> getProjectsForAgentClient(int clientUserId) async {
+    final db = await database;
+    final aggregateId = 'cfin_$clientUserId';
+    final txRows = await db.query(
+      'transactions',
+      columns: ['project_id'],
+      where: 'client_user_id = ?',
+      whereArgs: [clientUserId],
+      distinct: true,
+    );
+    final ids = <String>{aggregateId};
+    for (final r in txRows) {
+      final pid = r['project_id']?.toString();
+      if (pid != null && pid.isNotEmpty) ids.add(pid);
+    }
+    if (ids.isEmpty) return [];
+    final placeholders = List.filled(ids.length, '?').join(',');
+    return await db.rawQuery(
+      'SELECT * FROM projects WHERE id IN ($placeholders) ORDER BY title ASC',
+      ids.toList(),
+    );
+  }
+
+  /// Carnet agent : historique serveur d'un client pour le suivi calendrier.
+  Future<void> syncAgentClientContributions({
+    required int clientUserId,
+    required List<Map<String, dynamic>> contributions,
+  }) async {
+    final db = await database;
+    await db.transaction((txn) async {
+      await txn.delete('transactions', where: 'client_user_id = ?', whereArgs: [clientUserId]);
+      for (final c in contributions) {
+        final rawProjectId = c['product_id'];
+        final pid = rawProjectId == null ? 'cfin_$clientUserId' : 'prod_${rawProjectId.toString()}';
+        await txn.insert(
+          'transactions',
+          {
+            'id': c['id'].toString(),
+            'project_id': pid,
+            'amount': (c['amount'] as num?)?.toDouble() ?? 0,
+            'date': (c['paid_at'] ?? c['created_at'])?.toString() ?? DateTime.now().toIso8601String(),
+            'type': c['payment_mode']?.toString() ?? 'cash',
+            'status': c['status']?.toString() ?? 'pending',
+            'client_user_id': clientUserId,
+            'catchup_year': c['catchup_year'] is num ? (c['catchup_year'] as num).toInt() : null,
+            'catchup_month': c['catchup_month'] is num ? (c['catchup_month'] as num).toInt() : null,
+            'catchup_day': c['catchup_day'] is num ? (c['catchup_day'] as num).toInt() : null,
+          },
+          conflictAlgorithm: ConflictAlgorithm.replace,
+        );
+      }
+    });
   }
 
   /// Recalcule le carnet local depuis l’historique serveur d’un client connecté.
@@ -805,6 +893,43 @@ class DatabaseService {
     );
   }
 
+  Future<List<Map<String, dynamic>>> getTransactionsForProjects(List<String> projectIds) async {
+    if (projectIds.isEmpty) return [];
+    final db = await database;
+    final placeholders = List.filled(projectIds.length, '?').join(',');
+    return await db.rawQuery(
+      'SELECT * FROM transactions WHERE project_id IN ($placeholders) ORDER BY date DESC',
+      projectIds,
+    );
+  }
+
+  /// Versement explicite (rattrapage) lié à une date du carnet.
+  Future<Map<String, dynamic>?> findCatchupTransactionForDay({
+    required List<String> projectIds,
+    required int year,
+    required int month,
+    required int day,
+  }) async {
+    if (projectIds.isEmpty) return null;
+    final db = await database;
+    final placeholders = List.filled(projectIds.length, '?').join(',');
+    final rows = await db.rawQuery(
+      '''
+      SELECT t.*, p.title AS product_title
+      FROM transactions t
+      LEFT JOIN projects p ON p.id = t.project_id
+      WHERE t.project_id IN ($placeholders)
+        AND t.catchup_year = ?
+        AND t.catchup_month = ?
+        AND t.catchup_day = ?
+      ORDER BY t.date DESC
+      LIMIT 1
+      ''',
+      [...projectIds, year, month, day],
+    );
+    return rows.isEmpty ? null : rows.first;
+  }
+
   Future<bool> verifyClientSecretCode({required int clientId, required String submitted}) async {
     final db = await database;
     final rows = await db.query(
@@ -913,9 +1038,115 @@ class DatabaseService {
     return rows.map((e) => (e['catchup_day'] as num).toInt()).toSet();
   }
 
+  Future<Set<int>> getPendingCatchupDaysForMonth(String projectId, int year, int month) async {
+    final db = await database;
+    final rows = await db.query(
+      'transactions',
+      columns: ['catchup_day'],
+      where:
+          'project_id = ? AND status = ? AND catchup_year = ? AND catchup_month = ? AND catchup_day IS NOT NULL',
+      whereArgs: [projectId, 'pending', year, month],
+    );
+    return rows.map((e) => (e['catchup_day'] as num).toInt()).toSet();
+  }
+
   Future<List<Map<String, dynamic>>> getClientsForAgent(int agentId) async {
     final db = await database;
     return await db.query('users', where: 'role = ? AND agent_id = ?', whereArgs: ['client', agentId]);
+  }
+
+  /// Synchronise le carnet local agent pour un client serveur (id = userId PayFlex).
+  Future<void> syncClientFinanceForAgent({
+    required int serverClientUserId,
+    required String clientName,
+    required int agentUserId,
+    required List<Map<String, dynamic>> products,
+    required double totalProject,
+    required double dailyContribution,
+    required double collected,
+    int? primaryProductId,
+  }) async {
+    final db = await database;
+    await db.transaction((txn) async {
+      final existing = await txn.query(
+        'users',
+        where: 'id = ?',
+        whereArgs: [serverClientUserId],
+        limit: 1,
+      );
+      if (existing.isEmpty) {
+        await txn.insert('users', {
+          'id': serverClientUserId,
+          'name': clientName,
+          'phone': '',
+          'role': 'client',
+          'pin': '0000',
+          'secret_code': '0000',
+          'agent_id': agentUserId,
+          'is_approved': 1,
+          'is_active': 1,
+        });
+      } else {
+        await txn.update(
+          'users',
+          {'name': clientName, 'agent_id': agentUserId},
+          where: 'id = ?',
+          whereArgs: [serverClientUserId],
+        );
+      }
+
+      final titles = <String>[];
+      String? currentProjectId;
+
+      for (final raw in products) {
+        final productId = (raw['product_id'] as num?)?.toInt();
+        if (productId == null || productId <= 0) continue;
+        final pid = 'prod_$productId';
+        final name = raw['name']?.toString() ?? 'Produit';
+        final qty = (raw['quantity'] as num?)?.toInt() ?? 1;
+        final price = (raw['price'] as num?)?.toDouble() ?? 0;
+        final dailyMin = (raw['daily_min'] as num?)?.toDouble() ?? 200;
+        final lineTotal = price * qty;
+
+        titles.add(qty > 1 ? '$name x$qty' : name);
+
+        await txn.insert(
+          'projects',
+          {
+            'id': pid,
+            'title': name,
+            'target_amount': lineTotal,
+            'saved_amount': 0.0,
+            'daily_suggested': dailyMin,
+          },
+          conflictAlgorithm: ConflictAlgorithm.replace,
+        );
+
+        if (primaryProductId != null && primaryProductId == productId) {
+          currentProjectId = pid;
+        }
+      }
+
+      final aggregateId = 'cfin_$serverClientUserId';
+      await txn.insert(
+        'projects',
+        {
+          'id': aggregateId,
+          'title': titles.isEmpty ? 'Projet PayFlex' : titles.join(' + '),
+          'target_amount': totalProject,
+          'saved_amount': collected,
+          'daily_suggested': dailyContribution,
+        },
+        conflictAlgorithm: ConflictAlgorithm.replace,
+      );
+
+      await txn.update(
+        'users',
+        {'current_project_id': currentProjectId ?? aggregateId},
+        where: 'id = ?',
+        whereArgs: [serverClientUserId],
+      );
+    });
   }
 
   Future<int> registerClientAndProject({
@@ -986,5 +1217,31 @@ class DatabaseService {
       "Demande envoyée : $productName. Nous vous recontacterons sous 24h au $phoneNumber.",
       'admin'
     );
+  }
+
+  static const String _kCartJson = 'cart_lines_json';
+
+  Future<void> saveCartLines(List<Map<String, dynamic>> lines) async {
+    final db = await database;
+    await db.insert(
+      'config',
+      {'key': _kCartJson, 'value': jsonEncode(lines)},
+      conflictAlgorithm: ConflictAlgorithm.replace,
+    );
+  }
+
+  Future<List<Map<String, dynamic>>> loadCartLines() async {
+    final db = await database;
+    final rows = await db.query('config', where: 'key = ?', whereArgs: [_kCartJson], limit: 1);
+    if (rows.isEmpty) return [];
+    final raw = rows.first['value'] as String?;
+    if (raw == null || raw.isEmpty) return [];
+    try {
+      final decoded = jsonDecode(raw);
+      if (decoded is List) {
+        return decoded.map((e) => Map<String, dynamic>.from(e as Map)).toList();
+      }
+    } catch (_) {}
+    return [];
   }
 }

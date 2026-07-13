@@ -1,0 +1,25 @@
+# Logs backend
+payflex_backend/*.log
+payflex_backend/*.log.*
+payflex_backend/diagnostic.log*
+payflex_backend/erreur.log*
+payflex_backend/mobile-api.log*
+*.log
+*.log.*.gz
+*.log.*.tmp
+
+# Temp extraction / OCR artifacts
+_pdf_pages/
+_pdf_extract*.txt
+_pdf_ocr.txt
+_module1_docx.txt
+pases.txt
+payflexDetails.pdf
+
+# Backend ad-hoc test captures
+payflex_backend/login-*-test.json
+payflex_backend/login-res*.txt
+
+# Kotlin compiler session cache
+**/.kotlin/sessions/
+*.salive

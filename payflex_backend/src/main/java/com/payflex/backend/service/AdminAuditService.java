@@ -126,6 +126,19 @@ public class AdminAuditService {
         );
     }
 
+    /** Tâches planifiées ou crédits automatiques sans opérateur humain. */
+    public void logSystem(String message) {
+        if (message == null || message.isBlank()) {
+            return;
+        }
+        jdbcTemplate.update(
+            "INSERT INTO activity_journal (profile, actor_display, message) VALUES (?, ?, ?)",
+            PROFILE_EQUIPE,
+            "Système automatique",
+            message.trim()
+        );
+    }
+
     private String resolveUserDisplay(long userId) {
         try {
             return jdbcTemplate.queryForObject(

@@ -44,6 +44,72 @@
                 <h3 class="text-xs text-slate-500"><i class="fa-solid fa-user-check mr-1 text-amber-600"></i>Inscriptions en attente</h3>
                 <strong class="text-2xl text-amber-800" th:text="${dashboard.metrics.pendingRegistrations()}">0</strong>
             </a>
+            <a href="/admin/deliveries" th:if="${navPendingDeliveries > 0}"
+               class="pf-dash-kpi-link bg-white rounded-xl p-4 shadow-sm border-l-4 border-emerald-500">
+                <h3 class="text-xs text-slate-500"><i class="fa-solid fa-box-open mr-1 text-emerald-600"></i>Clôture &amp; livraison</h3>
+                <strong class="text-2xl text-emerald-800" th:text="${navPendingDeliveries}">0</strong>
+            </a>
+        </section>
+
+        <section th:if="${revenue != null}" class="mb-4">
+            <article class="bg-gradient-to-br from-emerald-50 via-white to-amber-50 rounded-2xl p-5 shadow-sm border border-emerald-100/80">
+                <div class="flex flex-wrap items-start justify-between gap-3 mb-4">
+                    <div>
+                        <h3 class="text-lg font-bold text-slate-800 flex items-center gap-2">
+                            <i class="fa-solid fa-chart-line text-emerald-600"></i> Bénéfices &amp; revenus PayFlex
+                        </h3>
+                        <p class="text-xs text-slate-500 mt-1" th:text="${revenue['ruleLabel']}">Règle de calcul</p>
+                    </div>
+                    <div class="text-right">
+                        <p class="text-xs text-slate-500 uppercase tracking-wide">Total cumulé</p>
+                        <p class="text-3xl font-black text-emerald-800"
+                           th:text="${#numbers.formatInteger(revenue['totalRevenueFcfa'], 0, 'POINT')} + ' FCFA'">0 FCFA</p>
+                        <p class="text-xs text-emerald-700 mt-1">
+                            Ce mois :
+                            <strong th:text="${#numbers.formatInteger(revenue['totalRevenueThisMonthFcfa'], 0, 'POINT')} + ' FCFA'">0</strong>
+                        </p>
+                    </div>
+                </div>
+                <div class="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-3">
+                    <div class="rounded-xl bg-white/90 border border-slate-100 p-4">
+                        <p class="text-xs text-slate-500 flex items-center gap-1">
+                            <i class="fa-solid fa-id-card text-blue-600"></i> Adhésions
+                        </p>
+                        <p class="text-xl font-bold text-slate-800 mt-1"
+                           th:text="${#numbers.formatInteger(revenue['adhesionRevenueFcfa'], 0, 'POINT')} + ' FCFA'">0</p>
+                        <p class="text-xs text-slate-600 mt-1">
+                            <span th:text="${revenue['adhesionPaidCount']}">0</span> client(s) ×
+                            <span th:text="${revenue['adhesionFeeFcfa']}">250</span> FCFA
+                        </p>
+                        <p class="text-[11px] text-emerald-700 mt-1">
+                            Mois en cours :
+                            <strong th:text="${#numbers.formatInteger(revenue['adhesionRevenueThisMonthFcfa'], 0, 'POINT')} + ' FCFA'">0</strong>
+                            (<span th:text="${revenue['adhesionPaidThisMonth']}">0</span>)
+                        </p>
+                    </div>
+                    <div class="rounded-xl bg-white/90 border border-slate-100 p-4">
+                        <p class="text-xs text-slate-500 flex items-center gap-1">
+                            <i class="fa-solid fa-calendar-day text-amber-600"></i> Jour hors plan (50 % PayFlex)
+                        </p>
+                        <p class="text-xl font-bold text-slate-800 mt-1"
+                           th:text="${#numbers.formatInteger(revenue['bonusDayRevenueFcfa'], 0, 'POINT')} + ' FCFA'">0</p>
+                        <p class="text-xs text-slate-600 mt-1">
+                            <span th:text="${revenue['activeClientMonths']}">0</span> mois client actif(s)
+                        </p>
+                        <p class="text-[11px] text-emerald-700 mt-1">
+                            Mois en cours :
+                            <strong th:text="${#numbers.formatInteger(revenue['bonusDayRevenueThisMonthFcfa'], 0, 'POINT')} + ' FCFA'">0</strong>
+                            (<span th:text="${revenue['activeClientMonthsThisMonth']}">0</span> mois)
+                        </p>
+                    </div>
+                    <div class="rounded-xl bg-white/90 border border-slate-100 p-4 sm:col-span-2 xl:col-span-2">
+                        <p class="text-xs text-slate-500 mb-2 flex items-center gap-1">
+                            <i class="fa-solid fa-chart-column text-violet-600"></i> Évolution mensuelle (8 derniers mois)
+                        </p>
+                        <div class="h-[140px] relative"><canvas id="revenueChart"></canvas></div>
+                    </div>
+                </div>
+            </article>
         </section>
 
         <section th:if="${catchupAlerts != null && !catchupAlerts.isEmpty()}" class="pf-dash-alert mb-4">
@@ -183,6 +249,7 @@
     const topProducts = [[${topProducts}]];
     const topClients = [[${topClients}]];
     const monthlyCollections = [[${monthlyCollections}]];
+    const revenueBreakdown = /*[[${revenue != null ? revenue['monthlyBreakdown'] : null}]]*/ null;
 </script>
 <script src="/js/chart-palette.js"></script>
 <script src="/js/dashboard.js"></script>

@@ -1,9 +1,15 @@
 package com.payflex.backend.controller;
 
 import com.payflex.backend.service.AdminAuditService;
+import com.payflex.backend.service.AgentMobileService;
 import com.payflex.backend.service.ClientAdhesionService;
+import com.payflex.backend.service.ClientBonusSavingsService;
+import com.payflex.backend.service.ClientProductSelectionService;
 import com.payflex.backend.service.ContributionWorkflowService;
 import com.payflex.backend.service.FedaPayPaymentService;
+import com.payflex.backend.service.FedaPaySimulateService;
+import com.payflex.backend.service.JobOfferService;
+import com.payflex.backend.service.LegalDocumentService;
 import com.payflex.backend.service.MobileApiService;
 import com.payflex.backend.service.MobileLoginResolution;
 import com.payflex.backend.service.MobileRecoveryService;
@@ -41,8 +47,14 @@ public class MobileApiController {
     private final SupportChatService supportChatService;
     private final ContributionWorkflowService contributionWorkflowService;
     private final FedaPayPaymentService fedaPayPaymentService;
+    private final FedaPaySimulateService fedaPaySimulateService;
     private final PushNotificationService pushNotificationService;
     private final ClientAdhesionService clientAdhesionService;
+    private final LegalDocumentService legalDocumentService;
+    private final JobOfferService jobOfferService;
+    private final AgentMobileService agentMobileService;
+    private final ClientProductSelectionService clientProductSelectionService;
+    private final ClientBonusSavingsService clientBonusSavingsService;
 
     public MobileApiController(
         MobileApiService mobileApiService,
@@ -53,8 +65,14 @@ public class MobileApiController {
         SupportChatService supportChatService,
         ContributionWorkflowService contributionWorkflowService,
         FedaPayPaymentService fedaPayPaymentService,
+        FedaPaySimulateService fedaPaySimulateService,
         PushNotificationService pushNotificationService,
-        ClientAdhesionService clientAdhesionService
+        ClientAdhesionService clientAdhesionService,
+        LegalDocumentService legalDocumentService,
+        JobOfferService jobOfferService,
+        AgentMobileService agentMobileService,
+        ClientProductSelectionService clientProductSelectionService,
+        ClientBonusSavingsService clientBonusSavingsService
     ) {
         this.mobileApiService = mobileApiService;
         this.mobileRecoveryService = mobileRecoveryService;
@@ -64,13 +82,38 @@ public class MobileApiController {
         this.supportChatService = supportChatService;
         this.contributionWorkflowService = contributionWorkflowService;
         this.fedaPayPaymentService = fedaPayPaymentService;
+        this.fedaPaySimulateService = fedaPaySimulateService;
         this.pushNotificationService = pushNotificationService;
         this.clientAdhesionService = clientAdhesionService;
+        this.legalDocumentService = legalDocumentService;
+        this.jobOfferService = jobOfferService;
+        this.agentMobileService = agentMobileService;
+        this.clientProductSelectionService = clientProductSelectionService;
+        this.clientBonusSavingsService = clientBonusSavingsService;
     }
 
     @GetMapping("/health")
     public Map<String, String> health() {
         return Map.of("status", "ok");
+    }
+
+    @GetMapping("/legal/documents")
+    public Map<String, Object> legalDocuments() {
+        return Map.of("documents", legalDocumentService.listForMobile());
+    }
+
+    @GetMapping("/job-offers")
+    public Map<String, Object> jobOffers() {
+        return Map.of("offers", jobOfferService.listActiveForMobile());
+    }
+
+    @GetMapping("/job-offers/{id}")
+    public ResponseEntity<?> jobOfferDetail(@PathVariable long id) {
+        try {
+            return ResponseEntity.ok(jobOfferService.getActiveForMobile(id));
+        } catch (IllegalArgumentException ex) {
+            return ResponseEntity.status(404).body(Map.of("message", ex.getMessage()));
+        }
     }
 
     @PostMapping("/auth/login")
@@ -152,6 +195,18 @@ public class MobileApiController {
     /**
      * Mot de passe oublié — étape 2 : nouveau code PIN unique (avec jeton à usage unique).
      */
+    @PostMapping("/auth/recovery/callback-request")
+    public ResponseEntity<?> recoveryCallbackRequest(@RequestBody Map<String, String> payload) {
+        try {
+            return ResponseEntity.ok(mobileRecoveryService.requestCallbackAssistance(
+                payload.getOrDefault("phone", ""),
+                payload.getOrDefault("fullName", "")
+            ));
+        } catch (IllegalArgumentException ex) {
+            return ResponseEntity.badRequest().body(Map.of("message", ex.getMessage()));
+        }
+    }
+
     @PostMapping("/auth/recovery/reset")
     public ResponseEntity<?> recoveryReset(@RequestBody Map<String, String> payload) {
         try {
@@ -200,6 +255,42 @@ public class MobileApiController {
         return ResponseEntity.ok(user);
     }
 
+    @PostMapping("/profile/update")
+    public ResponseEntity<?> updateProfile(@RequestBody Map<String, Object> payload) {
+        String identifier = String.valueOf(payload.getOrDefault("identifier", "")).trim();
+        if (identifier.isEmpty()) {
+            identifier = String.valueOf(payload.getOrDefault("phone", "")).trim();
+        }
+        String pin = String.valueOf(payload.getOrDefault("pin", "")).trim();
+        long userId;
+        try {
+            userId = Long.parseLong(payload.getOrDefault("userId", 0).toString());
+        } catch (NumberFormatException ex) {
+            return ResponseEntity.badRequest().body(Map.of("message", "Identifiant utilisateur invalide."));
+        }
+        if (identifier.isEmpty() || pin.isEmpty() || userId <= 0) {
+            return ResponseEntity.badRequest().body(Map.of("message", "Session invalide."));
+        }
+        Map<String, Object> user = mobileApiService.profileByCredentials(identifier, pin, userId);
+        if (user == null) {
+            return ResponseEntity.status(401).body(Map.of("message", "Session invalide ou compte introuvable."));
+        }
+        if (!"client".equals(String.valueOf(user.get("role")))) {
+            return ResponseEntity.status(403).body(Map.of("message", "Modification réservée aux clients."));
+        }
+        mobileApiService.updateClientProfile(
+            userId,
+            String.valueOf(payload.getOrDefault("city", "")),
+            String.valueOf(payload.getOrDefault("profession", "")),
+            String.valueOf(payload.getOrDefault("workplaceName", "")),
+            String.valueOf(payload.getOrDefault("workplaceAddress", "")),
+            String.valueOf(payload.getOrDefault("bossName", "")),
+            String.valueOf(payload.getOrDefault("bossPhone", ""))
+        );
+        Map<String, Object> refreshed = mobileApiService.profileByCredentials(identifier, pin, userId);
+        return ResponseEntity.ok(refreshed != null ? refreshed : user);
+    }
+
     @GetMapping("/product-categories")
     public List<Map<String, Object>> productCategories() {
         return mobileApiService.productCategoriesForMobile();
@@ -228,6 +319,32 @@ public class MobileApiController {
             out.add(mapChatMessageRow(r));
         }
         return ResponseEntity.ok(out);
+    }
+
+    @PostMapping(value = "/support-chat/send-attachment", consumes = org.springframework.http.MediaType.MULTIPART_FORM_DATA_VALUE)
+    public ResponseEntity<?> chatSendAttachment(
+        @RequestParam long userId,
+        @RequestParam String phone,
+        @RequestParam String pin,
+        @RequestParam("file") MultipartFile file,
+        @RequestParam(required = false) String caption
+    ) {
+        Map<String, Object> credPayload = Map.of("userId", userId, "phone", phone, "pin", pin);
+        if (!credentialsMatch(credPayload, userId)) {
+            return ResponseEntity.status(401).body(Map.of("message", "Session invalide ou compte introuvable."));
+        }
+        if (file == null || file.isEmpty()) {
+            return ResponseEntity.badRequest().body(Map.of("message", "Fichier requis."));
+        }
+        try {
+            long messageId = supportChatService.addClientAttachment(userId, file, caption);
+            auditService.logClient(userId, "A envoyé une pièce jointe au support depuis l’application.");
+            return ResponseEntity.ok(Map.of("ok", true, "id", messageId));
+        } catch (IllegalArgumentException ex) {
+            return ResponseEntity.badRequest().body(Map.of("message", ex.getMessage()));
+        } catch (Exception ex) {
+            return ResponseEntity.status(500).body(Map.of("message", "Envoi du fichier impossible."));
+        }
     }
 
     @PostMapping("/support-chat/send")
@@ -309,6 +426,7 @@ public class MobileApiController {
         return ResponseEntity.ok(Map.of("ok", true, "deleted", n));
     }
 
+    /** @deprecated Push pull PayFlex — plus de token FCM requis. */
     @PostMapping("/devices/fcm-token")
     public ResponseEntity<?> registerFcmToken(@RequestBody Map<String, Object> payload) {
         Long userId = verifyChatUserId(payload);
@@ -352,7 +470,18 @@ public class MobileApiController {
         }
         Object readAt = r.get("read_at");
         m.put("read", readAt != null);
+        putAttachmentFields(m, r);
         return m;
+    }
+
+    private static void putAttachmentFields(Map<String, Object> m, Map<String, Object> r) {
+        Object url = r.get("attachment_url");
+        if (url != null && !String.valueOf(url).isBlank()) {
+            m.put("attachment_url", url);
+            m.put("attachment_kind", r.get("attachment_kind"));
+            m.put("attachment_name", r.get("attachment_name"));
+            m.put("attachment_mime", r.get("attachment_mime"));
+        }
     }
 
     @PostMapping("/contributions")
@@ -417,6 +546,13 @@ public class MobileApiController {
             if ("cash".equalsIgnoreCase(paymentMode) == false) {
                 return ResponseEntity.badRequest().body(Map.of("message", "Mode paiement attendu : espèces (cash) pour une collecte agent."));
             }
+            String clientPin = payload.get("clientPin") == null ? "" : payload.get("clientPin").toString().trim();
+            if (clientPin.length() < 4) {
+                return ResponseEntity.badRequest().body(Map.of(
+                    "message",
+                    "Le code PIN secret du client est requis pour valider la collecte."
+                ));
+            }
             long clientUserId = userId;
             if (clientUserId <= 0) {
                 clientUserId = mobileApiService.findClientUserIdByPhone(clientPhone);
@@ -426,6 +562,9 @@ public class MobileApiController {
                     "message",
                     "Client introuvable sur le centre. Vérifiez le numéro ou que le compte est validé côté PayFlex."
                 ));
+            }
+            if (!mobileApiService.verifyClientPin(clientUserId, clientPin)) {
+                return ResponseEntity.status(403).body(Map.of("message", "Code PIN client incorrect."));
             }
             if (!permissionService.userHasPermission(clientUserId, PermissionService.MOBILE_CONTRIBUTION_CREATE)) {
                 return ResponseEntity.status(403).body(Map.of("message", "Ce client ne peut pas encore enregistrer de cotisation. Contactez le support."));
@@ -453,27 +592,37 @@ public class MobileApiController {
                 catchupDay
             );
             String status = "pending";
-            String message = "Collecte enregistrée. Elle sera confirmée au centre après rapprochement.";
+            String message = "Collecte espèces enregistrée — en attente de validation au centre (rapprochement fin de journée).";
             try {
-                contributionWorkflowService.validateAgentCashCollection(id, collectorUserId);
-                status = "validated";
-                message = "Collecte espèces enregistrée et confirmée immédiatement.";
-                auditService.logAgent(
-                    collectorUserId,
-                    "A saisi et confirmé une collecte de " + Math.round(amount) + " FCFA en espèces."
-                );
-                auditService.logClient(
-                    clientUserId,
-                    "Collecte espèces de " + Math.round(amount) + " FCFA confirmée par votre agent PayFlex."
-                );
+                boolean validatedNow = contributionWorkflowService.validateAgentCashCollection(id, collectorUserId);
+                if (validatedNow) {
+                    status = "validated";
+                    message = "Collecte espèces enregistrée et confirmée immédiatement.";
+                    auditService.logAgent(
+                        collectorUserId,
+                        "A saisi et confirmé une collecte de " + Math.round(amount) + " FCFA en espèces."
+                    );
+                    auditService.logClient(
+                        clientUserId,
+                        "Collecte espèces de " + Math.round(amount) + " FCFA confirmée par votre agent PayFlex."
+                    );
+                } else {
+                    auditService.logAgent(
+                        collectorUserId,
+                        "A saisi une collecte de " + Math.round(amount) + " FCFA en espèces (en attente de validation au centre)."
+                    );
+                    auditService.logClient(
+                        clientUserId,
+                        "Collecte espèces enregistrée par l’agent : " + Math.round(amount) + " FCFA — à confirmer au centre après rapprochement."
+                    );
+                    contributionWorkflowService.notifyContributionPendingDeclaration(
+                        clientUserId, id, amount, paymentMode
+                    );
+                }
             } catch (IllegalArgumentException ex) {
                 auditService.logAgent(
                     collectorUserId,
-                    "A saisi une collecte de " + Math.round(amount) + " FCFA en espèces (en attente de validation au centre)."
-                );
-                auditService.logClient(
-                    clientUserId,
-                    "Collecte espèces enregistrée par l’agent : " + Math.round(amount) + " FCFA — à confirmer au centre."
+                    "Échec saisie collecte espèces " + Math.round(amount) + " FCFA : " + ex.getMessage()
                 );
                 message = ex.getMessage() != null ? ex.getMessage() : message;
             }
@@ -528,6 +677,25 @@ public class MobileApiController {
         return ResponseEntity.ok(Map.of("items", mobileApiService.contributionHistoryForClient(userId)));
     }
 
+    @PostMapping("/client/bonus-savings")
+    public ResponseEntity<?> clientBonusSavings(@RequestBody Map<String, Object> payload) {
+        long userId = parseLong(payload.get("userId"));
+        if (userId <= 0) {
+            return ResponseEntity.badRequest().body(Map.of("message", "Client manquant."));
+        }
+        if (!credentialsMatch(payload, userId)) {
+            return ResponseEntity.status(401).body(Map.of("message", "Session invalide."));
+        }
+        double daily = clientProductSelectionService.getDailyContribution(userId);
+        if (daily <= 0) {
+            double total = clientProductSelectionService.totalProjectAmount(userId);
+            if (total > 0) {
+                daily = Math.max(200, Math.round(total / 365.0));
+            }
+        }
+        return ResponseEntity.ok(clientBonusSavingsService.summary(userId, daily));
+    }
+
     @PostMapping("/contributions/fedapay/init")
     public ResponseEntity<?> initFedaPayContribution(@RequestBody Map<String, Object> payload) {
         long userId = parseLong(payload.get("userId"));
@@ -568,8 +736,21 @@ public class MobileApiController {
                 "message", "FedaPay non configuré. Utilisez la déclaration classique."
             ));
         }
+        String payerPhone = payload.get("payerPhone") == null
+            ? null
+            : payload.get("payerPhone").toString().trim();
+        if (payerPhone != null && !payerPhone.isBlank()) {
+            String digits = payerPhone.replaceAll("\\D", "");
+            if (digits.length() < 8) {
+                return ResponseEntity.badRequest().body(Map.of(
+                    "message", "Numéro de paiement invalide."
+                ));
+            }
+        } else {
+            payerPhone = null;
+        }
         try {
-            Map<String, Object> result = fedaPayPaymentService.initMobileMoneyPayment(userId, productId, agentRowId, amount);
+            Map<String, Object> result = fedaPayPaymentService.initMobileMoneyPayment(userId, productId, agentRowId, amount, payerPhone);
             return ResponseEntity.ok(result);
         } catch (IllegalArgumentException | IllegalStateException ex) {
             return ResponseEntity.badRequest().body(Map.of("message", ex.getMessage()));
@@ -587,6 +768,35 @@ public class MobileApiController {
             return ResponseEntity.ok(fedaPayPaymentService.paymentStatus(contributionId, userId));
         } catch (IllegalArgumentException ex) {
             return ResponseEntity.badRequest().body(Map.of("message", ex.getMessage()));
+        }
+    }
+
+    @GetMapping(value = "/fedapay/simulate/page", produces = "text/html;charset=UTF-8")
+    public ResponseEntity<String> fedaPaySimulatePage(@RequestParam("tx") String tx) {
+        try {
+            return ResponseEntity.ok(fedaPaySimulateService.renderSimulatePage(tx));
+        } catch (IllegalArgumentException ex) {
+            return ResponseEntity.badRequest().body(ex.getMessage());
+        }
+    }
+
+    @GetMapping("/fedapay/simulate/confirm")
+    public ResponseEntity<Void> fedaPaySimulateConfirm(@RequestParam("tx") String tx) {
+        try {
+            String redirect = fedaPaySimulateService.confirm(tx);
+            return ResponseEntity.status(302).header("Location", redirect).build();
+        } catch (IllegalArgumentException ex) {
+            return ResponseEntity.badRequest().build();
+        }
+    }
+
+    @GetMapping("/fedapay/simulate/cancel")
+    public ResponseEntity<Void> fedaPaySimulateCancel(@RequestParam("tx") String tx) {
+        try {
+            String redirect = fedaPaySimulateService.cancel(tx);
+            return ResponseEntity.status(302).header("Location", redirect).build();
+        } catch (IllegalArgumentException ex) {
+            return ResponseEntity.badRequest().build();
         }
     }
 
@@ -685,6 +895,28 @@ public class MobileApiController {
         }
     }
 
+    /**
+     * Sync « push » sans Firebase : nouvelles notifications + résumé chat depuis le dernier id connu.
+     */
+    @PostMapping("/push/poll")
+    public ResponseEntity<?> pushPoll(@RequestBody Map<String, Object> payload) {
+        long userId = parseLong(payload.get("userId"));
+        if (userId <= 0 || !credentialsMatch(payload, userId)) {
+            return ResponseEntity.status(401).body(Map.of("message", "Session invalide."));
+        }
+        long afterId = parseLong(payload.get("afterNotificationId"));
+        List<Map<String, Object>> newItems = contributionWorkflowService.listNotificationsAfterId(userId, afterId);
+        long latestId = contributionWorkflowService.latestNotificationId(userId);
+        Map<String, Object> inbox = supportChatService.inboxSummary(userId);
+        return ResponseEntity.ok(Map.of(
+            "latestNotificationId", latestId,
+            "newNotifications", newItems,
+            "chatUnread", inbox.getOrDefault("chatUnread", 0),
+            "latestChatTitle", inbox.getOrDefault("bannerTitle", ""),
+            "latestChatPreview", inbox.getOrDefault("bannerBody", "")
+        ));
+    }
+
     @PostMapping("/notifications")
     public ResponseEntity<?> clientNotifications(@RequestBody Map<String, Object> payload) {
         long userId = parseLong(payload.get("userId"));
@@ -743,6 +975,20 @@ public class MobileApiController {
             return ResponseEntity.status(404).body(Map.of("message", "Notification introuvable."));
         }
         return ResponseEntity.ok(Map.of("ok", true));
+    }
+
+    @PostMapping("/notifications/pin")
+    public ResponseEntity<?> pinNotification(@RequestBody Map<String, Object> payload) {
+        long userId = parseLong(payload.get("userId"));
+        long notificationId = parseLong(payload.get("notificationId"));
+        if (userId <= 0 || notificationId <= 0 || !credentialsMatch(payload, userId)) {
+            return ResponseEntity.status(401).body(Map.of("message", "Session invalide."));
+        }
+        boolean pinned = Boolean.parseBoolean(String.valueOf(payload.getOrDefault("pinned", "true")));
+        if (!contributionWorkflowService.setNotificationPinned(userId, notificationId, pinned)) {
+            return ResponseEntity.status(404).body(Map.of("message", "Notification introuvable."));
+        }
+        return ResponseEntity.ok(Map.of("ok", true, "pinned", pinned));
     }
 
     private static long parseLong(Object v) {
@@ -816,8 +1062,154 @@ public class MobileApiController {
         }
         return ResponseEntity.ok(Map.of(
             "adhesionFeeFcfa", ClientAdhesionService.ADHESION_FEE_FCFA,
-            "items", clientAdhesionService.listAgentClients(agentUserId)
+            "items", agentMobileService.enrichedClientList(agentUserId)
         ));
+    }
+
+    @PostMapping("/agent/dashboard")
+    public ResponseEntity<?> agentDashboard(@RequestBody Map<String, Object> payload) {
+        long agentUserId = parseLong(payload.get("userId"));
+        if (agentUserId <= 0 || !credentialsMatch(payload, agentUserId)) {
+            return ResponseEntity.status(401).body(Map.of("message", "Session invalide."));
+        }
+        return ResponseEntity.ok(agentMobileService.dashboard(agentUserId));
+    }
+
+    @PostMapping("/agent/profile")
+    public ResponseEntity<?> agentProfile(@RequestBody Map<String, Object> payload) {
+        long agentUserId = parseLong(payload.get("userId"));
+        if (agentUserId <= 0 || !credentialsMatch(payload, agentUserId)) {
+            return ResponseEntity.status(401).body(Map.of("message", "Session invalide."));
+        }
+        return ResponseEntity.ok(agentMobileService.profile(agentUserId));
+    }
+
+    @PostMapping("/agent/zone-tour")
+    public ResponseEntity<?> agentZoneTour(@RequestBody Map<String, Object> payload) {
+        long agentUserId = parseLong(payload.get("userId"));
+        if (agentUserId <= 0 || !credentialsMatch(payload, agentUserId)) {
+            return ResponseEntity.status(401).body(Map.of("message", "Session invalide."));
+        }
+        return ResponseEntity.ok(agentMobileService.zoneTour(agentUserId));
+    }
+
+    @PostMapping("/agent/profile/schedule")
+    public ResponseEntity<?> agentUpdateWeeklySchedule(@RequestBody Map<String, Object> payload) {
+        long agentUserId = parseLong(payload.get("userId"));
+        if (agentUserId <= 0 || !credentialsMatch(payload, agentUserId)) {
+            return ResponseEntity.status(401).body(Map.of("message", "Session invalide."));
+        }
+        Map<String, String> schedule = new LinkedHashMap<>();
+        Object raw = payload.get("weeklySchedule");
+        if (raw instanceof Map<?, ?> map) {
+            for (Map.Entry<?, ?> e : map.entrySet()) {
+                if (e.getKey() != null) {
+                    schedule.put(e.getKey().toString(), e.getValue() == null ? "" : e.getValue().toString());
+                }
+            }
+        }
+        Map<String, Object> result = agentMobileService.updateWeeklySchedule(agentUserId, schedule);
+        if (Boolean.FALSE.equals(result.get("ok"))) {
+            return ResponseEntity.badRequest().body(result);
+        }
+        return ResponseEntity.ok(result);
+    }
+
+    @PostMapping("/agent/profile/pin")
+    public ResponseEntity<?> agentChangePin(@RequestBody Map<String, Object> payload) {
+        long agentUserId = parseLong(payload.get("userId"));
+        if (agentUserId <= 0 || !credentialsMatch(payload, agentUserId)) {
+            return ResponseEntity.status(401).body(Map.of("message", "Session invalide."));
+        }
+        String currentPin = payload.get("currentPin") == null ? "" : payload.get("currentPin").toString().trim();
+        String newPin = payload.get("newPin") == null ? "" : payload.get("newPin").toString().trim();
+        Map<String, Object> result = agentMobileService.changeAgentPin(agentUserId, currentPin, newPin);
+        if (Boolean.FALSE.equals(result.get("ok"))) {
+            return ResponseEntity.status(403).body(result);
+        }
+        return ResponseEntity.ok(result);
+    }
+
+    @PostMapping("/agent/contributions/registry")
+    public ResponseEntity<?> agentContributionRegistry(@RequestBody Map<String, Object> payload) {
+        long agentUserId = parseLong(payload.get("userId"));
+        if (agentUserId <= 0 || !credentialsMatch(payload, agentUserId)) {
+            return ResponseEntity.status(401).body(Map.of("message", "Session invalide."));
+        }
+        return ResponseEntity.ok(agentMobileService.contributionRegistry(agentUserId));
+    }
+
+    @PostMapping("/agent/client-detail")
+    public ResponseEntity<?> agentClientDetail(@RequestBody Map<String, Object> payload) {
+        long agentUserId = parseLong(payload.get("userId"));
+        long clientUserId = parseLong(payload.get("clientUserId"));
+        if (agentUserId <= 0 || !credentialsMatch(payload, agentUserId)) {
+            return ResponseEntity.status(401).body(Map.of("message", "Session invalide."));
+        }
+        if (clientUserId <= 0) {
+            return ResponseEntity.badRequest().body(Map.of("message", "Client requis."));
+        }
+        return ResponseEntity.ok(agentMobileService.clientDetail(agentUserId, clientUserId));
+    }
+
+    @PostMapping("/agent/client/products")
+    public ResponseEntity<?> agentAddClientProducts(@RequestBody Map<String, Object> payload) {
+        long agentUserId = parseLong(payload.get("userId"));
+        long clientUserId = parseLong(payload.get("clientUserId"));
+        if (agentUserId <= 0 || !credentialsMatch(payload, agentUserId)) {
+            return ResponseEntity.status(401).body(Map.of("message", "Session invalide."));
+        }
+        if (clientUserId <= 0) {
+            return ResponseEntity.badRequest().body(Map.of("message", "Client requis."));
+        }
+        List<ClientProductSelectionService.ProductLine> lines;
+        Object rawSelections = payload.get("productSelections");
+        if (rawSelections instanceof List<?> list) {
+            lines = ClientProductSelectionService.parseLines(list);
+        } else if (rawSelections instanceof String s && !s.isBlank()) {
+            lines = clientProductSelectionService.parseJson(s);
+        } else {
+            lines = List.of();
+        }
+        double dailyContribution = 0;
+        if (payload.get("dailyContribution") != null) {
+            try {
+                dailyContribution = Double.parseDouble(payload.get("dailyContribution").toString());
+            } catch (NumberFormatException ignored) {
+                dailyContribution = 0;
+            }
+        }
+        Map<String, Object> result = agentMobileService.addClientProducts(
+            agentUserId,
+            clientUserId,
+            lines,
+            dailyContribution
+        );
+        if (Boolean.FALSE.equals(result.get("ok"))) {
+            return ResponseEntity.badRequest().body(result);
+        }
+        return ResponseEntity.ok(result);
+    }
+
+    @PostMapping("/agent/verify-client-pin")
+    public ResponseEntity<?> agentVerifyClientPin(@RequestBody Map<String, Object> payload) {
+        long agentUserId = parseLong(payload.get("userId"));
+        long clientUserId = parseLong(payload.get("clientUserId"));
+        String clientPin = payload.get("clientPin") == null ? "" : payload.get("clientPin").toString().trim();
+        if (agentUserId <= 0 || !credentialsMatch(payload, agentUserId)) {
+            return ResponseEntity.status(401).body(Map.of("message", "Session invalide."));
+        }
+        if (clientUserId <= 0 || clientPin.length() < 4) {
+            return ResponseEntity.badRequest().body(Map.of("message", "Client et code PIN requis."));
+        }
+        if (!mobileApiService.isClientAssignedToAgent(clientUserId, agentUserId)) {
+            return ResponseEntity.status(403).body(Map.of("message", "Ce client n'est pas rattaché à votre agent."));
+        }
+        boolean ok = mobileApiService.verifyClientPin(clientUserId, clientPin);
+        if (!ok) {
+            return ResponseEntity.status(403).body(Map.of("ok", false, "message", "Code PIN incorrect."));
+        }
+        return ResponseEntity.ok(Map.of("ok", true));
     }
 
     @PostMapping("/agent/adhesion/paid")
@@ -931,7 +1323,7 @@ public class MobileApiController {
     @PostMapping(value = "/registrations", consumes = {"multipart/form-data"})
     public ResponseEntity<?> register(
         @RequestParam String fullName,
-        @RequestParam String phone,
+        @RequestParam(required = false, defaultValue = "") String phone,
         @RequestParam(required = false) String email,
         @RequestParam(required = false) String city,
         @RequestParam(required = false) String profession,
@@ -951,7 +1343,8 @@ public class MobileApiController {
         @RequestParam(required = false) String bossPhone,
         @RequestParam(required = false) MultipartFile profilePhoto,
         @RequestParam(required = false) MultipartFile idDocument,
-        @RequestParam(required = false, defaultValue = "false") String idDocumentWaived
+        @RequestParam(required = false, defaultValue = "false") String idDocumentWaived,
+        @RequestParam(required = false, defaultValue = "") String productSelections
     ) {
         if ("agent".equalsIgnoreCase(submittedBy)) {
             if (submittedByAgentUserId == null || submittedByAgentUserId <= 0) {
@@ -977,19 +1370,26 @@ public class MobileApiController {
                     "message", "Mot de passe requis (minimum 6 caractères)."
                 ));
             }
+            String phoneNorm = phone == null || phone.isBlank() ? null : phone.trim();
             long id = registrationService.submit(
                 new RegistrationService.RegistrationInput(
-                    fullName, phone, email, city, profession, gender, submittedBy, roleToStore,
+                    fullName, phoneNorm, email, city, profession, gender, submittedBy, roleToStore,
                     submittedByAgentUserId, assignedAgentUserId, pinTrim, pinTrim, passwordTrim, uniqueCode,
                     workplaceName, workplaceAddress, bossName, bossPhone, waived
                 ),
                 profilePhoto,
                 idDocument
             );
+            List<ClientProductSelectionService.ProductLine> lines = clientProductSelectionService.parseJson(productSelections);
+            if (!lines.isEmpty() && submittedByAgentUserId != null && submittedByAgentUserId > 0) {
+                registrationService.linkedClientUserIdForUniqueCode(uniqueCode).ifPresent(clientId ->
+                    clientProductSelectionService.saveSelections(clientId, submittedByAgentUserId, lines)
+                );
+            }
             log.info(
                 "Mobile registration OK id={} phone={} role={} agentId={}",
                 id,
-                maskPhoneForLog(phone),
+                maskPhoneForLog(phoneNorm),
                 roleToStore,
                 assignedAgentUserId
             );

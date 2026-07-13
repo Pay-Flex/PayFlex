@@ -19,18 +19,18 @@ public class ClientAdhesionService {
     private final JdbcTemplate jdbcTemplate;
     private final AdminAuditService auditService;
     private final ContributionWorkflowService contributionWorkflowService;
-    private final PushNotificationService pushNotificationService;
+    private final UserInboxNotificationService inboxNotifications;
 
     public ClientAdhesionService(
         JdbcTemplate jdbcTemplate,
         AdminAuditService auditService,
         ContributionWorkflowService contributionWorkflowService,
-        PushNotificationService pushNotificationService
+        UserInboxNotificationService inboxNotifications
     ) {
         this.jdbcTemplate = jdbcTemplate;
         this.auditService = auditService;
         this.contributionWorkflowService = contributionWorkflowService;
-        this.pushNotificationService = pushNotificationService;
+        this.inboxNotifications = inboxNotifications;
     }
 
     public long countOpenAdhesionDisputes() {
@@ -317,15 +317,16 @@ public class ClientAdhesionService {
         String body = agentUserId != null && agentUserId > 0
             ? "Bienvenue sur PayFlex ! Finalisez votre adhésion (250 FCFA) auprès de votre agent parrain ou payez en mobile money depuis l’application."
             : "Bienvenue sur PayFlex ! Finalisez votre adhésion (250 FCFA) en mobile money depuis l’application pour activer les cotisations et paiements.";
-        contributionWorkflowService.notifyClientInbox(
-            clientUserId,
-            "welcome",
-            "Bienvenue sur PayFlex",
-            body,
-            null
-        );
         if (agentUserId != null && agentUserId > 0) {
             notifyAgentAssigned(clientUserId, agentUserId);
+        } else {
+            inboxNotifications.notifyUser(
+                clientUserId,
+                "welcome",
+                "Bienvenue sur PayFlex",
+                body,
+                null
+            );
         }
     }
 
@@ -374,7 +375,7 @@ public class ClientAdhesionService {
         String agentName = String.valueOf(agent.get("full_name"));
         String agentPhone = agent.get("phone") != null ? agent.get("phone").toString() : "";
 
-        contributionWorkflowService.notifyClientInbox(
+        inboxNotifications.notifyClientAndAssignedAgent(
             clientUserId,
             "agent_assigned",
             "Votre agent PayFlex",
@@ -384,17 +385,11 @@ public class ClientAdhesionService {
                 + " Adhésion "
                 + ADHESION_FEE_FCFA
                 + " FCFA en espèces auprès de lui, ou paiement mobile money dans l’app.",
+            "Nouveau client — {client}",
+            "Le client {client} vous a été assigné comme parrain. Pensez à l’accompagner pour l’adhésion ("
+                + ADHESION_FEE_FCFA
+                + " FCFA).",
             null
-        );
-        pushNotificationService.notifyUser(
-            clientUserId,
-            "Agent PayFlex assigné",
-            "Votre agent : " + agentName
-        );
-        pushNotificationService.notifyUser(
-            agentUserId,
-            "Nouveau client PayFlex",
-            clientName + " vous a été assigné comme parrain."
         );
         auditService.logClient(
             clientUserId,
@@ -403,17 +398,14 @@ public class ClientAdhesionService {
     }
 
     private void notifyAdhesionConfirmed(long clientUserId) {
-        contributionWorkflowService.notifyClientInbox(
+        inboxNotifications.notifyClientAndAssignedAgent(
             clientUserId,
             "adhesion_paid",
             "Adhésion confirmée",
             "Votre adhésion PayFlex (" + ADHESION_FEE_FCFA + " FCFA) est enregistrée. Cotisations et paiements sont activés.",
+            "Adhésion confirmée — {client}",
+            "Votre client {client} a finalisé son adhésion PayFlex (" + ADHESION_FEE_FCFA + " FCFA).",
             null
-        );
-        pushNotificationService.notifyUser(
-            clientUserId,
-            "Adhésion PayFlex",
-            "Votre adhésion est confirmée. Bienvenue !"
         );
     }
 

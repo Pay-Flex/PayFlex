@@ -1,3 +1,4 @@
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_animate/flutter_animate.dart';
 import 'package:google_fonts/google_fonts.dart';
@@ -11,11 +12,14 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../core/network/api_config.dart';
 import '../../core/network/payflex_api_logger.dart';
 import '../../core/providers/auth_provider.dart';
+import '../../core/services/notification_permission_flow.dart';
 import '../../core/utils/user_visible_message.dart';
 import '../../core/utils/phone_input_utils.dart';
+import '../../core/widgets/dev_api_settings_sheet.dart';
 import '../../core/widgets/payflex_phone_field.dart';
 import '../agent/agent_main_navigation_screen.dart';
 import '../../core/providers/navigation_provider.dart';
+import '../../core/services/biometric_auth_service.dart';
 import 'forgot_password_verify_screen.dart';
 
 enum _LoginMethod { phone, name, email }
@@ -42,6 +46,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
   _LoginMethod _method = _LoginMethod.phone;
   bool _isPasswordVisible = false;
   bool _isLoading = false;
+  bool _biometricAvailable = false;
 
   TextStyle get _fieldStyle => GoogleFonts.inter(color: Colors.black87, fontSize: 16, fontWeight: FontWeight.w500);
 
@@ -61,6 +66,13 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
         );
       });
     }
+    _checkBiometric();
+  }
+
+  Future<void> _checkBiometric() async {
+    final enabled = await BiometricAuthService.isEnabled();
+    final supported = await BiometricAuthService.isDeviceSupported();
+    if (mounted) setState(() => _biometricAvailable = enabled && supported);
   }
 
   @override
@@ -94,6 +106,15 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
     }
   }
 
+  Widget _buildLogo() {
+    const logo = PayFlexLogo(size: 128, circularBorder: true);
+    if (!kDebugMode) return logo;
+    return GestureDetector(
+      onLongPress: () => showDevApiSettingsSheet(context),
+      child: logo,
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     return AuthWaveBackground(
@@ -108,31 +129,37 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
               children: [
                 const SizedBox(height: 50),
                 Center(
-                  child: const PayFlexLogo(size: 96),
+                  child: _buildLogo(),
                 ).animate().fadeIn(duration: 600.ms).slideY(begin: -0.2),
 
                 const SizedBox(height: 60),
 
-                Text(
-                  'Bienvenue',
-                  style: GoogleFonts.manrope(
-                    fontSize: 28,
-                    fontWeight: FontWeight.w800,
-                    color: AppColors.secondary,
+                Center(
+                  child: Text(
+                    'Bienvenue',
+                    textAlign: TextAlign.center,
+                    style: GoogleFonts.manrope(
+                      fontSize: 28,
+                      fontWeight: FontWeight.w800,
+                      color: AppColors.secondary,
+                    ),
                   ),
                 ).animate().fadeIn(delay: 200.ms),
 
-                Text(
-                  'Connectez-vous pour gérer vos actifs.',
-                  style: GoogleFonts.inter(
-                    fontSize: 14,
-                    color: AppColors.onSurfaceVariant.withValues(alpha: 0.7),
+                Center(
+                  child: Text(
+                    'Connectez-vous pour gérer vos actifs.',
+                    textAlign: TextAlign.center,
+                    style: GoogleFonts.inter(
+                      fontSize: 14,
+                      color: AppColors.onSurfaceVariant.withValues(alpha: 0.7),
+                    ),
                   ),
                 ).animate().fadeIn(delay: 300.ms),
 
                 const SizedBox(height: 32),
 
-                _buildMethodSelector(),
+                Center(child: _buildMethodSelector()),
                 const SizedBox(height: 20),
                 _buildIdentifierField(),
 
@@ -171,6 +198,23 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                         onPressed: _onLogin,
                         child: const Text('SE CONNECTER'),
                       ).animate().fadeIn(delay: 1.seconds).scale(),
+
+                if (_biometricAvailable) ...[
+                  const SizedBox(height: 16),
+                  OutlinedButton.icon(
+                    onPressed: _isLoading ? null : _onBiometricLogin,
+                    icon: const Icon(Icons.fingerprint_rounded, color: AppColors.secondary),
+                    label: Text(
+                      'Connexion biométrique',
+                      style: GoogleFonts.manrope(fontWeight: FontWeight.w700, color: AppColors.secondary),
+                    ),
+                    style: OutlinedButton.styleFrom(
+                      minimumSize: const Size(double.infinity, 52),
+                      side: BorderSide(color: AppColors.secondary.withValues(alpha: 0.25)),
+                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+                    ),
+                  ),
+                ],
 
                 const SizedBox(height: 32),
 
@@ -214,7 +258,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
       segments: const [
         ButtonSegment(
           value: _LoginMethod.phone,
-          label: Text('Téléphone'),
+          label: Text('Phone'),
           icon: Icon(Icons.phone_outlined, size: 18),
         ),
         ButtonSegment(
@@ -283,6 +327,45 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
     }
   }
 
+  Future<void> _onBiometricLogin() async {
+    final ok = await BiometricAuthService.authenticate(reason: 'Connectez-vous à PayFlex');
+    if (!ok || !mounted) return;
+    final creds = await BiometricAuthService.storedCredentials();
+    if (creds == null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Session biométrique introuvable. Connectez-vous manuellement.')),
+      );
+      return;
+    }
+    setState(() => _isLoading = true);
+    try {
+      final phone = creds['phone']?.toString() ?? '';
+      final pin = creds['pin']?.toString() ?? '';
+      _phoneCtrl.text = phone;
+      _pinController.text = pin;
+      _method = _LoginMethod.phone;
+      final outcome = await ref.read(authProvider.notifier).login(phone, pin, loginMode: 'phone');
+      if (!mounted) return;
+      if (outcome.success && ref.read(authProvider).isAuthenticated) {
+        _navigateAfterLogin(context, ref);
+      } else {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(
+              UserVisibleMessage.apiOrFallback(
+                outcome.errorMessage,
+                'Connexion biométrique échouée.',
+              ),
+            ),
+            backgroundColor: Colors.redAccent,
+          ),
+        );
+      }
+    } finally {
+      if (mounted) setState(() => _isLoading = false);
+    }
+  }
+
   Future<void> _onLogin() async {
     if (_formKey.currentState!.validate()) {
       final String identifier = _buildIdentifier();
@@ -341,6 +424,9 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
       MaterialPageRoute<void>(builder: (_) => nextScreen),
       (_) => false,
     );
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      requestPayflexNotificationsIfNeeded();
+    });
   }
 
   Widget _buildField(

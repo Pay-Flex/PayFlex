@@ -4,8 +4,8 @@ import 'package:google_fonts/google_fonts.dart';
 import '../../core/constants/app_colors.dart';
 import '../../core/database/database_service.dart';
 import '../../core/network/mobile_api_service.dart';
+import '../../core/providers/agent_provider.dart';
 import '../../core/providers/auth_provider.dart';
-import 'agent_collect_screen.dart';
 import 'agent_client_detail_screen.dart';
 
 class AgentClientListScreen extends ConsumerStatefulWidget {
@@ -18,50 +18,18 @@ class AgentClientListScreen extends ConsumerStatefulWidget {
 class _AgentClientListScreenState extends ConsumerState<AgentClientListScreen> {
   final DatabaseService _db = DatabaseService();
   final MobileApiService _api = MobileApiService();
-  List<Map<String, dynamic>> _clients = [];
-  bool _loading = true;
   int _adhesionFeeFcfa = 250;
   String _query = '';
 
   @override
   void initState() {
     super.initState();
-    _loadClients();
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      ref.read(agentDataProvider.notifier).refresh(silent: false);
+    });
   }
 
-  Future<void> _loadClients() async {
-    final auth = ref.read(authProvider);
-    if (auth.userId == null) {
-      setState(() {
-        _clients = [];
-        _loading = false;
-      });
-      return;
-    }
-    List<Map<String, dynamic>> list = [];
-    final remote = await _api.fetchAgentClients(
-      userId: auth.userId!,
-      phone: auth.phone ?? '',
-      pin: auth.pin ?? '',
-    );
-    if (remote != null && remote['items'] is List) {
-      _adhesionFeeFcfa = (remote['adhesionFeeFcfa'] as num?)?.toInt() ?? 250;
-      for (final item in remote['items'] as List) {
-        if (item is Map) {
-          list.add(Map<String, dynamic>.from(item));
-        }
-      }
-    } else {
-      final local = await _db.getClientsForAgent(auth.userId!);
-      list = local;
-    }
-    if (mounted) {
-      setState(() {
-        _clients = list;
-        _loading = false;
-      });
-    }
-  }
+  Future<void> _loadClients() async => ref.read(agentDataProvider.notifier).refresh(silent: false);
 
   Future<void> _confirmAdhesionPaid(Map<String, dynamic> client) async {
     final auth = ref.read(authProvider);
@@ -95,10 +63,10 @@ class _AgentClientListScreenState extends ConsumerState<AgentClientListScreen> {
     if (err == null) await _loadClients();
   }
 
-  List<Map<String, dynamic>> get _filtered {
+  List<Map<String, dynamic>> _filteredClients(List<Map<String, dynamic>> clients) {
     final q = _query.trim().toLowerCase();
-    if (q.isEmpty) return _clients;
-    return _clients.where((c) {
+    if (q.isEmpty) return clients;
+    return clients.where((c) {
       final name = (c['full_name'] ?? c['name'] ?? '').toString().toLowerCase();
       final phone = (c['phone'] ?? '').toString().toLowerCase();
       return name.contains(q) || phone.contains(q);
@@ -107,6 +75,8 @@ class _AgentClientListScreenState extends ConsumerState<AgentClientListScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final agent = ref.watch(agentDataProvider);
+    final filtered = _filteredClients(agent.clients);
     return Scaffold(
       backgroundColor: const Color(0xFFF8FAFC),
       appBar: AppBar(
@@ -140,9 +110,9 @@ class _AgentClientListScreenState extends ConsumerState<AgentClientListScreen> {
             ),
           ),
           Expanded(
-            child: _loading
+            child: agent.isLoading && filtered.isEmpty
                 ? const Center(child: CircularProgressIndicator())
-                : _filtered.isEmpty
+                : filtered.isEmpty
                     ? Center(
                         child: Padding(
                           padding: const EdgeInsets.all(24),
@@ -157,15 +127,15 @@ class _AgentClientListScreenState extends ConsumerState<AgentClientListScreen> {
                         onRefresh: _loadClients,
                         child: ListView.builder(
                           padding: const EdgeInsets.symmetric(horizontal: 20),
-                          itemCount: _filtered.length,
+                          itemCount: filtered.length,
                           itemBuilder: (context, index) {
-                            final client = _filtered[index];
+                            final client = filtered[index];
                             final id = (client['id'] as num).toInt();
                             final name = (client['full_name'] ?? client['name'] ?? 'Client').toString();
                             final zone = (client['city'] ?? client['profession'] ?? '—').toString();
                             final paid = client['adhesion_fee_paid'] == true;
                             final status = (client['status'] ?? '').toString();
-                            final img = 'https://i.pravatar.cc/150?u=$id';
+                            final initial = name.trim().isNotEmpty ? name.trim()[0].toUpperCase() : 'C';
 
                             return Container(
                               margin: const EdgeInsets.only(bottom: 12),
@@ -189,14 +159,17 @@ class _AgentClientListScreenState extends ConsumerState<AgentClientListScreen> {
                                                 clientId: id,
                                                 name: name,
                                                 zone: zone,
-                                                img: img,
                                               ),
                                             ),
                                           );
                                         },
-                                        child: ClipRRect(
-                                          borderRadius: BorderRadius.circular(12),
-                                          child: Image.network(img, width: 44, height: 44, fit: BoxFit.cover),
+                                        child: CircleAvatar(
+                                          radius: 22,
+                                          backgroundColor: AppColors.primary.withValues(alpha: 0.15),
+                                          child: Text(
+                                            initial,
+                                            style: GoogleFonts.manrope(fontWeight: FontWeight.w900, color: AppColors.secondary),
+                                          ),
                                         ),
                                       ),
                                       const SizedBox(width: 16),
@@ -222,9 +195,9 @@ class _AgentClientListScreenState extends ConsumerState<AgentClientListScreen> {
                                           Navigator.push(
                                             context,
                                             MaterialPageRoute(
-                                              builder: (context) => AgentCollectScreen(clientName: name, clientId: id),
+                                              builder: (context) => AgentClientDetailScreen(clientId: id, name: name, zone: zone),
                                             ),
-                                          );
+                                          ).then((_) => ref.read(agentDataProvider.notifier).refresh(silent: true));
                                         },
                                         icon: const Icon(Icons.payments_outlined, color: AppColors.primary),
                                       ),

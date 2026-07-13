@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:webview_flutter/webview_flutter.dart';
 import '../../core/constants/app_colors.dart';
+import '../../core/network/api_config.dart';
 import '../../core/network/mobile_api_service.dart';
 
 enum FedapayCheckoutOutcome { validated, rejected, cancelled, pending }
@@ -60,7 +61,7 @@ class _FedapayCheckoutScreenState extends State<FedapayCheckoutScreen> {
           onWebResourceError: (err) {
             final failedUrl = err.url ?? '';
             if (_isPaymentFinishedUrl(failedUrl) || _looksLikeCallbackFailure(err.description)) {
-              _verifyAndClose(auto: true);
+              _handleFinishedUrl(failedUrl);
               return;
             }
             if (mounted) {
@@ -70,19 +71,33 @@ class _FedapayCheckoutScreenState extends State<FedapayCheckoutScreen> {
           onUrlChange: (change) {
             final url = change.url ?? '';
             if (_isPaymentFinishedUrl(url)) {
-              _verifyAndClose(auto: true);
+              _handleFinishedUrl(url);
             }
           },
           onNavigationRequest: (request) {
             if (_isPaymentFinishedUrl(request.url)) {
-              _verifyAndClose(auto: true);
+              _handleFinishedUrl(request.url);
+              return NavigationDecision.prevent;
+            }
+            if (ApiConfig.urlNeedsLocalTunnelBypass(request.url)) {
+              _loadTunnelUrl(request.url);
               return NavigationDecision.prevent;
             }
             return NavigationDecision.navigate;
           },
         ),
-      )
-      ..loadRequest(Uri.parse(widget.paymentUrl));
+      );
+    _loadTunnelUrl(widget.paymentUrl);
+  }
+
+  void _loadTunnelUrl(String url) {
+    final uri = Uri.parse(url);
+    final headers = ApiConfig.localTunnelHeaders;
+    if (headers.isEmpty) {
+      _controller.loadRequest(uri);
+    } else {
+      _controller.loadRequest(uri, headers: headers);
+    }
   }
 
   bool _looksLikeCallbackFailure(String? description) {
@@ -92,6 +107,15 @@ class _FedapayCheckoutScreenState extends State<FedapayCheckoutScreen> {
     }
     final cb = widget.callbackUrl.trim().toLowerCase();
     return cb.isNotEmpty || d.contains('trycloudflare') || d.contains('fedapay/callback');
+  }
+
+  bool _isSimulateMode(String url) {
+    return url.contains('/fedapay/simulate/') || widget.paymentUrl.contains('/fedapay/simulate/');
+  }
+
+  bool _isCanceledUrl(String url) {
+    final u = url.toLowerCase();
+    return u.contains('status=canceled') || u.contains('status=cancelled');
   }
 
   bool _isPaymentFinishedUrl(String url) {
@@ -114,6 +138,15 @@ class _FedapayCheckoutScreenState extends State<FedapayCheckoutScreen> {
       return true;
     }
     return false;
+  }
+
+  void _handleFinishedUrl(String url) {
+    if (_isCanceledUrl(url) && widget.adhesionMode) {
+      if (!mounted || _checking) return;
+      Navigator.pop(context, const FedapayCheckoutResult(FedapayCheckoutOutcome.cancelled));
+      return;
+    }
+    _verifyAndClose(auto: true);
   }
 
   Future<void> _verifyAndClose({bool auto = false}) async {
@@ -220,7 +253,9 @@ class _FedapayCheckoutScreenState extends State<FedapayCheckoutScreen> {
                 const SizedBox(width: 10),
                 Expanded(
                   child: Text(
-                    '${widget.amountFcfa} FCFA · Mobile money (FedaPay). Après paiement, appuyez sur « J’ai terminé le paiement ».',
+                    _isSimulateMode(widget.paymentUrl)
+                        ? '${widget.amountFcfa} FCFA · Simulation PayFlex (aucun appel FedaPay).'
+                        : '${widget.amountFcfa} FCFA · Mobile money (FedaPay). Après paiement, appuyez sur « J’ai terminé le paiement ».',
                     style: GoogleFonts.inter(fontSize: 12, color: const Color(0xFF1E3A5F)),
                   ),
                 ),
@@ -233,8 +268,11 @@ class _FedapayCheckoutScreenState extends State<FedapayCheckoutScreen> {
               padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
               color: const Color(0xFFFFF7ED),
               child: Text(
-                'Sandbox : opérateur « Momo Test », numéro 66000001 ou 64000001 (succès). '
-                'Tunnel Cloudflare + backend doivent tourner.',
+                _isSimulateMode(widget.paymentUrl)
+                    ? 'Mode simulation : confirmez ou annulez sur la page PayFlex. '
+                        'PAYFLEX_PUBLIC_URL doit pointer vers le même tunnel que l’app.'
+                    : 'Sandbox FedaPay : opérateur « Momo Test », numéro 66000001 ou 64000001 (succès). '
+                        'Tunnel + backend doivent tourner.',
                 style: GoogleFonts.inter(fontSize: 11, color: const Color(0xFF9A3412), height: 1.35),
               ),
             ),

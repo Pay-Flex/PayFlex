@@ -33,6 +33,11 @@
       modifications avec motif obligatoire ; suppressions soumises à validation de l'administrateur principal.
       <a href="/admin/audit?profil=gestionnaire" class="underline font-semibold ml-1">Voir mon journal</a>
     </div>
+    <button type="button" id="pf-push-bell" data-push-state="off"
+            class="pf-push-bell inline-flex items-center justify-center w-10 h-10 rounded-full bg-white/80 hover:bg-white text-slate-600 shadow-sm border border-slate-200 shrink-0"
+            title="Activer les notifications sur ce poste" aria-label="Activer les notifications">
+      <i class="fa-solid fa-bell-slash" aria-hidden="true"></i>
+    </button>
     <div class="pf-admin-user-chip" role="status" aria-label="Session administrateur">
       <span class="pf-admin-user-chip-badge" aria-hidden="true"><i class="fa-solid fa-shield-halved"></i></span>
       <div>
@@ -41,6 +46,10 @@
       </div>
     </div>
   </header>
+  <style>
+    .pf-push-bell--on { background:#F9A825 !important; color:#00314F !important; border-color:#F9A825 !important; }
+  </style>
+  <script src="/js/admin-push.js"></script>
 </th:block>
 
 <th:block th:fragment="pagination(page, basePath, filterQuery)">

@@ -5,15 +5,18 @@ import 'dart:io';
 import 'package:path/path.dart' as p;
 import 'package:http/http.dart' as http;
 import '../utils/user_visible_message.dart';
+import 'agent_choices_result.dart';
 import 'api_config.dart';
 import 'payflex_api_logger.dart';
+import 'payflex_http_client.dart';
 import 'mobile_login_result.dart';
 import 'mobile_recovery_outcome.dart';
 import 'registration_submit_result.dart';
 
 class MobileApiService {
   final http.Client _client;
-  MobileApiService({http.Client? client}) : _client = client ?? http.Client();
+  MobileApiService({http.Client? client})
+      : _client = client ?? PayflexHttpClient();
 
   static const Duration _registrationTimeout = Duration(seconds: 25);
   static const Duration _loginTimeout = Duration(seconds: 22);
@@ -135,10 +138,10 @@ class MobileApiService {
         e,
         st,
       );
-      return MobileLoginResult.networkError(UserVisibleMessage.network);
+      return MobileLoginResult.networkError(UserVisibleMessage.forNetworkError());
     } on http.ClientException catch (e, st) {
       PayflexApiLogger.error('Login ClientException', e, st);
-      return MobileLoginResult.networkError(UserVisibleMessage.network);
+      return MobileLoginResult.networkError(UserVisibleMessage.forNetworkError());
     } catch (e, st) {
       PayflexApiLogger.error('Login erreur inattendue', e, st);
       return MobileLoginResult.networkError(UserVisibleMessage.forException(e));
@@ -187,9 +190,48 @@ class MobileApiService {
     } on TimeoutException {
       return RecoveryRequestOutcome.fail(UserVisibleMessage.timeout);
     } on SocketException {
-      return RecoveryRequestOutcome.fail(UserVisibleMessage.network);
+      return RecoveryRequestOutcome.fail(UserVisibleMessage.forNetworkError());
     } catch (e) {
       return RecoveryRequestOutcome.fail(UserVisibleMessage.forException(e));
+    }
+  }
+
+  /// Oubli complet — demande un rappel PayFlex (sans code unique).
+  Future<String?> requestRecoveryCallback({
+    required String phone,
+    String fullName = '',
+  }) async {
+    final uri = Uri.parse(
+      '${ApiConfig.baseUrl}/api/mobile/auth/recovery/callback-request',
+    );
+    try {
+      final res = await _client
+          .post(
+            uri,
+            headers: {'Content-Type': 'application/json'},
+            body: jsonEncode({
+              'phone': phone.trim(),
+              'fullName': fullName.trim(),
+            }),
+          )
+          .timeout(_recoveryTimeout);
+      if (res.statusCode == 200) return null;
+      try {
+        final d = jsonDecode(res.body);
+        if (d is Map && d['message'] != null) {
+          return UserVisibleMessage.apiOrFallback(
+            d['message'].toString(),
+            UserVisibleMessage.serverUnavailable,
+          );
+        }
+      } catch (_) {}
+      return UserVisibleMessage.serverUnavailable;
+    } on TimeoutException {
+      return UserVisibleMessage.timeout;
+    } on SocketException {
+      return UserVisibleMessage.forNetworkError();
+    } catch (e) {
+      return UserVisibleMessage.forException(e);
     }
   }
 
@@ -228,7 +270,48 @@ class MobileApiService {
     } on TimeoutException {
       return UserVisibleMessage.timeout;
     } on SocketException {
-      return UserVisibleMessage.network;
+      return UserVisibleMessage.forNetworkError();
+    } catch (e) {
+      return UserVisibleMessage.forException(e);
+    }
+  }
+
+  Future<String?> updateClientProfile({
+    required int userId,
+    required String phone,
+    required String pin,
+    String? city,
+    String? profession,
+    String? workplaceName,
+    String? workplaceAddress,
+    String? bossName,
+    String? bossPhone,
+  }) async {
+    final uri = Uri.parse('${ApiConfig.baseUrl}/api/mobile/profile/update');
+    try {
+      final res = await _client
+          .post(
+            uri,
+            headers: {'Content-Type': 'application/json'},
+            body: jsonEncode({
+              'userId': userId,
+              'phone': phone,
+              'pin': pin,
+              if (city != null) 'city': city,
+              if (profession != null) 'profession': profession,
+              if (workplaceName != null) 'workplaceName': workplaceName,
+              if (workplaceAddress != null) 'workplaceAddress': workplaceAddress,
+              if (bossName != null) 'bossName': bossName,
+              if (bossPhone != null) 'bossPhone': bossPhone,
+            }),
+          )
+          .timeout(const Duration(seconds: 20));
+      if (res.statusCode == 200) return null;
+      try {
+        final d = jsonDecode(res.body);
+        if (d is Map && d['message'] != null) return d['message'].toString();
+      } catch (_) {}
+      return 'Mise à jour impossible.';
     } catch (e) {
       return UserVisibleMessage.forException(e);
     }
@@ -549,6 +632,32 @@ class MobileApiService {
     }
   }
 
+  Future<bool> setClientNotificationPinned({
+    required int userId,
+    required String phone,
+    required String pin,
+    required int notificationId,
+    required bool pinned,
+  }) async {
+    final uri = Uri.parse('${ApiConfig.baseUrl}/api/mobile/notifications/pin');
+    try {
+      final res = await _client.post(
+        uri,
+        headers: {'Content-Type': 'application/json'},
+        body: jsonEncode({
+          'userId': userId,
+          'phone': phone,
+          'pin': pin,
+          'notificationId': notificationId,
+          'pinned': pinned,
+        }),
+      );
+      return res.statusCode == 200;
+    } catch (_) {
+      return false;
+    }
+  }
+
   Future<Map<String, dynamic>?> initFedapayContribution({
     required int userId,
     required double amount,
@@ -557,6 +666,7 @@ class MobileApiService {
     int? catchupYear,
     int? catchupMonth,
     int? catchupDay,
+    String? payerPhone,
   }) async {
     final uri = Uri.parse(
       '${ApiConfig.baseUrl}/api/mobile/contributions/fedapay/init',
@@ -567,6 +677,9 @@ class MobileApiService {
     if (catchupYear != null) body['catchupYear'] = catchupYear;
     if (catchupMonth != null) body['catchupMonth'] = catchupMonth;
     if (catchupDay != null) body['catchupDay'] = catchupDay;
+    if (payerPhone != null && payerPhone.trim().isNotEmpty) {
+      body['payerPhone'] = payerPhone.trim();
+    }
     try {
       final res = await _client
           .post(
@@ -619,7 +732,7 @@ class MobileApiService {
       return {'fedapayEnabled': false, 'message': UserVisibleMessage.timeout};
     } on SocketException catch (e, st) {
       PayflexApiLogger.error('initFedapayAdhesion réseau', e, st);
-      return {'fedapayEnabled': false, 'message': UserVisibleMessage.network};
+      return {'fedapayEnabled': false, 'message': UserVisibleMessage.forNetworkError()};
     } catch (e, st) {
       PayflexApiLogger.error('initFedapayAdhesion', e, st);
     }
@@ -689,7 +802,9 @@ class MobileApiService {
 
   /// Collecte espèces agent : confirmée immédiatement côté serveur si auto-validation active.
   Future<Map<String, dynamic>?> sendAgentCashContribution({
-    required String clientPhone,
+    String? clientPhone,
+    int? clientUserId,
+    required String clientPin,
     required double amount,
     required String referenceCode,
     required int collectorUserId,
@@ -702,15 +817,18 @@ class MobileApiService {
   }) async {
     final uri = Uri.parse('${ApiConfig.baseUrl}/api/mobile/contributions');
     final body = <String, dynamic>{
-      'userId': 0,
+      'userId': clientUserId ?? 0,
       'amount': amount,
       'paymentMode': 'cash',
       'collectorPhone': collectorPhone,
       'collectorPin': collectorPin,
       'collectorUserId': collectorUserId,
-      'clientPhone': clientPhone,
+      'clientPin': clientPin,
       'referenceCode': referenceCode,
     };
+    if (clientPhone != null && clientPhone.trim().isNotEmpty) {
+      body['clientPhone'] = clientPhone.trim();
+    }
     if (productId != null) body['productId'] = productId;
     if (catchupYear != null) body['catchupYear'] = catchupYear;
     if (catchupMonth != null) body['catchupMonth'] = catchupMonth;
@@ -761,6 +879,29 @@ class MobileApiService {
       return decoded.map((e) => Map<String, dynamic>.from(e as Map)).toList();
     } catch (_) {
       return [];
+    }
+  }
+
+  Future<Map<String, dynamic>?> fetchBonusSavings({
+    required int userId,
+    required String phone,
+    required String pin,
+  }) async {
+    final uri = Uri.parse('${ApiConfig.baseUrl}/api/mobile/client/bonus-savings');
+    try {
+      final res = await _client
+          .post(
+            uri,
+            headers: {'Content-Type': 'application/json'},
+            body: jsonEncode({'userId': userId, 'phone': phone, 'pin': pin}),
+          )
+          .timeout(const Duration(seconds: 20));
+      if (res.statusCode != 200) return null;
+      final decoded = jsonDecode(res.body);
+      if (decoded is! Map) return null;
+      return Map<String, dynamic>.from(decoded);
+    } catch (_) {
+      return null;
     }
   }
 
@@ -871,13 +1012,59 @@ class MobileApiService {
     } catch (_) {}
   }
 
+  /// Sync push sans Firebase (nouvelles lignes `client_notifications` + chat).
+  Future<PushPollResult?> pollPushInbox({
+    required int userId,
+    required String phone,
+    required String pin,
+    required int afterNotificationId,
+  }) async {
+    final uri = Uri.parse('${ApiConfig.baseUrl}/api/mobile/push/poll');
+    try {
+      final res = await _client
+          .post(
+            uri,
+            headers: {'Content-Type': 'application/json'},
+            body: jsonEncode({
+              'userId': userId,
+              'phone': phone,
+              'pin': pin,
+              'afterNotificationId': afterNotificationId,
+            }),
+          )
+          .timeout(const Duration(seconds: 15));
+      if (res.statusCode != 200) return null;
+      final map = jsonDecode(res.body);
+      if (map is! Map) return null;
+      final raw = map['newNotifications'];
+      final items = raw is List
+          ? raw
+              .whereType<Map>()
+              .map((e) => Map<String, dynamic>.from(e))
+              .toList()
+          : <Map<String, dynamic>>[];
+      return PushPollResult(
+        latestNotificationId: (map['latestNotificationId'] as num?)?.toInt() ?? afterNotificationId,
+        newNotifications: items,
+        chatUnread: (map['chatUnread'] as num?)?.toInt() ?? 0,
+        latestChatTitle: map['latestChatTitle']?.toString(),
+        latestChatPreview: map['latestChatPreview']?.toString(),
+      );
+    } catch (_) {
+      return null;
+    }
+  }
+
+  /// Enregistre le jeton FCM de cet appareil pour l'utilisateur (push réel).
   Future<void> registerFcmToken({
     required int userId,
     required String phone,
     required String pin,
     required String fcmToken,
+    String platform = 'android',
+    String role = '',
   }) async {
-    final uri = Uri.parse('${ApiConfig.baseUrl}/api/mobile/devices/fcm-token');
+    final uri = Uri.parse('${ApiConfig.baseUrl}/api/mobile/devices/register-token');
     try {
       await _client.post(
         uri,
@@ -886,10 +1073,176 @@ class MobileApiService {
           'userId': userId,
           'phone': phone,
           'pin': pin,
-          'fcmToken': fcmToken,
+          'token': fcmToken,
+          'platform': platform,
+          'role': role,
         }),
       );
     } catch (_) {}
+  }
+
+  /// Retire le jeton FCM de cet appareil (déconnexion).
+  Future<void> unregisterFcmToken({required String fcmToken}) async {
+    if (fcmToken.isEmpty) return;
+    final uri = Uri.parse('${ApiConfig.baseUrl}/api/mobile/devices/unregister-token');
+    try {
+      await _client.post(
+        uri,
+        headers: {'Content-Type': 'application/json'},
+        body: jsonEncode({'token': fcmToken}),
+      );
+    } catch (_) {}
+  }
+
+  Future<Map<String, dynamic>?> _agentPost(
+    String path, {
+    required int userId,
+    required String phone,
+    required String pin,
+    Map<String, dynamic>? extra,
+  }) async {
+    final uri = Uri.parse('${ApiConfig.baseUrl}$path');
+    final body = <String, dynamic>{
+      'userId': userId,
+      'phone': phone,
+      'pin': pin,
+      if (extra != null) ...extra,
+    };
+    try {
+      final res = await _client
+          .post(
+            uri,
+            headers: {'Content-Type': 'application/json'},
+            body: jsonEncode(body),
+          )
+          .timeout(const Duration(seconds: 20));
+      if (res.statusCode == 200) {
+        final d = jsonDecode(res.body);
+        if (d is Map<String, dynamic>) return d;
+      }
+    } catch (_) {}
+    return null;
+  }
+
+  Future<Map<String, dynamic>?> fetchAgentDashboard({
+    required int userId,
+    required String phone,
+    required String pin,
+  }) =>
+      _agentPost('/api/mobile/agent/dashboard', userId: userId, phone: phone, pin: pin);
+
+  Future<Map<String, dynamic>?> fetchAgentProfile({
+    required int userId,
+    required String phone,
+    required String pin,
+  }) =>
+      _agentPost('/api/mobile/agent/profile', userId: userId, phone: phone, pin: pin);
+
+  Future<Map<String, dynamic>?> fetchAgentZoneTour({
+    required int userId,
+    required String phone,
+    required String pin,
+  }) =>
+      _agentPost('/api/mobile/agent/zone-tour', userId: userId, phone: phone, pin: pin);
+
+  Future<Map<String, dynamic>?> updateAgentWeeklySchedule({
+    required int userId,
+    required String phone,
+    required String pin,
+    required Map<String, String> weeklySchedule,
+  }) =>
+      _agentPost(
+        '/api/mobile/agent/profile/schedule',
+        userId: userId,
+        phone: phone,
+        pin: pin,
+        extra: {'weeklySchedule': weeklySchedule},
+      );
+
+  Future<Map<String, dynamic>?> changeAgentPin({
+    required int userId,
+    required String phone,
+    required String pin,
+    required String currentPin,
+    required String newPin,
+  }) =>
+      _agentPost(
+        '/api/mobile/agent/profile/pin',
+        userId: userId,
+        phone: phone,
+        pin: pin,
+        extra: {'currentPin': currentPin, 'newPin': newPin},
+      );
+
+  Future<Map<String, dynamic>?> fetchAgentContributionRegistry({
+    required int userId,
+    required String phone,
+    required String pin,
+  }) =>
+      _agentPost('/api/mobile/agent/contributions/registry', userId: userId, phone: phone, pin: pin);
+
+  Future<Map<String, dynamic>?> fetchAgentClientDetail({
+    required int userId,
+    required String phone,
+    required String pin,
+    required int clientUserId,
+  }) =>
+      _agentPost(
+        '/api/mobile/agent/client-detail',
+        userId: userId,
+        phone: phone,
+        pin: pin,
+        extra: {'clientUserId': clientUserId},
+      );
+
+  Future<Map<String, dynamic>?> addAgentClientProducts({
+    required int userId,
+    required String phone,
+    required String pin,
+    required int clientUserId,
+    required List<Map<String, dynamic>> productSelections,
+    required double dailyContribution,
+  }) =>
+      _agentPost(
+        '/api/mobile/agent/client/products',
+        userId: userId,
+        phone: phone,
+        pin: pin,
+        extra: {
+          'clientUserId': clientUserId,
+          'productSelections': productSelections,
+          'dailyContribution': dailyContribution,
+        },
+      );
+
+  Future<bool> verifyClientPin({
+    required int agentUserId,
+    required String phone,
+    required String pin,
+    required int clientUserId,
+    required String clientPin,
+  }) async {
+    final uri = Uri.parse('${ApiConfig.baseUrl}/api/mobile/agent/verify-client-pin');
+    try {
+      final res = await _client
+          .post(
+            uri,
+            headers: {'Content-Type': 'application/json'},
+            body: jsonEncode({
+              'userId': agentUserId,
+              'phone': phone,
+              'pin': pin,
+              'clientUserId': clientUserId,
+              'clientPin': clientPin,
+            }),
+          )
+          .timeout(const Duration(seconds: 15));
+      if (res.statusCode == 200) {
+        final d = jsonDecode(res.body);
+        return d is Map && d['ok'] == true;
+      }
+    } catch (_) {}
+    return false;
   }
 
   Future<Map<String, dynamic>?> fetchAgentClients({
@@ -990,6 +1343,40 @@ class MobileApiService {
     }
   }
 
+  Future<bool> sendSupportChatAttachment({
+    required int userId,
+    required String phone,
+    required String pin,
+    required File file,
+    String? caption,
+  }) async {
+    final uri = Uri.parse('${ApiConfig.baseUrl}/api/mobile/support-chat/send-attachment');
+    try {
+      final req = http.MultipartRequest('POST', uri)
+        ..fields['userId'] = userId.toString()
+        ..fields['phone'] = phone
+        ..fields['pin'] = pin;
+      if (caption != null && caption.trim().isNotEmpty) {
+        req.fields['caption'] = caption.trim();
+      }
+      final bytes = await file.readAsBytes();
+      if (bytes.isEmpty) return false;
+      final filename = p.basename(file.path);
+      req.files.add(
+        http.MultipartFile.fromBytes(
+          'file',
+          bytes,
+          filename: filename.isNotEmpty ? filename : 'attachment.bin',
+        ),
+      );
+      final streamed = await _client.send(req).timeout(const Duration(seconds: 60));
+      final response = await http.Response.fromStream(streamed).timeout(const Duration(seconds: 60));
+      return response.statusCode == 200;
+    } catch (_) {
+      return false;
+    }
+  }
+
   Future<bool> sendSupportChatMessage({
     required int userId,
     required String phone,
@@ -1066,19 +1453,109 @@ class MobileApiService {
     }
   }
 
-  Future<List<Map<String, dynamic>>> fetchRegistrationAgentChoices() async {
-    final uri = Uri.parse('${ApiConfig.baseUrl}/api/mobile/agents/choices');
+  Future<List<Map<String, dynamic>>> fetchJobOffers() async {
+    final uri = Uri.parse('${ApiConfig.baseUrl}/api/mobile/job-offers');
     try {
       final res = await _client.get(uri).timeout(const Duration(seconds: 15));
       if (res.statusCode != 200) return [];
       final decoded = jsonDecode(res.body);
-      if (decoded is! Map || decoded['agents'] is! List) return [];
-      return (decoded['agents'] as List)
+      if (decoded is! Map || decoded['offers'] is! List) return [];
+      return (decoded['offers'] as List)
           .whereType<Map>()
           .map((e) => Map<String, dynamic>.from(e))
           .toList();
     } catch (_) {
       return [];
+    }
+  }
+
+  Future<Map<String, dynamic>?> fetchJobOfferDetail(int id) async {
+    if (id <= 0) return null;
+    final uri = Uri.parse('${ApiConfig.baseUrl}/api/mobile/job-offers/$id');
+    try {
+      final res = await _client.get(uri).timeout(const Duration(seconds: 15));
+      if (res.statusCode != 200) return null;
+      final decoded = jsonDecode(res.body);
+      if (decoded is! Map) return null;
+      return Map<String, dynamic>.from(decoded);
+    } catch (_) {
+      return null;
+    }
+  }
+
+  Future<List<Map<String, dynamic>>> fetchLegalDocuments() async {
+    final uri = Uri.parse('${ApiConfig.baseUrl}/api/mobile/legal/documents');
+    try {
+      final res = await _client.get(uri).timeout(const Duration(seconds: 15));
+      if (res.statusCode != 200) return [];
+      final decoded = jsonDecode(res.body);
+      if (decoded is! Map || decoded['documents'] is! List) return [];
+      return (decoded['documents'] as List)
+          .whereType<Map>()
+          .map((e) => Map<String, dynamic>.from(e))
+          .toList();
+    } catch (_) {
+      return [];
+    }
+  }
+
+  Future<AgentChoicesResult> fetchRegistrationAgentChoices() async {
+    final uri = Uri.parse('${ApiConfig.baseUrl}/api/mobile/agents/choices');
+    final sw = Stopwatch()..start();
+    PayflexApiLogger.request('GET', uri);
+    try {
+      final res = await _client.get(uri).timeout(const Duration(seconds: 15));
+      PayflexApiLogger.response(
+        'GET',
+        uri,
+        res.statusCode,
+        bodyPreview: res.body,
+        elapsed: sw.elapsed,
+      );
+      if (res.statusCode != 200) {
+        PayflexApiLogger.warn(
+          'Agents/choices HTTP ${res.statusCode} (${ApiConfig.connectionMode})',
+        );
+        return AgentChoicesResult.failure(
+          UserVisibleMessage.forHttpStatus(
+            res.statusCode,
+            fallback: 'Impossible de charger la liste des agents. Réessayez.',
+          ),
+          isNetworkError: res.statusCode >= 502,
+        );
+      }
+      final decoded = jsonDecode(res.body);
+      if (decoded is! Map || decoded['agents'] is! List) {
+        PayflexApiLogger.warn('Agents/choices : réponse JSON inattendue');
+        return const AgentChoicesResult.failure('Réponse serveur invalide.');
+      }
+      final agents = (decoded['agents'] as List)
+          .whereType<Map>()
+          .map((e) => Map<String, dynamic>.from(e))
+          .toList();
+      return AgentChoicesResult.success(agents);
+    } on TimeoutException catch (e, st) {
+      PayflexApiLogger.error('Agents/choices timeout (${ApiConfig.baseUrl})', e, st);
+      return AgentChoicesResult.failure(UserVisibleMessage.timeout, isNetworkError: true);
+    } on SocketException catch (e, st) {
+      PayflexApiLogger.error(
+        'Agents/choices SocketException (${ApiConfig.connectionMode})',
+        e,
+        st,
+      );
+      return AgentChoicesResult.failure(
+        UserVisibleMessage.forNetworkError(),
+        isNetworkError: true,
+      );
+    } on http.ClientException catch (e, st) {
+      PayflexApiLogger.error('Agents/choices ClientException', e, st);
+      return AgentChoicesResult.failure(
+        UserVisibleMessage.forNetworkError(),
+        isNetworkError: true,
+      );
+    } catch (e, st) {
+      PayflexApiLogger.error('Agents/choices erreur', e, st);
+      return AgentChoicesResult.failure(UserVisibleMessage.forException(e));
     }
   }
 
@@ -1123,7 +1600,7 @@ class MobileApiService {
 
   Future<RegistrationSubmitResult> submitRegistration({
     required String fullName,
-    required String phone,
+    String? phone,
     String? email,
     required String city,
     required String profession,
@@ -1144,11 +1621,12 @@ class MobileApiService {
     File? profilePhoto,
     File? idDocument,
     bool idDocumentWaived = false,
+    List<Map<String, dynamic>>? productSelections,
   }) async {
     final uri = Uri.parse('${ApiConfig.baseUrl}/api/mobile/registrations');
     final req = http.MultipartRequest('POST', uri)
       ..fields['fullName'] = fullName
-      ..fields['phone'] = phone
+      ..fields['phone'] = phone?.trim() ?? ''
       ..fields['city'] = city
       ..fields['profession'] = profession
       ..fields['gender'] = gender
@@ -1182,6 +1660,9 @@ class MobileApiService {
     if (bossPhone != null && bossPhone.isNotEmpty)
       req.fields['bossPhone'] = bossPhone;
     if (idDocumentWaived) req.fields['idDocumentWaived'] = 'true';
+    if (productSelections != null && productSelections.isNotEmpty) {
+      req.fields['productSelections'] = jsonEncode(productSelections);
+    }
 
     await _attachRegistrationFile(req, 'profilePhoto', profilePhoto);
     await _attachRegistrationFile(req, 'idDocument', idDocument);
@@ -1251,10 +1732,10 @@ class MobileApiService {
         e,
         st,
       );
-      return RegistrationSubmitResult.failure(null, UserVisibleMessage.network);
+      return RegistrationSubmitResult.failure(null, UserVisibleMessage.forNetworkError());
     } on HttpException catch (e, st) {
       PayflexApiLogger.error('Inscription HttpException', e, st);
-      return RegistrationSubmitResult.failure(null, UserVisibleMessage.network);
+      return RegistrationSubmitResult.failure(null, UserVisibleMessage.forNetworkError());
     } catch (e, st) {
       PayflexApiLogger.error('Inscription erreur', e, st);
       return RegistrationSubmitResult.failure(
@@ -1281,4 +1762,20 @@ class MobileApiService {
       ),
     );
   }
+}
+
+class PushPollResult {
+  final int latestNotificationId;
+  final List<Map<String, dynamic>> newNotifications;
+  final int chatUnread;
+  final String? latestChatTitle;
+  final String? latestChatPreview;
+
+  const PushPollResult({
+    required this.latestNotificationId,
+    required this.newNotifications,
+    required this.chatUnread,
+    this.latestChatTitle,
+    this.latestChatPreview,
+  });
 }

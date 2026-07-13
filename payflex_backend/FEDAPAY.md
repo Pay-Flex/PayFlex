@@ -36,7 +36,19 @@ $env:FEDAPAY_SANDBOX="true"
 mvn spring-boot:run
 ```
 
-Sans `FEDAPAY_API_KEY`, l’app mobile utilise la **déclaration classique** (en attente agent / centre).
+## Mode simulation (défaut)
+
+Sans clé API, ou avec `FEDAPAY_SIMULATE=true` (défaut dans `application.yml`), PayFlex **simule** FedaPay :
+
+- Cotisation mobile money → page `/api/mobile/fedapay/simulate/page`
+- Boutons **Confirmer** / **Annuler** → validation ou refus réel en base + notifications
+- Adhésion → même flux simulé
+
+Aucun appel à `sandbox-api.fedapay.com`. Idéal pour dev, démo et tunnel LocalTunnel.
+
+Pour activer FedaPay réel : `FEDAPAY_SIMULATE=false` + `FEDAPAY_API_KEY=sk_sandbox_…` dans `.env`.
+
+Sans simulation **et** sans clé API, l’app mobile retombe sur la **déclaration classique** (en attente agent / centre).
 
 ## Webhook
 

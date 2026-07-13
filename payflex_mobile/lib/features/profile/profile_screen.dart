@@ -7,7 +7,11 @@ import '../../core/constants/app_colors.dart';
 import '../../core/widgets/payflex_profile_avatar.dart';
 import '../../core/network/mobile_api_service.dart';
 import '../../core/providers/auth_provider.dart';
+import '../../core/providers/ui_scale_provider.dart';
 import '../auth/welcome_screen.dart';
+import '../support/client_report_screen.dart';
+import 'profile_edit_screen.dart';
+import '../vitrine/job_offers_screen.dart';
 
 class ProfileScreen extends ConsumerStatefulWidget {
   const ProfileScreen({super.key});
@@ -110,6 +114,12 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
             _sheetRow('Téléphone', auth.phone ?? '—'),
             _sheetRow('Ville', auth.city ?? '—'),
             _sheetRow('Métier', auth.profession ?? '—'),
+            if (auth.workplaceName != null && auth.workplaceName!.trim().isNotEmpty)
+              _sheetRow('Atelier', auth.workplaceName!.trim()),
+            if (auth.workplaceAddress != null && auth.workplaceAddress!.trim().isNotEmpty)
+              _sheetRow('Quartier', auth.workplaceAddress!.trim()),
+            if (auth.bossName != null && auth.bossName!.trim().isNotEmpty)
+              _sheetRow('Patron', auth.bossName!.trim()),
             _sheetRow('Genre', auth.gender ?? '—'),
             _sheetRow('Profil', auth.roleLabelFr()),
             _sheetRow('Code dossier', auth.uniqueCode ?? '—'),
@@ -227,11 +237,13 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
                               padding: EdgeInsets.only(top: padTop, bottom: padBottom),
                               child: ConstrainedBox(
                                 constraints: BoxConstraints(minHeight: minH),
-                                child: Column(
-                                  mainAxisAlignment: MainAxisAlignment.center,
-                                  crossAxisAlignment: CrossAxisAlignment.center,
-                                  mainAxisSize: MainAxisSize.min,
-                                  children: [
+                                child: SizedBox(
+                                  width: double.infinity,
+                                  child: Column(
+                                    mainAxisAlignment: MainAxisAlignment.center,
+                                    crossAxisAlignment: CrossAxisAlignment.center,
+                                    mainAxisSize: MainAxisSize.min,
+                                    children: [
                               PayflexProfileAvatar(
                                 letter: auth.avatarLetter,
                                 imageUrl: auth.profilePhotoUrl,
@@ -258,6 +270,7 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
                               const SizedBox(height: 8),
                               Text(
                                 auth.phone ?? '',
+                                textAlign: TextAlign.center,
                                 style: GoogleFonts.inter(color: Colors.white.withValues(alpha: 0.85), fontSize: 14),
                               ),
                               const SizedBox(height: 10),
@@ -265,6 +278,8 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
                                 spacing: 8,
                                 runSpacing: 8,
                                 alignment: WrapAlignment.center,
+                                runAlignment: WrapAlignment.center,
+                                crossAxisAlignment: WrapCrossAlignment.center,
                                 children: [
                                   Container(
                                     padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 6),
@@ -276,7 +291,7 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
                                     child: Text(
                                       auth.statusLabelFr(),
                                       style: GoogleFonts.manrope(
-                                        color: AppColors.primary,
+                                        color: Colors.white,
                                         fontSize: 10,
                                         fontWeight: FontWeight.w900,
                                         letterSpacing: 1.2,
@@ -347,7 +362,8 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
                                   ),
                                 ),
                               ],
-                            ],
+                                    ],
+                                  ),
                                 ),
                               ),
                             );
@@ -405,10 +421,11 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
                                       ? null
                                       : () async {
                                           setState(() => _refreshing = true);
+                                          final messenger = ScaffoldMessenger.of(context);
                                           final ok = await ref.read(authProvider.notifier).tryActivateApprovedAccount();
                                           if (!mounted) return;
                                           setState(() => _refreshing = false);
-                                          ScaffoldMessenger.of(context).showSnackBar(
+                                          messenger.showSnackBar(
                                             SnackBar(
                                               content: Text(
                                                 ok
@@ -433,6 +450,38 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
                           ),
                         ),
                       ],
+                      if (auth.registrationRejectionNote != null &&
+                          auth.registrationRejectionNote!.trim().isNotEmpty) ...[
+                        const SizedBox(height: 20),
+                        Container(
+                          width: double.infinity,
+                          padding: const EdgeInsets.all(16),
+                          decoration: BoxDecoration(
+                            color: Colors.red.shade50,
+                            borderRadius: BorderRadius.circular(14),
+                            border: Border.all(color: Colors.red.shade200),
+                          ),
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(
+                                'Inscription refusée',
+                                style: GoogleFonts.manrope(fontWeight: FontWeight.w900, color: Colors.red.shade800),
+                              ),
+                              const SizedBox(height: 6),
+                              Text(
+                                auth.registrationRejectionNote!.trim(),
+                                style: GoogleFonts.inter(fontSize: 12, color: Colors.red.shade900),
+                              ),
+                              const SizedBox(height: 8),
+                              Text(
+                                'Corrigez vos informations et soumettez à nouveau depuis l’écran d’inscription.',
+                                style: GoogleFonts.inter(fontSize: 11, color: Colors.red.shade700),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ],
                       const SizedBox(height: 28),
                       Text(
                         'GESTION DU COMPTE',
@@ -444,12 +493,33 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
                         ),
                       ),
                       const SizedBox(height: 16),
+                      _largeTextToggle(),
+                      _profileItem(
+                        context,
+                        Icons.edit_outlined,
+                        'Modifier le profil',
+                        'Atelier, patron, ville, métier',
+                        () => Navigator.push(
+                          context,
+                          MaterialPageRoute(builder: (_) => const ProfileEditScreen()),
+                        ),
+                      ),
                       _profileItem(
                         context,
                         Icons.person_outline_rounded,
                         'Mon compte',
                         'Voir les données enregistrées côté serveur',
                         () => _showAccountSheet(),
+                      ),
+                      _profileItem(
+                        context,
+                        Icons.campaign_outlined,
+                        'Signaler un problème',
+                        'Texte, photo — fraude, agent, cotisation…',
+                        () => Navigator.push(
+                          context,
+                          MaterialPageRoute(builder: (_) => const ClientReportScreen()),
+                        ),
                       ),
                       _profileItem(
                         context,
@@ -480,6 +550,16 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
                           _reportAdhesionIssue,
                           accent: Colors.red.shade700,
                         ),
+                      _profileItem(
+                        context,
+                        Icons.work_outline_rounded,
+                        'Offres d’emploi',
+                        'Recrutement PayFlex (vitrine)',
+                        () => Navigator.push(
+                          context,
+                          MaterialPageRoute(builder: (_) => const JobOffersScreen()),
+                        ),
+                      ),
                       _profileItem(
                         context,
                         Icons.help_outline_rounded,
@@ -578,6 +658,47 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
         ),
       ),
     );
+  }
+
+  Widget _largeTextToggle() {
+    final largeText = ref.watch(uiScaleProvider);
+    return Container(
+      margin: const EdgeInsets.only(bottom: 16),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(24),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withValues(alpha: 0.03),
+            blurRadius: 20,
+            offset: const Offset(0, 10),
+          ),
+        ],
+        border: Border.all(color: AppColors.secondary.withValues(alpha: 0.05)),
+      ),
+      child: SwitchListTile.adaptive(
+        value: largeText,
+        onChanged: (v) => ref.read(uiScaleProvider.notifier).set(v),
+        activeThumbColor: AppColors.primary,
+        contentPadding: const EdgeInsets.symmetric(horizontal: 20, vertical: 8),
+        secondary: Container(
+          padding: const EdgeInsets.all(12),
+          decoration: BoxDecoration(
+            color: AppColors.primary.withValues(alpha: 0.1),
+            borderRadius: BorderRadius.circular(16),
+          ),
+          child: const Icon(Icons.format_size_rounded, color: AppColors.primary),
+        ),
+        title: Text(
+          'Texte plus grand',
+          style: GoogleFonts.manrope(fontWeight: FontWeight.w800, color: AppColors.secondary),
+        ),
+        subtitle: Text(
+          'Agrandit le texte de toute l\'application',
+          style: GoogleFonts.inter(fontSize: 12, color: AppColors.secondary.withValues(alpha: 0.5)),
+        ),
+      ),
+    ).animate().fadeIn(delay: 150.ms).slideX(begin: 0.05);
   }
 
   Widget _profileItem(

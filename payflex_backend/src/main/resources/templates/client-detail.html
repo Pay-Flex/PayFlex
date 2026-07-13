@@ -9,6 +9,8 @@
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.2/css/all.min.css">
   <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
   <link rel="stylesheet" href="/css/admin-wow.css">
+  <meta name="_csrf" th:content="${_csrf.token}">
+  <meta name="_csrf_parameter" th:content="${_csrf.parameterName}">
 </head>
 <body class="pf-admin bg-slate-100 min-h-screen">
 <th:block th:replace="~{fragments/admin-chrome :: startMain('space-y-4')}"/>
@@ -160,10 +162,89 @@
         </div>
         <div class="flex flex-wrap gap-2 pt-1">
           <a th:href="@{/admin/support-chat(open=${client.id()})}" class="pf-btn pf-btn-primary text-xs"><i class="fa-solid fa-comments mr-1"></i>Chat support</a>
-          <a th:href="@{/admin/users(page=0,q=${client.phone()})}" class="pf-btn pf-btn-secondary text-xs"><i class="fa-regular fa-pen-to-square mr-1"></i>Modifier le compte</a>
+          <button type="button" onclick="openClientEditModal()" class="pf-btn pf-btn-secondary text-xs"><i class="fa-regular fa-pen-to-square mr-1"></i>Modifier le compte</button>
         </div>
       </dl>
     </div>
+  </section>
+
+  <section class="pf-detail-panel border-amber-100 bg-amber-50/30">
+    <h2 class="pf-detail-section-head"><i class="fa-solid fa-shield-halved"></i>Accès mobile (sensible)</h2>
+    <p class="text-xs text-slate-600 mb-3">PIN et mot de passe sont masqués. Cliquez sur l’œil puis saisissez votre mot de passe administrateur pour les afficher.</p>
+    <div class="grid grid-cols-1 md:grid-cols-2 gap-3 text-sm">
+      <div class="rounded-lg border border-slate-200 bg-white p-3">
+        <div class="flex items-center justify-between gap-2">
+          <span class="text-slate-500">Code PIN mobile</span>
+          <button type="button" class="text-slate-500 hover:text-blue-700 pf-cred-reveal-btn"
+                  th:attr="data-pf-client-id=${client.id()},data-pf-reveal-cred='pin'"
+                  title="Afficher (mot de passe admin requis)"><i class="fa-regular fa-eye"></i></button>
+        </div>
+        <p id="pfCredPin" class="font-mono font-semibold mt-1">******</p>
+        <p class="text-xs text-slate-400 mt-1" th:if="${!credentialSummary['hasPin']}">Non défini</p>
+      </div>
+      <div class="rounded-lg border border-slate-200 bg-white p-3">
+        <div class="flex items-center justify-between gap-2">
+          <span class="text-slate-500">Mot de passe compte</span>
+          <button type="button" class="text-slate-500 hover:text-blue-700 pf-cred-reveal-btn"
+                  th:attr="data-pf-client-id=${client.id()},data-pf-reveal-cred='accountPassword'"
+                  title="Afficher (mot de passe admin requis)"><i class="fa-regular fa-eye"></i></button>
+        </div>
+        <p id="pfCredPassword" class="font-mono font-semibold mt-1">******</p>
+        <p class="text-xs text-slate-400 mt-1" th:if="${!credentialSummary['hasAccountPassword']}">Non défini</p>
+      </div>
+    </div>
+    <div class="flex flex-wrap gap-2 mt-4">
+      <form th:if="${credentialSummary['recoveryOpen']}" method="post" th:action="@{/admin/clients/{id}/credentials/recovery-resolve(id=${client.id()})}">
+        <input type="hidden" th:name="${_csrf.parameterName}" th:value="${_csrf.token}">
+        <button type="submit" class="pf-btn pf-btn-secondary text-xs">Clôturer demande de rappel</button>
+      </form>
+      <form th:unless="${credentialSummary['recoveryOpen']}" method="post" th:action="@{/admin/clients/{id}/credentials/recovery-request(id=${client.id()})}">
+        <input type="hidden" th:name="${_csrf.parameterName}" th:value="${_csrf.token}">
+        <button type="submit" class="pf-btn pf-btn-secondary text-xs"><i class="fa-solid fa-phone mr-1"></i>Signaler oubli identifiants (rappel client)</button>
+      </form>
+    </div>
+    <p th:if="${credentialSummary['recoveryOpen']}" class="text-xs text-amber-800 mt-2 font-medium">
+      <i class="fa-solid fa-bell mr-1"></i>Demande de rappel identifiants en attente.
+    </p>
+  </section>
+
+  <section class="pf-detail-panel border-blue-100 bg-blue-50/30">
+    <h2 class="pf-detail-section-head"><i class="fa-solid fa-box-open"></i>Clôture &amp; livraison</h2>
+    <div th:if="${productProgress != null}" class="text-sm mb-4 grid grid-cols-1 md:grid-cols-3 gap-3">
+      <article class="pf-stat-tile">
+        <p class="pf-stat-label">Produit actif</p>
+        <p class="pf-stat-value text-base" th:text="${productProgress.productName()}">—</p>
+      </article>
+      <article class="pf-stat-tile pf-stat-tile--emerald">
+        <p class="pf-stat-label">Solde validé / objectif</p>
+        <p class="pf-stat-value text-base"
+           th:text="${#numbers.formatInteger(productProgress.totalValidated(),0,'POINT')} + ' / ' + ${#numbers.formatInteger(productProgress.productPrice(),0,'POINT')} + ' FCFA'"></p>
+      </article>
+      <article class="pf-stat-tile" th:classappend="${productProgress.goalReached()} ? ' pf-stat-tile--emerald' : ' pf-stat-tile--amber'">
+        <p class="pf-stat-label">Objectif</p>
+        <p class="pf-stat-value text-base" th:text="${productProgress.goalReached()} ? 'Atteint' : 'En cours'"></p>
+      </article>
+    </div>
+    <div th:if="${deliveryCase != null}" class="rounded-lg border border-slate-200 bg-white p-4 text-sm space-y-2">
+      <p><span class="font-semibold">Dossier #</span><span th:text="${deliveryCase.id()}"></span>
+        — <span class="pf-badge-soft text-xs font-bold pf-badge-soft--amber" th:text="${deliveryCase.statusLabel()}"></span></p>
+      <p th:if="${deliveryCase.catchupDaysSnapshot() > 0}" class="text-amber-800 text-xs">
+        <i class="fa-solid fa-calendar-day mr-1"></i>Snapshot carnet : <span th:text="${deliveryCase.catchupDaysSnapshot()}"></span> jour(s) orange au moment de l’ouverture.
+      </p>
+      <p th:if="${deliveryCase.adminNote() != null}" class="text-slate-600 text-xs whitespace-pre-wrap" th:text="${deliveryCase.adminNote()}"></p>
+      <a href="/admin/deliveries" class="pf-btn pf-btn-primary text-xs inline-flex"><i class="fa-solid fa-arrow-right mr-1"></i>Traiter dans la file clôture / livraison</a>
+    </div>
+    <div th:if="${deliveryCase == null && productProgress != null && productProgress.goalReached()}" class="flex flex-wrap gap-2">
+      <form method="post" th:action="@{/admin/clients/{id}/delivery/open(id=${client.id()})}">
+        <input type="hidden" th:name="${_csrf.parameterName}" th:value="${_csrf.token}">
+        <button type="submit" class="pf-btn pf-btn-primary text-xs"><i class="fa-solid fa-folder-open mr-1"></i>Ouvrir dossier clôture</button>
+      </form>
+      <a href="/admin/deliveries" class="pf-btn pf-btn-secondary text-xs">Voir toutes les livraisons</a>
+    </div>
+    <p th:if="${productProgress == null}" class="text-sm text-slate-500">Aucune cotisation produit enregistrée pour ce client.</p>
+    <p th:if="${deliveryCase == null && productProgress != null && !productProgress.goalReached()}" class="text-sm text-slate-600">
+      L’objectif n’est pas encore atteint. La clôture sera proposée automatiquement lorsque le solde validé couvrira le prix du produit.
+    </p>
   </section>
 
   <section class="pf-detail-panel" th:if="${clientContributions != null && !clientContributions.isEmpty()}">
@@ -214,9 +295,90 @@
   </section>
 
 <th:block th:replace="~{fragments/admin-chrome :: endMain}"/>
+
+<div id="clientEditModal" class="hidden fixed inset-0 bg-black/40 items-center justify-center z-50 p-4">
+  <div class="bg-white w-full max-w-2xl rounded-xl p-6 border border-slate-200 shadow-lg max-h-[90vh] overflow-y-auto">
+    <h3 class="font-semibold text-lg text-slate-800 mb-1">Modifier le compte client</h3>
+    <p class="text-xs text-slate-500 mb-4">Téléphone et code unique non modifiables ici. Réinitialisez PIN / mot de passe uniquement si nécessaire.</p>
+    <form method="post" th:action="@{/admin/clients/{id}/profile/update(id=${client.id()})}" class="grid grid-cols-1 md:grid-cols-2 gap-x-4 gap-y-3">
+      <input type="hidden" th:name="${_csrf.parameterName}" th:value="${_csrf.token}">
+      <div class="md:col-span-2">
+        <label class="block text-xs font-medium text-slate-600 mb-1">Nom complet</label>
+        <input name="fullName" required class="border rounded-lg px-3 py-2 w-full text-sm"
+               th:value="${clientEdit['full_name']}">
+      </div>
+      <div>
+        <label class="block text-xs font-medium text-slate-600 mb-1">Téléphone (lecture seule)</label>
+        <input class="border rounded-lg px-3 py-2 w-full text-sm bg-slate-50" readonly th:value="${clientEdit['phone']}">
+      </div>
+      <div>
+        <label class="block text-xs font-medium text-slate-600 mb-1">Code unique (lecture seule)</label>
+        <input class="border rounded-lg px-3 py-2 w-full text-sm bg-slate-50 font-mono" readonly th:value="${clientEdit['unique_code']}">
+      </div>
+      <div>
+        <label class="block text-xs font-medium text-slate-600 mb-1">E-mail</label>
+        <input name="email" type="email" class="border rounded-lg px-3 py-2 w-full text-sm" th:value="${clientEdit['email']}">
+      </div>
+      <div>
+        <label class="block text-xs font-medium text-slate-600 mb-1">Genre</label>
+        <select name="gender" class="border rounded-lg px-3 py-2 w-full text-sm bg-white">
+          <option value="">—</option>
+          <option value="M" th:selected="${clientEdit['gender'] == 'M'}">Homme</option>
+          <option value="F" th:selected="${clientEdit['gender'] == 'F'}">Femme</option>
+          <option value="Autre" th:selected="${clientEdit['gender'] == 'Autre'}">Autre</option>
+        </select>
+      </div>
+      <div>
+        <label class="block text-xs font-medium text-slate-600 mb-1">Ville</label>
+        <input name="city" class="border rounded-lg px-3 py-2 w-full text-sm" th:value="${clientEdit['city']}">
+      </div>
+      <div>
+        <label class="block text-xs font-medium text-slate-600 mb-1">Métier</label>
+        <input name="profession" class="border rounded-lg px-3 py-2 w-full text-sm" th:value="${clientEdit['profession']}">
+      </div>
+      <div class="md:col-span-2">
+        <label class="block text-xs font-medium text-slate-600 mb-1">Statut du compte</label>
+        <select name="status" class="border rounded-lg px-3 py-2 w-full text-sm bg-white">
+          <option value="pending" th:selected="${clientEdit['status'] == 'pending'}">En attente</option>
+          <option value="valide" th:selected="${clientEdit['status'] == 'valide'}">Actif (en attente adhésion)</option>
+          <option value="adhere" th:selected="${clientEdit['status'] == 'adhere'}">Adhérent</option>
+          <option value="bloque" th:selected="${clientEdit['status'] == 'bloque'}">Bloqué</option>
+        </select>
+      </div>
+      <div class="md:col-span-2 border-t border-slate-100 pt-2">
+        <p class="text-xs font-semibold text-slate-600 mb-2">Lieu de travail (optionnel)</p>
+      </div>
+      <div><label class="block text-xs text-slate-600 mb-1">Entreprise</label><input name="workplaceName" class="border rounded-lg px-3 py-2 w-full text-sm" th:value="${clientEdit['workplace_name']}"></div>
+      <div><label class="block text-xs text-slate-600 mb-1">Adresse</label><input name="workplaceAddress" class="border rounded-lg px-3 py-2 w-full text-sm" th:value="${clientEdit['workplace_address']}"></div>
+      <div><label class="block text-xs text-slate-600 mb-1">Responsable</label><input name="bossName" class="border rounded-lg px-3 py-2 w-full text-sm" th:value="${clientEdit['boss_name']}"></div>
+      <div><label class="block text-xs text-slate-600 mb-1">Tél. responsable</label><input name="bossPhone" class="border rounded-lg px-3 py-2 w-full text-sm" th:value="${clientEdit['boss_phone']}"></div>
+      <div class="md:col-span-2 border-t border-slate-100 pt-2">
+        <p class="text-xs font-semibold text-slate-600 mb-2">Réinitialisation identifiants (laisser vide pour ne pas changer)</p>
+      </div>
+      <div><label class="block text-xs text-slate-600 mb-1">Nouveau PIN</label><input name="newPin" type="password" autocomplete="new-password" class="border rounded-lg px-3 py-2 w-full text-sm" placeholder="4–12 chiffres"></div>
+      <div><label class="block text-xs text-slate-600 mb-1">Nouveau mot de passe</label><input name="newAccountPassword" type="password" autocomplete="new-password" class="border rounded-lg px-3 py-2 w-full text-sm" placeholder="8–64 caractères"></div>
+      <th:block th:replace="~{fragments/admin-moderation-fields :: changeReason}"/>
+      <div class="md:col-span-2 flex justify-end gap-2 pt-2">
+        <button type="button" onclick="closeClientEditModal()" class="pf-btn pf-btn-secondary py-2 px-4 text-sm">Annuler</button>
+        <button type="submit" class="pf-btn pf-btn-primary py-2 px-4 text-sm">Enregistrer</button>
+      </div>
+    </form>
+  </div>
+</div>
+
 <script src="/js/chart-palette.js"></script>
 <script src="/js/admin-wow.js"></script>
 <script th:inline="javascript">
+  function openClientEditModal() {
+    const m = document.getElementById('clientEditModal');
+    m.classList.remove('hidden');
+    m.classList.add('flex');
+  }
+  function closeClientEditModal() {
+    const m = document.getElementById('clientEditModal');
+    m.classList.remove('flex');
+    m.classList.add('hidden');
+  }
   document.addEventListener('DOMContentLoaded', () => {
     if (typeof pfFlashFromParams === 'function') {
       pfFlashFromParams({

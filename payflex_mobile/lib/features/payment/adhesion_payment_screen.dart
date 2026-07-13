@@ -34,7 +34,7 @@ class _AdhesionPaymentScreenState extends ConsumerState<AdhesionPaymentScreen> {
     if (!mounted) return;
     setState(() => _loading = false);
     if (init == null) {
-      _snack(UserVisibleMessage.network);
+      _snack(UserVisibleMessage.forNetworkError());
       return;
     }
     if (init['fedapayEnabled'] != true) {

@@ -94,6 +94,9 @@ public class CredentialHashService {
         if (stored.startsWith("{noop}")) {
             return constantTimeEquals(raw, stored.substring("{noop}".length()));
         }
+        if (stored.startsWith("{bcrypt}")) {
+            return passwordEncoder.matches(raw, stored.substring("{bcrypt}".length()));
+        }
         if (isBcryptHash(stored)) {
             return passwordEncoder.matches(raw, stored);
         }

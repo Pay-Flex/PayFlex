@@ -2,8 +2,8 @@ import 'dart:ui' show ImageFilter;
 
 import 'package:flutter/material.dart';
 import 'package:flutter_animate/flutter_animate.dart';
-import 'package:google_fonts/google_fonts.dart';
 import '../../core/constants/app_colors.dart';
+import '../../core/theme/app_typography.dart';
 import 'role_selection_screen.dart';
 import 'login_screen.dart';
 import 'widgets/auth_wave_background.dart';
@@ -106,7 +106,7 @@ class WelcomeScreen extends StatelessWidget {
                   Text(
                     'La solution qui vous permet de cotiser progressivement pour acheter vos outils professionnels.',
                     textAlign: TextAlign.center,
-                    style: GoogleFonts.inter(
+                    style: AppTypography.inter(
                       fontSize: 16,
                       color: Colors.white.withValues(alpha: 0.95),
                       height: 1.5,

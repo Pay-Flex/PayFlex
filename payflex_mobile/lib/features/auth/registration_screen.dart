@@ -8,6 +8,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../core/providers/auth_provider.dart';
 import '../../core/network/mobile_api_service.dart';
 import '../../core/utils/registration_file_store.dart';
+import '../../core/utils/user_visible_message.dart';
 import '../../core/widgets/payflex_phone_field.dart';
 import '../../core/utils/phone_input_utils.dart';
 import 'widgets/auth_wave_background.dart';
@@ -45,8 +46,13 @@ class _RegistrationScreenState extends ConsumerState<RegistrationScreen> {
 
   final _bossNameCtrl = TextEditingController();
   final _bossPhoneCtrl = TextEditingController();
+  final _trainingCenterCtrl = TextEditingController();
+  final _trainingStartCtrl = TextEditingController();
+  final _trainingEndCtrl = TextEditingController();
 
   String _gender = 'Homme';
+  String _financingType = 'cotisation_journaliere';
+  bool _acceptCgu = false;
   bool _isPasswordVisible = false;
   bool _isConfirmVisible = false;
   File? _profilePhoto;
@@ -56,21 +62,120 @@ class _RegistrationScreenState extends ConsumerState<RegistrationScreen> {
   final _api = MobileApiService();
   List<Map<String, dynamic>> _agentChoices = [];
   bool _agentsLoading = true;
+  String? _agentsLoadError;
   int? _selectedAgentUserId;
   bool _noAgentSelected = false;
   bool _navigatingToPin = false;
+  final Map<String, Map<String, dynamic>> _legalByCode = {};
+  bool _legalLoading = true;
 
   @override
   void initState() {
     super.initState();
     _loadAgents();
+    _loadLegalDocuments();
+  }
+
+  Future<void> _loadLegalDocuments() async {
+    final docs = await _api.fetchLegalDocuments();
+    if (!mounted) return;
+    setState(() {
+      _legalByCode
+        ..clear()
+        ..addEntries(
+          docs.map((d) {
+            final code = d['code']?.toString() ?? '';
+            return MapEntry(code, d);
+          }).where((e) => e.key.isNotEmpty),
+        );
+      _legalLoading = false;
+    });
+  }
+
+  void _showLegalDocument(String code) {
+    final doc = _legalByCode[code];
+    final title = doc?['title']?.toString() ?? (code == 'privacy' ? 'Confidentialité' : 'CGU PayFlex');
+    final content = doc?['content']?.toString() ??
+        'Contenu indisponible. Réessayez plus tard ou contactez le support PayFlex.';
+    showDialog<void>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+        title: Text(title, style: GoogleFonts.manrope(fontWeight: FontWeight.w800, fontSize: 17)),
+        content: SizedBox(
+          width: double.maxFinite,
+          child: SingleChildScrollView(
+            child: Text(
+              content,
+              style: GoogleFonts.inter(fontSize: 14, height: 1.5, color: Colors.black87),
+            ),
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx),
+            child: Text('Fermer', style: GoogleFonts.manrope(fontWeight: FontWeight.w700)),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildLegalAcceptanceRow() {
+    final baseStyle = GoogleFonts.inter(
+      fontSize: 13,
+      fontWeight: FontWeight.w600,
+      color: const Color(0xFF1E293B),
+    );
+    final linkStyle = GoogleFonts.inter(
+      fontSize: 13,
+      fontWeight: FontWeight.w700,
+      color: AppColors.primary,
+      decoration: TextDecoration.underline,
+    );
+    return Row(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Checkbox(
+          value: _acceptCgu,
+          activeColor: AppColors.primary,
+          onChanged: (v) => setState(() => _acceptCgu = v == true),
+        ),
+        Expanded(
+          child: Padding(
+            padding: const EdgeInsets.only(top: 10),
+            child: Wrap(
+              crossAxisAlignment: WrapCrossAlignment.center,
+              children: [
+                Text('J’accepte les ', style: baseStyle),
+                GestureDetector(
+                  onTap: () => _showLegalDocument('cgu'),
+                  child: Text('conditions générales d’utilisation', style: linkStyle),
+                ),
+                Text(' et la ', style: baseStyle),
+                GestureDetector(
+                  onTap: () => _showLegalDocument('privacy'),
+                  child: Text('politique de confidentialité', style: linkStyle),
+                ),
+                Text(' PayFlex *', style: baseStyle),
+              ],
+            ),
+          ),
+        ),
+      ],
+    );
   }
 
   Future<void> _loadAgents() async {
-    final list = await _api.fetchRegistrationAgentChoices();
+    setState(() {
+      _agentsLoading = true;
+      _agentsLoadError = null;
+    });
+    final result = await _api.fetchRegistrationAgentChoices();
     if (!mounted) return;
     setState(() {
-      _agentChoices = list;
+      _agentChoices = result.agents;
+      _agentsLoadError = result.ok ? null : result.errorMessage;
       _agentsLoading = false;
     });
   }
@@ -88,8 +193,13 @@ class _RegistrationScreenState extends ConsumerState<RegistrationScreen> {
     _confirmCtrl.dispose();
     _bossNameCtrl.dispose();
     _bossPhoneCtrl.dispose();
+    _trainingCenterCtrl.dispose();
+    _trainingStartCtrl.dispose();
+    _trainingEndCtrl.dispose();
     super.dispose();
   }
+
+  bool get _isApprenti => ref.read(tempClientProfileProvider) == 'apprenti';
 
   void _goNext() {
     final keys = [_formStep1, _formStep2, _formStep3];
@@ -105,6 +215,12 @@ class _RegistrationScreenState extends ConsumerState<RegistrationScreen> {
   Future<void> _finishAndGoToPin() async {
     if (_navigatingToPin) return;
     if (_formStep3.currentState?.validate() != true) return;
+    if (!_acceptCgu) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Vous devez accepter les conditions générales d’utilisation.')),
+      );
+      return;
+    }
     if (!_noAgentSelected && (_selectedAgentUserId == null || _selectedAgentUserId! <= 0)) {
       if (_agentChoices.isEmpty) {
         ScaffoldMessenger.of(context).showSnackBar(
@@ -139,13 +255,21 @@ class _RegistrationScreenState extends ConsumerState<RegistrationScreen> {
     }
 
     final clientProfile = ref.read(tempClientProfileProvider);
+    var profession = _metierCtrl.text.trim();
+    if (_isApprenti) {
+      profession = '$profession | Apprenti: ${_trainingCenterCtrl.text.trim()} '
+          '(${_trainingStartCtrl.text.trim()} → ${_trainingEndCtrl.text.trim()})';
+    }
+    profession = '$profession | Financement: $_financingType';
     ref.read(tempRegistrationDataProvider.notifier).setData({
       'fullName': '${_prenomCtrl.text.trim()} ${_nomCtrl.text.trim()}'.trim(),
       'clientProfile': clientProfile,
       'phone': _phoneCtrl.text.trim(),
       'email': _emailCtrl.text.trim(),
       'city': _cityCtrl.text.trim(),
-      'profession': _metierCtrl.text.trim(),
+      'profession': profession,
+      'financingType': _financingType,
+      'termsAccepted': _acceptCgu,
       'gender': registrationGenderCode(_gender),
       'workplaceName': lieu,
       'workplaceAddress': lieu,
@@ -623,6 +747,78 @@ class _RegistrationScreenState extends ConsumerState<RegistrationScreen> {
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
           Text(
+            'Type de financement',
+            style: GoogleFonts.manrope(fontSize: 13, fontWeight: FontWeight.w800, color: AppColors.secondary),
+          ),
+          const SizedBox(height: 8),
+          DropdownButtonFormField<String>(
+            value: _financingType,
+            dropdownColor: Colors.white,
+            iconEnabledColor: AppColors.secondary,
+            style: _fieldStyle,
+            decoration: _decor(Icons.account_balance_wallet_outlined, 'Choisir'),
+            items: const [
+              DropdownMenuItem(
+                value: 'cotisation_journaliere',
+                child: Text('Cotisation journalière', style: TextStyle(color: Color(0xFF1E293B), fontSize: 15)),
+              ),
+              DropdownMenuItem(
+                value: 'paiement_unique',
+                child: Text('Paiement unique', style: TextStyle(color: Color(0xFF1E293B), fontSize: 15)),
+              ),
+              DropdownMenuItem(
+                value: 'financement_partiel',
+                child: Text('Financement partiel PayFlex', style: TextStyle(color: Color(0xFF1E293B), fontSize: 15)),
+              ),
+            ],
+            onChanged: (v) => setState(() => _financingType = v ?? 'cotisation_journaliere'),
+          ),
+          if (_isApprenti) ...[
+            const SizedBox(height: 16),
+            Text(
+              'Formation (apprenti)',
+              style: GoogleFonts.manrope(fontSize: 13, fontWeight: FontWeight.w800, color: AppColors.secondary),
+            ),
+            const SizedBox(height: 8),
+            TextFormField(
+              controller: _trainingCenterCtrl,
+              style: _fieldStyle,
+              decoration: _decor(Icons.school_outlined, 'Centre de formation'),
+              validator: (v) => _isApprenti && (v == null || v.trim().isEmpty) ? 'Centre requis' : null,
+            ),
+            const SizedBox(height: 12),
+            TextFormField(
+              controller: _trainingStartCtrl,
+              style: _fieldStyle,
+              decoration: _decor(Icons.calendar_today_outlined, 'Début (ex. 01/2024)'),
+            ),
+            const SizedBox(height: 12),
+            TextFormField(
+              controller: _trainingEndCtrl,
+              style: _fieldStyle,
+              decoration: _decor(Icons.event_outlined, 'Fin prévue (ex. 06/2025)'),
+            ),
+          ],
+          const SizedBox(height: 16),
+          _buildLegalAcceptanceRow(),
+          if (_legalLoading)
+            Padding(
+              padding: const EdgeInsets.only(top: 6),
+              child: Text(
+                'Chargement des textes juridiques…',
+                style: GoogleFonts.inter(fontSize: 11, color: Colors.grey.shade600),
+              ),
+            ),
+          if (!_acceptCgu)
+            Padding(
+              padding: const EdgeInsets.only(top: 4, left: 12),
+              child: Text(
+                'Acceptation obligatoire pour finaliser l’inscription.',
+                style: GoogleFonts.inter(fontSize: 11, color: Colors.orange.shade800),
+              ),
+            ),
+          const SizedBox(height: 20),
+          Text(
             'Agent PayFlex (optionnel)',
             style: GoogleFonts.manrope(fontSize: 13, fontWeight: FontWeight.w800, color: AppColors.secondary),
           ),
@@ -642,7 +838,7 @@ class _RegistrationScreenState extends ConsumerState<RegistrationScreen> {
                     }),
             title: Text(
               'Je n’ai pas encore d’agent PayFlex',
-              style: GoogleFonts.inter(fontSize: 13, fontWeight: FontWeight.w600),
+              style: GoogleFonts.inter(fontSize: 13, fontWeight: FontWeight.w600, color: const Color(0xFF1E293B)),
             ),
             subtitle: Text(
               'Paiement adhésion 250 FCFA par mobile money (FedaPay) dans l’app',
@@ -658,9 +854,23 @@ class _RegistrationScreenState extends ConsumerState<RegistrationScreen> {
               child: Center(child: SizedBox(width: 22, height: 22, child: CircularProgressIndicator(strokeWidth: 2))),
             )
           else if (_agentChoices.isEmpty)
-            Text(
-              'Liste des agents indisponible. Vérifiez votre connexion et réessayez.',
-              style: GoogleFonts.inter(fontSize: 12, color: Colors.red.shade700),
+            Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  UserVisibleMessage.apiOrFallback(
+                    _agentsLoadError,
+                    'Aucun agent disponible pour le moment. Réessayez ou cochez « Je n’ai pas encore d’agent ».',
+                  ),
+                  style: GoogleFonts.inter(fontSize: 12, color: Colors.red.shade700, height: 1.35),
+                ),
+                const SizedBox(height: 8),
+                TextButton.icon(
+                  onPressed: _loadAgents,
+                  icon: const Icon(Icons.refresh_rounded, size: 18),
+                  label: Text('Réessayer', style: GoogleFonts.manrope(fontWeight: FontWeight.w700)),
+                ),
+              ],
             )
           else
             DropdownButtonFormField<int>(

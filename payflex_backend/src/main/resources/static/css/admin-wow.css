@@ -16,6 +16,11 @@ body.pf-admin {
   color: #0f172a;
 }
 
+/* SweetAlert2 au-dessus du menu latéral / overlays admin */
+.swal2-container {
+  z-index: 20000 !important;
+}
+
 /* Bandeau supérieur décoratif (plein bleu sombre) */
 .pf-admin-top-strip {
   background: var(--pf-admin-blue);

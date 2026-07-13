@@ -15,7 +15,7 @@
   <div class="bg-white rounded-xl shadow-sm border border-slate-200/80 p-4 md:p-5">
     <th:block th:replace="~{fragments/admin-chrome :: recordBack('/admin/agents', 'Retour aux agents')}"/>
     <h2 class="text-xl md:text-2xl font-bold text-slate-900 mt-1">Nouvel employé — agent terrain</h2>
-    <p class="text-sm text-slate-600 mt-1 max-w-2xl">Dossier complet : identité, affectation, contacts d’urgence, référent RH (contact uniquement), notes et pièces. Un compte <strong>agent mobile</strong> est créé (téléphone + code PIN). La supervision se fait via les comptes <strong>Administrateur</strong> et <strong>Gestionnaire</strong>.</p>
+    <p class="text-sm text-slate-600 mt-1 max-w-2xl">Dossier complet : identité, affectation, contacts d’urgence, référent RH (contact uniquement), notes et pièces. Un compte <strong>agent mobile</strong> est créé (téléphone, mot de passe et code PIN). <strong>Aucune adhésion</strong> n’est due aux agents terrain — seuls les comptes <strong>client</strong> paient les 250 FCFA d’adhésion.</p>
   </div>
 
     <div th:if="${errorMessage}" class="rounded-xl border border-red-200 bg-red-50 text-red-800 px-4 py-3 text-sm" th:text="${errorMessage}"></div>
@@ -100,16 +100,26 @@
         <h2 class="text-lg font-bold text-slate-800 border-b border-slate-100 pb-2 mb-4"><i class="fa-solid fa-key mr-2 text-blue-700"></i>Accès application mobile</h2>
         <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
           <div>
+            <label class="block text-xs font-semibold text-slate-600 mb-1">Mot de passe de connexion (8–64 caractères) <span class="text-red-500">*</span></label>
+            <input name="accountPassword" id="agentAccountPassword" required type="password" minlength="8" maxlength="64" autocomplete="new-password"
+                   class="border rounded-lg px-3 py-2 w-full text-sm" placeholder="Connexion à l’application mobile">
+          </div>
+          <div>
+            <label class="block text-xs font-semibold text-slate-600 mb-1">Confirmer le mot de passe <span class="text-red-500">*</span></label>
+            <input name="accountPasswordConfirm" id="agentAccountPasswordConfirm" required type="password" minlength="8" maxlength="64" autocomplete="new-password"
+                   class="border rounded-lg px-3 py-2 w-full text-sm">
+          </div>
+          <div>
             <label class="block text-xs font-semibold text-slate-600 mb-1">Code PIN PayFlex (4 à 12 chiffres) <span class="text-red-500">*</span></label>
             <input name="mobilePin" id="agentMobilePin" required type="password" inputmode="numeric" pattern="[0-9]{4,12}" minlength="4" maxlength="12" autocomplete="new-password"
-                   class="border rounded-lg px-3 py-2 w-full text-sm" placeholder="Connexion app + validation cotisations client">
+                   class="border rounded-lg px-3 py-2 w-full text-sm" placeholder="Validation des cotisations sur le terrain">
           </div>
           <div>
             <label class="block text-xs font-semibold text-slate-600 mb-1">Confirmer le code PIN <span class="text-red-500">*</span></label>
             <input name="mobilePinConfirm" id="agentMobilePinConfirm" required type="password" inputmode="numeric" pattern="[0-9]{4,12}" minlength="4" maxlength="12" autocomplete="new-password"
                    class="border rounded-lg px-3 py-2 w-full text-sm">
           </div>
-          <p class="text-xs text-slate-500 md:col-span-2">Un seul code PIN sert à la <strong>connexion mobile</strong> et à la <strong>validation des cotisations</strong> sur le terrain. Communiquez-le à l’agent de façon sécurisée.</p>
+          <p class="text-xs text-slate-500 md:col-span-2">Le <strong>mot de passe</strong> sert à la connexion mobile. Le <strong>code PIN</strong> valide les cotisations client sur le terrain. Communiquez ces identifiants de façon sécurisée.</p>
         </div>
       </section>
 
@@ -207,11 +217,18 @@
     const form = document.querySelector('form[action="/admin/agents/embauche"]');
     if (!form) return;
     form.addEventListener('submit', (e) => {
-      const a = document.getElementById('agentMobilePin');
-      const b = document.getElementById('agentMobilePinConfirm');
-      if (a && b && a.value !== b.value) {
+      const pw = document.getElementById('agentAccountPassword');
+      const pw2 = document.getElementById('agentAccountPasswordConfirm');
+      const pin = document.getElementById('agentMobilePin');
+      const pin2 = document.getElementById('agentMobilePinConfirm');
+      if (pw && pw2 && pw.value !== pw2.value) {
         e.preventDefault();
-        alert('Les mots de passe de connexion ne correspondent pas.');
+        alert('Les mots de passe ne correspondent pas.');
+        return;
+      }
+      if (pin && pin2 && pin.value !== pin2.value) {
+        e.preventDefault();
+        alert('Les codes PIN ne correspondent pas.');
       }
     });
   })();

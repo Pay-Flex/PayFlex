@@ -3,6 +3,9 @@
     <include resource="org/springframework/boot/logging/logback/defaults.xml"/>
 
   <!-- Chemins configurables dans application.yml (payflex.logging.*) -->
+    <!-- Dossier de logs dédié : hors racine projet, configurable via PAYFLEX_LOG_DIR -->
+    <springProperty scope="context" name="payflexLogDir"
+                    source="payflex.logging.log-dir" defaultValue="logs"/>
     <springProperty scope="context" name="payflexErrorLogFile"
                     source="payflex.logging.error-log-file" defaultValue="erreur.log"/>
     <springProperty scope="context" name="payflexDiagnosticLogFile"
@@ -22,7 +25,7 @@
 
     <!-- ERROR uniquement — stack traces complètes -->
     <appender name="ERROR_FILE" class="ch.qos.logback.core.rolling.RollingFileAppender">
-        <file>${payflexErrorLogFile}</file>
+        <file>${payflexLogDir}/${payflexErrorLogFile}</file>
         <encoder>
             <pattern>${LOG_PATTERN}</pattern>
             <charset>UTF-8</charset>
@@ -31,16 +34,17 @@
             <level>ERROR</level>
         </filter>
         <rollingPolicy class="ch.qos.logback.core.rolling.SizeAndTimeBasedRollingPolicy">
-            <fileNamePattern>${payflexErrorLogFile}.%d{yyyy-MM-dd}.%i.gz</fileNamePattern>
-            <maxFileSize>5MB</maxFileSize>
-            <maxHistory>14</maxHistory>
-            <totalSizeCap>50MB</totalSizeCap>
+            <fileNamePattern>${payflexLogDir}/${payflexErrorLogFile}.%d{yyyy-MM-dd}.%i.gz</fileNamePattern>
+            <maxFileSize>10MB</maxFileSize>
+            <maxHistory>7</maxHistory>
+            <totalSizeCap>200MB</totalSizeCap>
+            <cleanHistoryOnStart>true</cleanHistoryOnStart>
         </rollingPolicy>
     </appender>
 
     <!-- WARN + ERROR — connexions refusées, login échoué, SQL, etc. -->
     <appender name="DIAGNOSTIC_FILE" class="ch.qos.logback.core.rolling.RollingFileAppender">
-        <file>${payflexDiagnosticLogFile}</file>
+        <file>${payflexLogDir}/${payflexDiagnosticLogFile}</file>
         <encoder>
             <pattern>${LOG_PATTERN}</pattern>
             <charset>UTF-8</charset>
@@ -49,25 +53,27 @@
             <level>WARN</level>
         </filter>
         <rollingPolicy class="ch.qos.logback.core.rolling.SizeAndTimeBasedRollingPolicy">
-            <fileNamePattern>${payflexDiagnosticLogFile}.%d{yyyy-MM-dd}.%i.gz</fileNamePattern>
-            <maxFileSize>5MB</maxFileSize>
-            <maxHistory>14</maxHistory>
-            <totalSizeCap>50MB</totalSizeCap>
+            <fileNamePattern>${payflexLogDir}/${payflexDiagnosticLogFile}.%d{yyyy-MM-dd}.%i.gz</fileNamePattern>
+            <maxFileSize>10MB</maxFileSize>
+            <maxHistory>7</maxHistory>
+            <totalSizeCap>200MB</totalSizeCap>
+            <cleanHistoryOnStart>true</cleanHistoryOnStart>
         </rollingPolicy>
     </appender>
 
     <!-- API mobile : tentatives login, inscription, erreurs métier -->
     <appender name="MOBILE_API_FILE" class="ch.qos.logback.core.rolling.RollingFileAppender">
-        <file>${payflexMobileApiLogFile}</file>
+        <file>${payflexLogDir}/${payflexMobileApiLogFile}</file>
         <encoder>
             <pattern>${LOG_PATTERN}</pattern>
             <charset>UTF-8</charset>
         </encoder>
         <rollingPolicy class="ch.qos.logback.core.rolling.SizeAndTimeBasedRollingPolicy">
-            <fileNamePattern>${payflexMobileApiLogFile}.%d{yyyy-MM-dd}.%i.gz</fileNamePattern>
-            <maxFileSize>5MB</maxFileSize>
-            <maxHistory>14</maxHistory>
-            <totalSizeCap>30MB</totalSizeCap>
+            <fileNamePattern>${payflexLogDir}/${payflexMobileApiLogFile}.%d{yyyy-MM-dd}.%i.gz</fileNamePattern>
+            <maxFileSize>10MB</maxFileSize>
+            <maxHistory>7</maxHistory>
+            <totalSizeCap>200MB</totalSizeCap>
+            <cleanHistoryOnStart>true</cleanHistoryOnStart>
         </rollingPolicy>
     </appender>
 

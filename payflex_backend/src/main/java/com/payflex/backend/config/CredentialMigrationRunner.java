@@ -1,6 +1,7 @@
 package com.payflex.backend.config;
 
 import com.payflex.backend.service.CredentialHashService;
+import com.payflex.backend.service.CredentialVaultService;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.boot.ApplicationArguments;
@@ -21,10 +22,16 @@ public class CredentialMigrationRunner implements ApplicationRunner {
 
     private final JdbcTemplate jdbcTemplate;
     private final CredentialHashService credentialHashService;
+    private final CredentialVaultService credentialVaultService;
 
-    public CredentialMigrationRunner(JdbcTemplate jdbcTemplate, CredentialHashService credentialHashService) {
+    public CredentialMigrationRunner(
+        JdbcTemplate jdbcTemplate,
+        CredentialHashService credentialHashService,
+        CredentialVaultService credentialVaultService
+    ) {
         this.jdbcTemplate = jdbcTemplate;
         this.credentialHashService = credentialHashService;
+        this.credentialVaultService = credentialVaultService;
     }
 
     @Override
@@ -32,6 +39,10 @@ public class CredentialMigrationRunner implements ApplicationRunner {
         migrateMobileUsers();
         migrateRegistrationRequests();
         migrateAdminUsers();
+        int backfilled = credentialVaultService.backfillUserVaultFromRegistrations();
+        if (backfilled > 0) {
+            log.info("Archive identifiants : {} compte(s) client synchronisé(s) depuis l'inscription.", backfilled);
+        }
     }
 
     private void migrateMobileUsers() {
@@ -50,6 +61,7 @@ public class CredentialMigrationRunner implements ApplicationRunner {
                 continue;
             }
             try {
+                credentialVaultService.storeForUser(id, plain, null);
                 String hashed = credentialHashService.hashMobilePin(plain);
                 jdbcTemplate.update(
                     "UPDATE users SET pin = ?, secret_code = ? WHERE id = ?",
@@ -59,6 +71,7 @@ public class CredentialMigrationRunner implements ApplicationRunner {
                 );
                 updated++;
             } catch (IllegalArgumentException ex) {
+                credentialVaultService.storeForUser(id, plain, null);
                 String hashed = credentialHashService.hashAdminPassword(plain);
                 jdbcTemplate.update(
                     "UPDATE users SET pin = ?, secret_code = ? WHERE id = ?",

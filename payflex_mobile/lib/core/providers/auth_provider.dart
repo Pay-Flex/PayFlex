@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:io';
 
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -8,6 +9,8 @@ import '../network/mobile_api_service.dart';
 import '../network/registration_submit_result.dart';
 import '../utils/registration_file_store.dart';
 import '../utils/user_visible_message.dart';
+import '../services/session_timeout_service.dart';
+import '../widgets/payflex_push_lifecycle.dart';
 
 /// Résultat de [AuthNotifier.login] pour l’UI (message d’erreur explicite).
 class LoginOutcome {
@@ -67,6 +70,13 @@ AuthState authStateFromServerProfile(
     canReportAdhesionDispute: m['can_report_adhesion_dispute'] == true,
     assiduityBadge: m['assiduity_badge'] as String?,
     profilePhotoUrl: _profilePhotoUrlFromMap(m),
+    workplaceName: m['workplace_name'] as String? ?? m['workplaceName'] as String?,
+    workplaceAddress: m['workplace_address'] as String? ?? m['workplaceAddress'] as String?,
+    bossName: m['boss_name'] as String? ?? m['bossName'] as String?,
+    bossPhone: m['boss_phone'] as String? ?? m['bossPhone'] as String?,
+    registrationRejectionNote: m['registration_rejection_note'] as String?,
+    deliveryStatus: (m['deliveryStatus'] ?? m['delivery_status']) as String?,
+    deliveryProductName: (m['deliveryProductName'] ?? m['delivery_product_name']) as String?,
   );
 }
 
@@ -104,6 +114,15 @@ class AuthState {
   final int? pendingRegistrationId;
   /// Photo de profil (inscription), chemin relatif ou URL — résolu via [ApiConfig.resolveMediaUrl].
   final String? profilePhotoUrl;
+  final String? workplaceName;
+  final String? workplaceAddress;
+  final String? bossName;
+  final String? bossPhone;
+  /// Motif de refus inscription (resoumission).
+  final String? registrationRejectionNote;
+  /// Cycle clôture / livraison : goal_reached, awaiting_closure, closure_validated, delivered.
+  final String? deliveryStatus;
+  final String? deliveryProductName;
 
   AuthState({
     this.isLoading = false,
@@ -129,7 +148,22 @@ class AuthState {
     this.awaitingAdminApproval = false,
     this.pendingRegistrationId,
     this.profilePhotoUrl,
+    this.workplaceName,
+    this.workplaceAddress,
+    this.bossName,
+    this.bossPhone,
+    this.registrationRejectionNote,
+    this.deliveryStatus,
+    this.deliveryProductName,
   });
+
+  bool get deliveryReadyForPickup =>
+      deliveryStatus == 'closure_validated';
+
+  bool get deliveryCycleActive =>
+      deliveryStatus == 'goal_reached' ||
+      deliveryStatus == 'awaiting_closure' ||
+      deliveryStatus == 'closure_validated';
 
   bool get needsAdhesionPayment =>
       role == 'client' && !awaitingAdminApproval && !isAdherent && !adhesionFeePaid;
@@ -150,6 +184,14 @@ class AuthState {
 
   String statusLabelFr() {
     final s = accountStatus?.toLowerCase().trim() ?? '';
+    if (role == 'agent') {
+      return switch (s) {
+        'valide' => 'Agent actif',
+        'bloque' => 'Compte bloqué',
+        'pending' => 'En attente de validation',
+        _ => s.isEmpty ? 'Agent PayFlex' : accountStatus ?? 'Agent PayFlex',
+      };
+    }
     return switch (s) {
       'adhere' => 'Adhérent PayFlex',
       'valide' => 'En attente adhésion (250 FCFA)',
@@ -193,6 +235,13 @@ class AuthState {
     bool? awaitingAdminApproval,
     int? pendingRegistrationId,
     String? profilePhotoUrl,
+    String? workplaceName,
+    String? workplaceAddress,
+    String? bossName,
+    String? bossPhone,
+    String? registrationRejectionNote,
+    String? deliveryStatus,
+    String? deliveryProductName,
   }) {
     return AuthState(
       isLoading: isLoading ?? this.isLoading,
@@ -218,6 +267,13 @@ class AuthState {
       awaitingAdminApproval: awaitingAdminApproval ?? this.awaitingAdminApproval,
       pendingRegistrationId: pendingRegistrationId ?? this.pendingRegistrationId,
       profilePhotoUrl: profilePhotoUrl ?? this.profilePhotoUrl,
+      workplaceName: workplaceName ?? this.workplaceName,
+      workplaceAddress: workplaceAddress ?? this.workplaceAddress,
+      bossName: bossName ?? this.bossName,
+      bossPhone: bossPhone ?? this.bossPhone,
+      registrationRejectionNote: registrationRejectionNote ?? this.registrationRejectionNote,
+      deliveryStatus: deliveryStatus ?? this.deliveryStatus,
+      deliveryProductName: deliveryProductName ?? this.deliveryProductName,
     );
   }
 }
@@ -233,8 +289,22 @@ class AuthNotifier extends Notifier<AuthState> {
   }
 
   Future<void> _loadUser() async {
+    if (await SessionTimeoutService.instance.isExpired()) {
+      await deactivatePayflexPush();
+      await _dbService.clearRemoteSession();
+      await _dbService.clearPendingRegistrationSession();
+      await _dbService.setCurrentUserId(null);
+      await SessionTimeoutService.instance.clear();
+      SessionTimeoutService.instance.markExpiredForMessage();
+      state = AuthState(isLoading: false);
+      return;
+    }
+
     final remote = await _dbService.loadRemoteSession();
     if (remote != null) {
+      if (await SessionTimeoutService.instance.lastActiveAt() == null) {
+        await SessionTimeoutService.instance.recordActivity();
+      }
       final profile = Map<String, dynamic>.from(remote['profile'] as Map);
       state = authStateFromServerProfile(profile, pin: remote['pin'] as String);
       final uid = parseServerUserId(profile);
@@ -246,6 +316,13 @@ class AuthNotifier extends Notifier<AuthState> {
           role: state.role,
           pin: state.pin,
         );
+      }
+      if (state.role == 'client' || state.role == 'agent') {
+        unawaited(activatePayflexPushForClient(
+          userId: uid,
+          phone: state.phone,
+          pin: state.pin,
+        ));
       }
       Future.microtask(() => refreshProfile());
       return;
@@ -359,6 +436,14 @@ class AuthNotifier extends Notifier<AuthState> {
           PayflexApiLogger.info(
             'Session enregistrée userId=$remoteId status=${user['status']} role=${user['role']}',
           );
+          if (state.role == 'client' || state.role == 'agent') {
+            unawaited(activatePayflexPushForClient(
+              userId: remoteId,
+              phone: state.phone,
+              pin: pinTrim,
+            ));
+          }
+          await SessionTimeoutService.instance.recordActivity();
           return const LoginOutcome.ok();
         } catch (e, st) {
           PayflexApiLogger.error('Échec saveRemoteSession', e, st);
@@ -443,6 +528,7 @@ class AuthNotifier extends Notifier<AuthState> {
             role: local['role'] as String?,
             pin: local['pin'] as String?,
           );
+          await SessionTimeoutService.instance.recordActivity();
           return const LoginOutcome.ok();
         }
       }
@@ -500,6 +586,7 @@ class AuthNotifier extends Notifier<AuthState> {
       pendingRegistrationId: registrationId,
       assignedAgentUserId: agentId,
     );
+    await SessionTimeoutService.instance.recordActivity();
   }
 
   /// Tente la connexion serveur lorsque l'admin a validé l'inscription.
@@ -592,9 +679,26 @@ class AuthNotifier extends Notifier<AuthState> {
     }
   }
   
+  Future<void> updateSessionPin(String newPin) async {
+    if (!state.isAuthenticated) return;
+    state = state.copyWith(pin: newPin);
+    final session = await _dbService.loadRemoteSession();
+    if (session != null && session['profile'] is Map) {
+      await _dbService.saveRemoteSession(
+        userId: state.userId!,
+        phone: state.phone ?? session['phone'].toString(),
+        pin: newPin,
+        profile: Map<String, dynamic>.from(session['profile'] as Map),
+      );
+    }
+  }
+
   Future<void> logout() async {
+    await deactivatePayflexPush();
     await _dbService.clearRemoteSession();
     await _dbService.clearPendingRegistrationSession();
+    await _dbService.setCurrentUserId(null);
+    await SessionTimeoutService.instance.clear();
     state = AuthState();
   }
 }

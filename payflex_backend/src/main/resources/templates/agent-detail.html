@@ -107,6 +107,14 @@
         <p class="pf-stat-label">En attente</p>
         <p class="pf-stat-value" th:text="${agentDetails.pendingCount()}"></p>
       </article>
+      <article class="pf-stat-tile" th:classappend="${agentDetails.cashDebtFcfa() > 0} ? ' pf-stat-tile--rose ring-2 ring-rose-200' : ''">
+        <p class="pf-stat-label">Dette caisse</p>
+        <p class="pf-stat-value" th:classappend="${agentDetails.cashDebtFcfa() > 0} ? ' text-rose-700' : ''"
+           th:text="${#numbers.formatInteger(agentDetails.cashDebtFcfa(),0,'POINT')} + ' FCFA'"></p>
+        <p class="text-[11px] text-slate-500 mt-2 leading-snug" th:if="${agentDetails.cashDebtFcfa() > 0}">
+          Reliquat rapprochement incomplet — à rembourser au centre.
+        </p>
+      </article>
     </div>
   </section>
 

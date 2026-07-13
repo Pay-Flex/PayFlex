@@ -42,6 +42,11 @@ public class AdminUiAdvice {
         return adminNavService.pendingCashContributions();
     }
 
+    @ModelAttribute("navPendingCashTotalFcfa")
+    public long navPendingCashTotalFcfa() {
+        return adminNavService.pendingCashContributionsTotalFcfa();
+    }
+
     @ModelAttribute("navSupportThreads")
     public long navSupportThreads() {
         return adminNavService.supportThreadsWithClientMessages();
@@ -78,6 +83,11 @@ public class AdminUiAdvice {
     @ModelAttribute("navContributionAlerts")
     public long navContributionAlerts() {
         return contributionValidationAlertService.countUnread();
+    }
+
+    @ModelAttribute("navPendingDeliveries")
+    public long navPendingDeliveries() {
+        return adminNavService.pendingDeliveries();
     }
 
     @ModelAttribute("adminPrincipalName")

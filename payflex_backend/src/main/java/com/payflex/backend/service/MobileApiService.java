@@ -1,5 +1,6 @@
 package com.payflex.backend.service;
 
+import com.payflex.backend.config.PayflexProperties;
 import org.springframework.dao.EmptyResultDataAccessException;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.stereotype.Service;
@@ -23,19 +24,28 @@ public class MobileApiService {
     private final ContributionWorkflowService contributionWorkflowService;
     private final ClientAdhesionService clientAdhesionService;
     private final CredentialHashService credentialHashService;
+    private final UserInboxNotificationService inboxNotifications;
+    private final PayflexProperties payflexProperties;
+    private final ProductDeliveryService productDeliveryService;
 
     public MobileApiService(
         JdbcTemplate jdbcTemplate,
         PermissionService permissionService,
         ContributionWorkflowService contributionWorkflowService,
         ClientAdhesionService clientAdhesionService,
-        CredentialHashService credentialHashService
+        CredentialHashService credentialHashService,
+        UserInboxNotificationService inboxNotifications,
+        PayflexProperties payflexProperties,
+        ProductDeliveryService productDeliveryService
     ) {
         this.jdbcTemplate = jdbcTemplate;
         this.permissionService = permissionService;
         this.contributionWorkflowService = contributionWorkflowService;
         this.clientAdhesionService = clientAdhesionService;
         this.credentialHashService = credentialHashService;
+        this.inboxNotifications = inboxNotifications;
+        this.payflexProperties = payflexProperties;
+        this.productDeliveryService = productDeliveryService;
     }
 
     public Map<String, Object> login(String identifier, String secret) {
@@ -111,8 +121,66 @@ public class MobileApiService {
             row.put("permissions", permissionService.permissionCodesForUser(n.longValue()));
         }
         clientAdhesionService.enrichProfileMap(row);
+        productDeliveryService.enrichProfileMap(row);
         enrichProfilePhoto(row);
+        enrichRegistrationRejectionNote(row);
         return MobileLoginResolution.success(row);
+    }
+
+    private void enrichRegistrationRejectionNote(Map<String, Object> row) {
+        Object phoneObj = row.get("phone");
+        if (phoneObj == null) return;
+        try {
+            List<Map<String, Object>> rows = jdbcTemplate.queryForList(
+                """
+                SELECT admin_note FROM registration_requests
+                WHERE phone = ? AND status = 'rejected'
+                ORDER BY updated_at DESC, created_at DESC LIMIT 1
+                """,
+                phoneObj.toString().trim()
+            );
+            if (!rows.isEmpty()) {
+                Object note = rows.get(0).get("admin_note");
+                if (note != null && !note.toString().isBlank()) {
+                    row.put("registration_rejection_note", note.toString().trim());
+                }
+            }
+        } catch (Exception ignored) {
+            // noop
+        }
+    }
+
+    /**
+     * Mise à jour limitée du profil client depuis l'app mobile.
+     */
+    public void updateClientProfile(
+        long userId,
+        String city,
+        String profession,
+        String workplaceName,
+        String workplaceAddress,
+        String bossName,
+        String bossPhone
+    ) {
+        jdbcTemplate.update(
+            """
+            UPDATE users SET
+              city = COALESCE(NULLIF(TRIM(?), ''), city),
+              profession = COALESCE(NULLIF(TRIM(?), ''), profession),
+              workplace_name = NULLIF(TRIM(?), ''),
+              workplace_address = NULLIF(TRIM(?), ''),
+              boss_name = NULLIF(TRIM(?), ''),
+              boss_phone = NULLIF(TRIM(?), '')
+            WHERE id = ? AND role_id = (SELECT id FROM roles WHERE code = 'client' LIMIT 1)
+            """,
+            city,
+            profession,
+            workplaceName,
+            workplaceAddress,
+            bossName,
+            bossPhone,
+            userId
+        );
     }
 
     /** Expose la photo d'inscription (chemin relatif /uploads/... pour l'app mobile). */
@@ -391,6 +459,10 @@ public class MobileApiService {
                u.unique_code, u.assigned_agent_user_id,
                u.adhesion_fee_paid, u.adhesion_dispute_open, u.assiduity_badge, u.self_managed,
                NULLIF(TRIM(u.profile_photo_path), '') AS profile_photo_path,
+               NULLIF(TRIM(u.workplace_name), '') AS workplace_name,
+               NULLIF(TRIM(u.workplace_address), '') AS workplace_address,
+               NULLIF(TRIM(u.boss_name), '') AS boss_name,
+               NULLIF(TRIM(u.boss_phone), '') AS boss_phone,
                ag.full_name AS assigned_agent_name, ag.phone AS assigned_agent_phone
         """;
 
@@ -547,7 +619,14 @@ public class MobileApiService {
             userId, productId, resolvedAgentId, amount, paymentMode, ref,
             catchupYear, catchupMonth, catchupDay
         );
-        return jdbcTemplate.queryForObject("SELECT LAST_INSERT_ID()", Long.class);
+        Long newId = jdbcTemplate.queryForObject("SELECT LAST_INSERT_ID()", Long.class);
+        long contributionId = newId == null ? 0L : newId;
+        if (contributionId > 0) {
+            contributionWorkflowService.notifyContributionPendingDeclaration(
+                userId, contributionId, amount, paymentMode
+            );
+        }
+        return contributionId;
     }
 
     public Long findContributionUserId(long contributionId) {
@@ -686,6 +765,49 @@ public class MobileApiService {
         return ids.get(0);
     }
 
+    public boolean verifyClientPin(long clientUserId, String clientPin) {
+        if (clientUserId <= 0 || clientPin == null || clientPin.isBlank()) {
+            return false;
+        }
+        try {
+            Map<String, Object> row = jdbcTemplate.queryForMap(
+                """
+                SELECT u.pin, u.secret_code
+                FROM users u
+                INNER JOIN roles r ON r.id = u.role_id AND r.code = 'client'
+                WHERE u.id = ?
+                LIMIT 1
+                """,
+                clientUserId
+            );
+            String pinStored = row.get("pin") != null ? row.get("pin").toString() : "";
+            String secretStored = row.get("secret_code") != null ? row.get("secret_code").toString() : "";
+            String submitted = clientPin.trim();
+            if (credentialHashService.matchesMobilePin(submitted, pinStored)) {
+                return true;
+            }
+            return credentialHashService.matchesMobilePin(submitted, secretStored);
+        } catch (EmptyResultDataAccessException ex) {
+            return false;
+        }
+    }
+
+    public boolean clientUserExists(long clientUserId) {
+        if (clientUserId <= 0) {
+            return false;
+        }
+        Long n = jdbcTemplate.queryForObject(
+            """
+            SELECT COUNT(*) FROM users u
+            INNER JOIN roles r ON r.id = u.role_id AND r.code = 'client'
+            WHERE u.id = ?
+            """,
+            Long.class,
+            clientUserId
+        );
+        return n != null && n > 0;
+    }
+
     public boolean isClientAssignedToAgent(long clientUserId, long agentUserId) {
         Long assigned = jdbcTemplate.query(
             """
@@ -719,7 +841,7 @@ public class MobileApiService {
         return sb.toString();
     }
 
-    /** Snapshot carnet mobile : jours encore en « rattrapage » pour alertes admin. */
+    /** Snapshot carnet mobile : jours encore en « rattrapage » pour alertes admin + inbox. */
     public void updateCatchupPendingSnapshot(long userId, int orangeDays, String yearMonth) {
         String ym = yearMonth == null || yearMonth.isBlank() ? null : yearMonth.trim();
         jdbcTemplate.update(
@@ -728,5 +850,14 @@ public class MobileApiService {
             ym,
             userId
         );
+        int threshold = payflexProperties.getCatchupAlertThreshold();
+        if (threshold > 0) {
+            inboxNotifications.maybeNotifyCatchupAlert(
+                userId,
+                orangeDays,
+                ym != null ? ym : java.time.YearMonth.now().toString(),
+                threshold
+            );
+        }
     }
 }

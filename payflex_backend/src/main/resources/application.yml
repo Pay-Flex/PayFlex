@@ -2,23 +2,46 @@
 # Ou changer temporairement server.port (ex. 8089).
 server:
   port: 8088
-  # Obligatoire derrière Cloudflare Tunnel, nginx, etc. : évite les redirections HTTP
-  # alors que le client est en HTTPS → ERR_TOO_MANY_REDIRECTS dans le navigateur.
+  # Obligatoire derrière Cloudflare Tunnel, LocalTunnel, nginx, etc. : évite les
+  # redirections admin/login en http:// alors que le client est en HTTPS (boucle navigateur).
   forward-headers-strategy: framework
+  servlet:
+    session:
+      cookie:
+        # Activé automatiquement au démarrage si PAYFLEX_PUBLIC_URL commence par https://
+        same-site: lax
 
-# Fichiers de log (racine du processus, ex. payflex_backend/) — voir logback-spring.xml
+# Fichiers de log — écrits dans un sous-dossier dédié (logs/) hors racine projet.
+# Dossier configurable via PAYFLEX_LOG_DIR (défaut : logs). Voir logback-spring.xml
 payflex:
   logging:
+    log-dir: ${PAYFLEX_LOG_DIR:logs}
     error-log-file: erreur.log
     diagnostic-log-file: diagnostic.log
     mobile-api-log-file: mobile-api.log
+  # Jours « orange » carnet avant alerte push inbox client + agent
+  catchup-alert-threshold: ${PAYFLEX_CATCHUP_ALERT_THRESHOLD:5}
+  vault-key: ${PAYFLEX_VAULT_KEY:payflex-dev-vault-key-change-me}
+  # Notifications push réelles. Tout est optionnel : si non configuré, l'app
+  # retombe automatiquement sur le modèle « pull » (poll mobile + inbox admin).
+  push:
+    fcm:
+      # Chemin ABSOLU vers le service account JSON Firebase. Vide = FCM désactivé.
+      credentials: ${PAYFLEX_FIREBASE_CREDENTIALS:}
+    web-push:
+      # Clés VAPID (générer une paire, voir PAYFLEX_PUSH.md). Vides = Web Push désactivé.
+      public-key: ${PAYFLEX_VAPID_PUBLIC_KEY:}
+      private-key: ${PAYFLEX_VAPID_PRIVATE_KEY:}
+      subject: ${PAYFLEX_VAPID_SUBJECT:mailto:support@payflex.app}
   contributions:
     # Validation auto mobile money si l'agent n'a pas réagi (0 = désactivé)
     auto-validate-mobile-money-hours: ${PAYFLEX_AUTO_VALIDATE_HOURS:24}
-    # Collecte espèces saisie par l'agent → validée immédiatement
-    agent-cash-auto-validate: true
+    # false = espèces agent en « attente » jusqu’au rapprochement fin de journée au centre admin
+    agent-cash-auto-validate: ${PAYFLEX_AGENT_CASH_AUTO_VALIDATE:false}
   fedapay:
     enabled: ${FEDAPAY_ENABLED:true}
+    # true = page PayFlex locale (pas d'appel API). Mettre false + clé API pour FedaPay réel.
+    simulate: ${FEDAPAY_SIMULATE:true}
     sandbox: ${FEDAPAY_SANDBOX:true}
     # Clé secrète (sk_…) : uniquement via variable d'environnement ou fichier .env local — jamais dans Git
     api-key: ${FEDAPAY_API_KEY:}

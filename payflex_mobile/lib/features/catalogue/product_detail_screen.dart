@@ -11,11 +11,21 @@ import '../../core/models/product_model.dart';
 import '../../core/providers/auth_provider.dart';
 import '../../core/providers/catalogue_provider.dart';
 import '../../core/providers/finance_provider.dart';
+import '../agent/agent_enrollment_screen.dart';
 
 class ProductDetailScreen extends ConsumerStatefulWidget {
   final Product product;
+  final double? initialDailyContribution;
+  final bool agentPickerMode;
+  final void Function(Product product, int quantity, double dailyContribution)? onPicked;
 
-  const ProductDetailScreen({super.key, required this.product});
+  const ProductDetailScreen({
+    super.key,
+    required this.product,
+    this.initialDailyContribution,
+    this.agentPickerMode = false,
+    this.onPicked,
+  });
 
   @override
   ConsumerState<ProductDetailScreen> createState() => _ProductDetailScreenState();
@@ -26,12 +36,18 @@ class _ProductDetailScreenState extends ConsumerState<ProductDetailScreen> {
   final _galleryController = PageController();
   double _dailyAmount = 0;
   int _daysToFinish = 0;
+  int _quantity = 1;
   bool _isSaving = false;
   int _galleryIndex = 0;
 
-  double _floorDaily(Product p) => math.min(math.max(p.dailyMin, 1.0), p.price);
+  double _lineTotal(Product p) => p.price * _quantity;
 
-  double _ceilDaily(Product p) => p.price;
+  double _floorDaily(Product p) {
+    final total = _lineTotal(p);
+    return math.min(math.max(p.dailyMin * _quantity, 1.0), total);
+  }
+
+  double _ceilDaily(Product p) => _lineTotal(p);
 
   int _sliderDivisions(double lo, double hi) {
     final span = hi - lo;
@@ -44,10 +60,43 @@ class _ProductDetailScreenState extends ConsumerState<ProductDetailScreen> {
   void initState() {
     super.initState();
     final p = widget.product;
-    _dailyAmount = _floorDaily(p);
+    final initial = widget.initialDailyContribution;
+    if (initial != null && initial > 0) {
+      _dailyAmount = initial.clamp(_floorDaily(p), _ceilDaily(p));
+    } else {
+      _dailyAmount = _floorDaily(p);
+    }
     _amountController.text = _dailyAmount.round().toString();
     if (_dailyAmount > 0) {
-      _daysToFinish = (p.price / _dailyAmount).ceil();
+      _daysToFinish = (_lineTotal(p) / _dailyAmount).ceil();
+    }
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
+      final cartLine = ref.read(catalogueProvider).cart.where((l) => l.product.id == p.id).toList();
+      if (cartLine.isNotEmpty) {
+        setState(() {
+          _quantity = cartLine.first.quantity;
+          _daysToFinish = _dailyAmount > 0 ? (_lineTotal(p) / _dailyAmount).ceil() : 0;
+        });
+      }
+    });
+  }
+
+  void _setQuantity(int qty) {
+    final p = widget.product;
+    final next = qty < 1 ? 1 : qty;
+    setState(() {
+      _quantity = next;
+      final lo = _floorDaily(p);
+      final hi = _ceilDaily(p);
+      if (_dailyAmount < lo) _dailyAmount = lo;
+      if (_dailyAmount > hi) _dailyAmount = hi;
+      _amountController.text = _dailyAmount.round().toString();
+      _daysToFinish = _dailyAmount > 0 ? (_lineTotal(p) / _dailyAmount).ceil() : 0;
+    });
+    final inCart = ref.read(catalogueProvider).cart.any((l) => l.product.id == p.id);
+    if (inCart) {
+      ref.read(catalogueProvider.notifier).setCartQuantity(p.id, next);
     }
   }
 
@@ -59,7 +108,7 @@ class _ProductDetailScreenState extends ConsumerState<ProductDetailScreen> {
     setState(() {
       _dailyAmount = nv;
       _amountController.text = nv.round().toString();
-      _daysToFinish = nv > 0 ? (p.price / nv).ceil() : 0;
+      _daysToFinish = nv > 0 ? (_lineTotal(p) / nv).ceil() : 0;
     });
   }
 
@@ -96,7 +145,58 @@ class _ProductDetailScreenState extends ConsumerState<ProductDetailScreen> {
     _setDaily(v);
   }
 
+  bool get _isAgent => ref.read(authProvider).role == 'agent';
+
+  Future<void> _pickForAgent() async {
+    final p = widget.product;
+    final lo = _floorDaily(p);
+    final hi = _ceilDaily(p);
+    if (_dailyAmount < lo || _dailyAmount > hi) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Choisissez un montant entre ${lo.round()} et ${hi.round()} FCFA / jour.'),
+          behavior: SnackBarBehavior.floating,
+        ),
+      );
+      return;
+    }
+    widget.onPicked?.call(p, _quantity, _dailyAmount);
+    if (mounted) Navigator.pop(context);
+  }
+
+  Future<void> _openEnrollmentForAgent() async {
+    final p = widget.product;
+    final lo = _floorDaily(p);
+    final hi = _ceilDaily(p);
+    if (_dailyAmount < lo || _dailyAmount > hi) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Choisissez un montant entre ${lo.round()} et ${hi.round()} FCFA / jour.'),
+          behavior: SnackBarBehavior.floating,
+        ),
+      );
+      return;
+    }
+    if (!ref.read(catalogueProvider.notifier).isInCart(p.id)) {
+      ref.read(catalogueProvider.notifier).addToCart(p, quantity: _quantity);
+    }
+    await Navigator.push<void>(
+      context,
+      MaterialPageRoute(
+        builder: (_) => AgentEnrollmentScreen(
+          seedProductId: p.id,
+          seedQuantity: _quantity,
+          seedDailyContribution: _dailyAmount,
+        ),
+      ),
+    );
+  }
+
   Future<void> _startSaving() async {
+    if (_isAgent) {
+      await _openEnrollmentForAgent();
+      return;
+    }
     if (!ref.read(authProvider).canUseAppFeatures) {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
@@ -126,10 +226,13 @@ class _ProductDetailScreenState extends ConsumerState<ProductDetailScreen> {
       final db = DatabaseService();
       await db.addProject(
         widget.product.id,
-        widget.product.name,
-        widget.product.price,
+        _quantity > 1 ? '${widget.product.name} (×$_quantity)' : widget.product.name,
+        _lineTotal(widget.product),
         _dailyAmount,
       );
+      if (ref.read(catalogueProvider.notifier).isInCart(widget.product.id)) {
+        ref.read(catalogueProvider.notifier).removeFromCart(widget.product.id);
+      }
       final uid = ref.read(authProvider).userId;
       if (uid != null) {
         await db.setUserCurrentProject(uid, widget.product.id);
@@ -174,7 +277,7 @@ class _ProductDetailScreenState extends ConsumerState<ProductDetailScreen> {
   @override
   Widget build(BuildContext context) {
     final product = widget.product;
-    final isInCart = ref.watch(catalogueProvider).cart.any((p) => p.id == product.id);
+    final isInCart = ref.watch(catalogueProvider).cart.any((l) => l.product.id == product.id);
     final gallery = product.galleryUrls;
     final heroUrl = gallery.isNotEmpty ? gallery.first : product.displayImageUrl;
 
@@ -202,8 +305,9 @@ class _ProductDetailScreenState extends ConsumerState<ProductDetailScreen> {
                 onTap: () {
                   if (isInCart) {
                     ref.read(catalogueProvider.notifier).removeFromCart(product.id);
+                    setState(() => _quantity = 1);
                   } else {
-                    ref.read(catalogueProvider.notifier).addToCart(product);
+                    ref.read(catalogueProvider.notifier).addToCart(product, quantity: _quantity);
                   }
                 },
                 child: Container(
@@ -319,11 +423,54 @@ class _ProductDetailScreenState extends ConsumerState<ProductDetailScreen> {
 
                   const SizedBox(height: 8),
 
-                  // Prix total
-                  Text(product.formattedPrice,
-                    style: GoogleFonts.manrope(
-                      color: AppColors.primary, fontSize: 30, fontWeight: FontWeight.w900,
-                    ),
+                  Row(
+                    crossAxisAlignment: CrossAxisAlignment.end,
+                    children: [
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              _quantity > 1
+                                  ? '${product.formattedPrice} × $_quantity'
+                                  : product.formattedPrice,
+                              style: GoogleFonts.manrope(
+                                color: AppColors.primary, fontSize: 30, fontWeight: FontWeight.w900,
+                              ),
+                            ),
+                            if (_quantity > 1)
+                              Text(
+                                'Total : ${_lineTotal(product).round()} FCFA',
+                                style: GoogleFonts.manrope(
+                                  color: AppColors.secondary,
+                                  fontSize: 16,
+                                  fontWeight: FontWeight.w800,
+                                ),
+                              ),
+                          ],
+                        ),
+                      ),
+                      Container(
+                        decoration: BoxDecoration(
+                          border: Border.all(color: AppColors.secondary.withOpacity(0.15)),
+                          borderRadius: BorderRadius.circular(14),
+                        ),
+                        child: Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            IconButton(
+                              icon: const Icon(Icons.remove_rounded, size: 20),
+                              onPressed: _quantity > 1 ? () => _setQuantity(_quantity - 1) : null,
+                            ),
+                            Text('$_quantity', style: GoogleFonts.manrope(fontWeight: FontWeight.w900, fontSize: 16)),
+                            IconButton(
+                              icon: const Icon(Icons.add_rounded, size: 20),
+                              onPressed: () => _setQuantity(_quantity + 1),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ],
                   ).animate().fadeIn(delay: 300.ms),
 
                   const SizedBox(height: 28),
@@ -369,7 +516,7 @@ class _ProductDetailScreenState extends ConsumerState<ProductDetailScreen> {
                         ),
                         const SizedBox(height: 6),
                         Text(
-                          'Minimum imposé pour ce produit : ${product.dailyMin.round()} FCFA/j. Vous pouvez augmenter jusqu’au prix total (${product.price.round()} FCFA/j).',
+                          'Minimum : ${(_floorDaily(product)).round()} FCFA/j. Maximum : ${_lineTotal(product).round()} FCFA/j (prix × quantité).',
                           style: GoogleFonts.inter(
                             fontSize: 11,
                             height: 1.35,
@@ -470,7 +617,9 @@ class _ProductDetailScreenState extends ConsumerState<ProductDetailScreen> {
                             _infoTile('Par mois', '${(_dailyAmount * 30).toInt()} FCFA', Icons.account_balance_wallet_outlined),
                             _infoTile(
                               'Progression /mois',
-                              product.price > 0 ? '${((_dailyAmount * 30 / product.price) * 100).toStringAsFixed(0)}%' : '—',
+                              _lineTotal(product) > 0
+                                  ? '${((_dailyAmount * 30 / _lineTotal(product)) * 100).toStringAsFixed(0)}%'
+                                  : '—',
                               Icons.trending_up_rounded,
                             ),
                           ],
@@ -486,7 +635,11 @@ class _ProductDetailScreenState extends ConsumerState<ProductDetailScreen> {
                     width: double.infinity,
                     height: 64,
                     child: ElevatedButton(
-                      onPressed: _isSaving ? null : _startSaving,
+                      onPressed: _isSaving
+                          ? null
+                          : widget.agentPickerMode
+                              ? _pickForAgent
+                              : _startSaving,
                       style: ElevatedButton.styleFrom(
                         backgroundColor: AppColors.secondary,
                         foregroundColor: Colors.white,
@@ -495,8 +648,14 @@ class _ProductDetailScreenState extends ConsumerState<ProductDetailScreen> {
                       ),
                       child: _isSaving
                         ? const CircularProgressIndicator(color: Colors.white)
-                        : Text('COMMENCER L\'ÉPARGNE',
-                            style: GoogleFonts.manrope(fontWeight: FontWeight.w900, letterSpacing: 1.2, fontSize: 15)),
+                        : Text(
+                            widget.agentPickerMode
+                                ? 'CHOISIR CET ARTICLE'
+                                : _isAgent
+                                    ? 'INSCRIRE UN CLIENT'
+                                    : 'COMMENCER L\'ÉPARGNE',
+                            style: GoogleFonts.manrope(fontWeight: FontWeight.w900, letterSpacing: 1.2, fontSize: 15),
+                          ),
                     ),
                   ).animate().fadeIn(delay: 800.ms).slideY(begin: 0.2),
 

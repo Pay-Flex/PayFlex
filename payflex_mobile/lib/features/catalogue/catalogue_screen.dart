@@ -9,14 +9,19 @@ import '../../core/models/product_model.dart';
 import '../../core/providers/auth_provider.dart';
 import '../../core/providers/catalogue_provider.dart';
 import '../../core/providers/client_inbox_provider.dart';
+import '../../core/services/payflex_poll_config.dart';
 import '../../core/providers/navigation_provider.dart';
 import '../../core/widgets/count_badge.dart';
+import '../../core/widgets/offline_banner.dart';
+import 'cart_screen.dart';
 import 'product_detail_screen.dart';
 import '../auth/widgets/registration_feature_guard.dart';
 import '../chat/chat_screen.dart';
 
 class CatalogueScreen extends ConsumerStatefulWidget {
-  const CatalogueScreen({super.key});
+  const CatalogueScreen({super.key, this.isAgent = false});
+
+  final bool isAgent;
 
   @override
   ConsumerState<CatalogueScreen> createState() => _CatalogueScreenState();
@@ -42,10 +47,13 @@ class _CatalogueScreenState extends ConsumerState<CatalogueScreen> {
   @override
   void initState() {
     super.initState();
-    _cataloguePollTimer = Timer.periodic(const Duration(seconds: 10), (_) {
+    _cataloguePollTimer = Timer.periodic(PayflexPollConfig.catalogue, (_) {
       if (!mounted) return;
-      // IndexedStack garde les écrans montés : ne poll que si l’onglet Catalogue est visible (index 1).
-      if (ref.read(navigationIndexProvider) != 1) return;
+      // IndexedStack garde les écrans montés : ne poll que si l’onglet Catalogue est visible.
+      final visible = widget.isAgent
+          ? ref.read(agentNavigationIndexProvider) == 2
+          : ref.read(navigationIndexProvider) == 1;
+      if (!visible) return;
       ref.read(catalogueProvider.notifier).loadProducts(silent: true);
     });
   }
@@ -61,7 +69,8 @@ class _CatalogueScreenState extends ConsumerState<CatalogueScreen> {
   Widget build(BuildContext context) {
     final catalogue = ref.watch(catalogueProvider);
     final auth = ref.watch(authProvider);
-    final inbox = auth.role == 'client' ? ref.watch(clientInboxProvider) : null;
+    final inbox = !widget.isAgent && auth.role == 'client' ? ref.watch(clientInboxProvider) : null;
+    final showSupportChat = !widget.isAgent;
     
     return GestureDetector(
       onTap: () => FocusScope.of(context).unfocus(),
@@ -105,40 +114,77 @@ class _CatalogueScreenState extends ConsumerState<CatalogueScreen> {
                   ),
                   centerTitle: true,
                   actions: [
-                    // Support Chat au lieu du Panier
                     GestureDetector(
                       onTap: () {
-                        if (!auth.canUseAppFeatures) {
-                          showRegistrationFeatureLockedSnackBar(context, 'Discussion support');
-                          return;
-                        }
                         Navigator.push(
                           context,
-                          MaterialPageRoute(builder: (_) => const ChatScreen()),
+                          MaterialPageRoute(builder: (_) => const CartScreen()),
                         );
                       },
                       child: Container(
-                        margin: const EdgeInsets.only(right: 16),
+                        margin: const EdgeInsets.only(right: 8),
                         child: Stack(
                           clipBehavior: Clip.none,
                           children: [
                             Container(
                               padding: const EdgeInsets.all(7),
                               decoration: BoxDecoration(
-                                color: AppColors.primary.withValues(alpha: 0.1),
+                                color: AppColors.secondary.withValues(alpha: 0.08),
                                 shape: BoxShape.circle,
-                                border: Border.all(color: AppColors.primary.withValues(alpha: 0.2)),
+                                border: Border.all(color: AppColors.secondary.withValues(alpha: 0.15)),
                               ),
-                              child: const Icon(Icons.chat_bubble_outline_rounded, color: AppColors.secondary, size: 20),
+                              child: const Icon(Icons.shopping_bag_outlined, color: AppColors.secondary, size: 20),
                             ),
-                            if (inbox != null && inbox.chatUnread > 0)
-                              CountBadge(count: inbox.chatUnread, top: -2, right: -2),
+                            if (ref.watch(catalogueProvider).cartItemCount > 0)
+                              CountBadge(count: ref.watch(catalogueProvider).cartItemCount, top: -2, right: -2),
                           ],
                         ),
                       ),
                     ),
+                    if (showSupportChat)
+                      GestureDetector(
+                        onTap: () {
+                          if (!auth.canUseAppFeatures) {
+                            showRegistrationFeatureLockedSnackBar(context, 'Discussion support');
+                            return;
+                          }
+                          Navigator.push(
+                            context,
+                            MaterialPageRoute(builder: (_) => const ChatScreen()),
+                          );
+                        },
+                        child: Container(
+                          margin: const EdgeInsets.only(right: 16),
+                          child: Stack(
+                            clipBehavior: Clip.none,
+                            children: [
+                              Container(
+                                padding: const EdgeInsets.all(7),
+                                decoration: BoxDecoration(
+                                  color: AppColors.primary.withValues(alpha: 0.1),
+                                  shape: BoxShape.circle,
+                                  border: Border.all(color: AppColors.primary.withValues(alpha: 0.2)),
+                                ),
+                                child: const Icon(Icons.chat_bubble_outline_rounded, color: AppColors.secondary, size: 20),
+                              ),
+                              if (inbox != null && inbox.chatUnread > 0)
+                                CountBadge(count: inbox.chatUnread, top: -2, right: -2),
+                            ],
+                          ),
+                        ),
+                      ),
                   ],
                 ),
+
+                if (catalogue.isOffline)
+                  const SliverToBoxAdapter(
+                    child: Padding(
+                      padding: EdgeInsets.symmetric(horizontal: 20),
+                      child: OfflineBanner(
+                        margin: EdgeInsets.only(top: 12),
+                      ),
+                    ),
+                  ),
 
                 SliverPadding(
                   padding: const EdgeInsets.symmetric(vertical: 24),

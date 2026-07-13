@@ -3,6 +3,7 @@ package com.payflex.backend.controller;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.payflex.backend.service.AdminDashboardService;
+import com.payflex.backend.service.AdminRevenueService;
 import com.payflex.backend.service.AdminCrudService;
 import com.payflex.backend.service.AdminGestionnaireService;
 import com.payflex.backend.service.AdminAuditService;
@@ -16,6 +17,11 @@ import com.payflex.backend.service.ProductCategoryService;
 import com.payflex.backend.service.RegistrationService;
 import com.payflex.backend.service.RoleManagementService;
 import com.payflex.backend.service.SupportChatService;
+import com.payflex.backend.service.UserInboxNotificationService;
+import com.payflex.backend.service.ProductDeliveryService;
+import com.payflex.backend.service.AdminClientCredentialService;
+import com.payflex.backend.service.JobOfferService;
+import com.payflex.backend.service.LegalDocumentService;
 import org.springframework.core.io.FileSystemResource;
 import org.springframework.core.io.Resource;
 import org.springframework.dao.DataAccessException;
@@ -67,6 +73,12 @@ public class AdminViewController {
     private final ClientAdhesionService clientAdhesionService;
     private final ContributionValidationAlertService contributionValidationAlertService;
     private final PayflexProperties payflexProperties;
+    private final UserInboxNotificationService inboxNotifications;
+    private final ProductDeliveryService productDeliveryService;
+    private final AdminClientCredentialService adminClientCredentialService;
+    private final LegalDocumentService legalDocumentService;
+    private final JobOfferService jobOfferService;
+    private final AdminRevenueService adminRevenueService;
 
     public AdminViewController(
         AdminDashboardService dashboardService,
@@ -83,7 +95,13 @@ public class AdminViewController {
         AdminGestionnaireService gestionnaireService,
         ClientAdhesionService clientAdhesionService,
         ContributionValidationAlertService contributionValidationAlertService,
-        PayflexProperties payflexProperties
+        PayflexProperties payflexProperties,
+        UserInboxNotificationService inboxNotifications,
+        ProductDeliveryService productDeliveryService,
+        AdminClientCredentialService adminClientCredentialService,
+        LegalDocumentService legalDocumentService,
+        JobOfferService jobOfferService,
+        AdminRevenueService adminRevenueService
     ) {
         this.dashboardService = dashboardService;
         this.adminCrudService = adminCrudService;
@@ -100,6 +118,12 @@ public class AdminViewController {
         this.clientAdhesionService = clientAdhesionService;
         this.contributionValidationAlertService = contributionValidationAlertService;
         this.payflexProperties = payflexProperties;
+        this.inboxNotifications = inboxNotifications;
+        this.productDeliveryService = productDeliveryService;
+        this.adminClientCredentialService = adminClientCredentialService;
+        this.legalDocumentService = legalDocumentService;
+        this.jobOfferService = jobOfferService;
+        this.adminRevenueService = adminRevenueService;
     }
 
     @GetMapping({"/", "/admin"})
@@ -111,6 +135,7 @@ public class AdminViewController {
         model.addAttribute("monthlyCollections", dashboardService.monthlyCollections());
         model.addAttribute("latestAudit", adminAuditService.latest(8));
         model.addAttribute("catchupAlerts", dashboardService.clientsWithHighCatchup(5));
+        model.addAttribute("revenue", adminRevenueService.buildSummary());
         return "dashboard";
     }
 
@@ -258,6 +283,7 @@ public class AdminViewController {
         @RequestParam(required = false) String mobilePin,
         @RequestParam(required = false) String mobilePinConfirm,
         @RequestParam(required = false) String accountPassword,
+        @RequestParam(required = false) String accountPasswordConfirm,
         @RequestParam(required = false) Long assignedAgentUserId,
         @RequestParam(required = false) String workplaceName,
         @RequestParam(required = false) String workplaceAddress,
@@ -351,6 +377,10 @@ public class AdminViewController {
                 .map(r -> r.code())
                 .orElseThrow(() -> new IllegalArgumentException("Rôle introuvable."));
             if ("client".equals(roleCode)) {
+                if (mobilePin == null || !mobilePin.equals(mobilePinConfirm)) {
+                    throw new IllegalArgumentException("Les codes PIN ne correspondent pas.");
+                }
+                validateAccountPasswordPair(accountPassword, accountPasswordConfirm);
                 long clientId = adminCrudService.createClientUser(
                     fullName, phone, email, roleId, city, profession, gender, status,
                     mobilePin, accountPassword, assignedAgentUserId,
@@ -366,9 +396,10 @@ public class AdminViewController {
                 if (mobilePin == null || !mobilePin.equals(mobilePinConfirm)) {
                     throw new IllegalArgumentException("Les codes PIN ne correspondent pas.");
                 }
+                validateAccountPasswordPair(accountPassword, accountPasswordConfirm);
                 String prof = profession == null || profession.isBlank() ? "Agent de collecte PayFlex" : profession.trim();
                 long agentId = adminCrudService.hireAgentDossier(
-                    fullName, phone, mobilePin, city, prof,
+                    fullName, phone, mobilePin, accountPassword, city, prof,
                     zoneId == null ? 0L : zoneId,
                     gender, email, personalAddress, hireDate, contractType, matricule,
                     emergencyContactName, emergencyContactPhone, emergencyContactRelation,
@@ -410,6 +441,9 @@ public class AdminViewController {
             return redirectError("/admin/users", reasonErr.get());
         }
         adminCrudService.updateUserStatus(id, status);
+        if (inboxNotifications.isClientUser(id)) {
+            inboxNotifications.notifyAccountStatusChange(id, status);
+        }
         moderationService.logAction(
             principal,
             AdminAuditService.ACTION_UPDATE_STATUS,
@@ -535,6 +569,179 @@ public class AdminViewController {
         } catch (IllegalArgumentException ex) {
             return "redirect:/admin/product-categories?error=" + URLEncoder.encode(ex.getMessage(), StandardCharsets.UTF_8);
         }
+    }
+
+    @GetMapping("/admin/job-offers")
+    public String jobOffers(Model model) {
+        model.addAttribute("activePage", "job-offers");
+        model.addAttribute("offers", jobOfferService.listAllForAdmin());
+        model.addAttribute("attachmentsByOfferId", jobOfferService.attachmentsGroupedByOfferId());
+        return "job-offers";
+    }
+
+    @PostMapping("/admin/job-offers/create")
+    public String createJobOffer(
+        @RequestParam String title,
+        @RequestParam(required = false) String summary,
+        @RequestParam String description,
+        @RequestParam(required = false) String location,
+        @RequestParam(required = false) String profileRequirements,
+        @RequestParam(required = false) String startsAt,
+        @RequestParam(required = false) String endsAt,
+        @RequestParam(defaultValue = "true") boolean active,
+        @RequestParam(required = false) Integer sortOrder,
+        Principal principal,
+        RedirectAttributes redirectAttributes
+    ) {
+        try {
+            long id = jobOfferService.create(
+                title, summary, description, location, profileRequirements,
+                startsAt, endsAt, active, sortOrder, principal.getName()
+            );
+            adminAuditService.logEquipe(principal.getName(), "Création offre d'emploi #" + id + " — " + title.trim());
+            redirectAttributes.addFlashAttribute("success", true);
+            redirectAttributes.addFlashAttribute("successText", "Offre créée.");
+        } catch (IllegalArgumentException ex) {
+            redirectAttributes.addFlashAttribute("error", true);
+            redirectAttributes.addFlashAttribute("errorText", ex.getMessage());
+        }
+        return "redirect:/admin/job-offers";
+    }
+
+    @PostMapping("/admin/job-offers/update")
+    public String updateJobOffer(
+        @RequestParam long id,
+        @RequestParam String title,
+        @RequestParam(required = false) String summary,
+        @RequestParam String description,
+        @RequestParam(required = false) String location,
+        @RequestParam(required = false) String profileRequirements,
+        @RequestParam(required = false) String startsAt,
+        @RequestParam(required = false) String endsAt,
+        @RequestParam(defaultValue = "true") boolean active,
+        @RequestParam(required = false) Integer sortOrder,
+        Principal principal,
+        RedirectAttributes redirectAttributes
+    ) {
+        try {
+            jobOfferService.update(
+                id, title, summary, description, location, profileRequirements,
+                startsAt, endsAt, active, sortOrder, principal.getName()
+            );
+            adminAuditService.logEquipe(principal.getName(), "Mise à jour offre d'emploi #" + id);
+            redirectAttributes.addFlashAttribute("success", true);
+            redirectAttributes.addFlashAttribute("successText", "Offre enregistrée.");
+        } catch (IllegalArgumentException ex) {
+            redirectAttributes.addFlashAttribute("error", true);
+            redirectAttributes.addFlashAttribute("errorText", ex.getMessage());
+        }
+        return "redirect:/admin/job-offers";
+    }
+
+    @PostMapping("/admin/job-offers/toggle-active")
+    public String toggleJobOfferActive(
+        @RequestParam long id,
+        Principal principal,
+        RedirectAttributes redirectAttributes
+    ) {
+        try {
+            jobOfferService.toggleActive(id, principal.getName());
+            adminAuditService.logEquipe(principal.getName(), "Activation/désactivation offre #" + id);
+            redirectAttributes.addFlashAttribute("success", true);
+            redirectAttributes.addFlashAttribute("successText", "Statut de publication mis à jour.");
+        } catch (IllegalArgumentException ex) {
+            redirectAttributes.addFlashAttribute("error", true);
+            redirectAttributes.addFlashAttribute("errorText", ex.getMessage());
+        }
+        return "redirect:/admin/job-offers";
+    }
+
+    @PostMapping("/admin/job-offers/delete")
+    public String deleteJobOffer(
+        @RequestParam long id,
+        Principal principal,
+        RedirectAttributes redirectAttributes
+    ) {
+        try {
+            jobOfferService.delete(id);
+            adminAuditService.logEquipe(principal.getName(), "Suppression offre d'emploi #" + id);
+            redirectAttributes.addFlashAttribute("success", true);
+            redirectAttributes.addFlashAttribute("successText", "Offre supprimée.");
+        } catch (IllegalArgumentException ex) {
+            redirectAttributes.addFlashAttribute("error", true);
+            redirectAttributes.addFlashAttribute("errorText", ex.getMessage());
+        }
+        return "redirect:/admin/job-offers";
+    }
+
+    @PostMapping("/admin/job-offers/attachment/add")
+    public String addJobOfferAttachment(
+        @RequestParam long offerId,
+        @RequestParam("file") MultipartFile file,
+        Principal principal,
+        RedirectAttributes redirectAttributes
+    ) {
+        try {
+            jobOfferService.addAttachment(offerId, file);
+            adminAuditService.logEquipe(principal.getName(), "Document ajouté à l'offre #" + offerId);
+            redirectAttributes.addFlashAttribute("success", true);
+            redirectAttributes.addFlashAttribute("successText", "Document ajouté.");
+        } catch (IllegalArgumentException ex) {
+            redirectAttributes.addFlashAttribute("error", true);
+            redirectAttributes.addFlashAttribute("errorText", ex.getMessage());
+        } catch (Exception ex) {
+            redirectAttributes.addFlashAttribute("error", true);
+            redirectAttributes.addFlashAttribute("errorText", "Import du document impossible.");
+        }
+        return "redirect:/admin/job-offers";
+    }
+
+    @PostMapping("/admin/job-offers/attachment/delete")
+    public String deleteJobOfferAttachment(
+        @RequestParam long attachmentId,
+        Principal principal,
+        RedirectAttributes redirectAttributes
+    ) {
+        try {
+            jobOfferService.deleteAttachment(attachmentId);
+            adminAuditService.logEquipe(principal.getName(), "Document offre supprimé #" + attachmentId);
+            redirectAttributes.addFlashAttribute("success", true);
+            redirectAttributes.addFlashAttribute("successText", "Document supprimé.");
+        } catch (IllegalArgumentException ex) {
+            redirectAttributes.addFlashAttribute("error", true);
+            redirectAttributes.addFlashAttribute("errorText", ex.getMessage());
+        }
+        return "redirect:/admin/job-offers";
+    }
+
+    @GetMapping("/admin/legal-documents")
+    public String legalDocuments(Model model) {
+        model.addAttribute("activePage", "legal-documents");
+        model.addAttribute("documents", legalDocumentService.listAll());
+        return "legal-documents";
+    }
+
+    @PostMapping("/admin/legal-documents/save")
+    public String saveLegalDocument(
+        @RequestParam String code,
+        @RequestParam String title,
+        @RequestParam String content,
+        Principal principal,
+        RedirectAttributes redirectAttributes
+    ) {
+        try {
+            legalDocumentService.update(code, title, content, principal.getName());
+            adminAuditService.logEquipe(
+                principal.getName(),
+                "Mise à jour document juridique « " + code + " »."
+            );
+            redirectAttributes.addFlashAttribute("success", true);
+            redirectAttributes.addFlashAttribute("successText", "Document enregistré.");
+        } catch (IllegalArgumentException ex) {
+            redirectAttributes.addFlashAttribute("error", true);
+            redirectAttributes.addFlashAttribute("errorText", ex.getMessage());
+        }
+        return "redirect:/admin/legal-documents";
     }
 
     @PostMapping("/admin/product-categories/delete")
@@ -726,6 +933,8 @@ public class AdminViewController {
         @RequestParam String phone,
         @RequestParam String mobilePin,
         @RequestParam String mobilePinConfirm,
+        @RequestParam String accountPassword,
+        @RequestParam String accountPasswordConfirm,
         @RequestParam(required = false) String city,
         @RequestParam(required = false) String profession,
         @RequestParam long zoneId,
@@ -754,10 +963,17 @@ public class AdminViewController {
             return "redirect:/admin/agents/nouveau";
         }
         try {
+            validateAccountPasswordPair(accountPassword, accountPasswordConfirm);
+        } catch (IllegalArgumentException ex) {
+            redirectAttributes.addFlashAttribute("errorMessage", ex.getMessage());
+            return "redirect:/admin/agents/nouveau";
+        }
+        try {
             long agentId = adminCrudService.hireAgentDossier(
                 fullName,
                 phone,
                 mobilePin,
+                accountPassword,
                 city,
                 prof,
                 zoneId,
@@ -970,9 +1186,37 @@ public class AdminViewController {
         int n = contributionWorkflowService.bulkValidatePendingMobileDeclarations(principal.getName());
         adminAuditService.logEquipe(
             principal.getName(),
-            "Validation groupée : " + n + " versement(s) en attente confirmé(s)."
+            "Validation groupée mobile money : " + n + " versement(s) confirmé(s)."
         );
         return "redirect:/admin/contributions?success=bulk&count=" + n + "&status=pending";
+    }
+
+    @PostMapping("/admin/contributions/bulk-validate-cash")
+    public String bulkValidateCashContributions(Principal principal) {
+        int n = contributionWorkflowService.bulkValidatePendingCashCollections(principal.getName());
+        return "redirect:/admin/contributions?success=bulkCash&count=" + n + "&status=pending&paymentMode=cash";
+    }
+
+    @PostMapping("/admin/contributions/reconcile-cash")
+    public String reconcileCashContributions(
+        @RequestParam double collectedFcfa,
+        Principal principal
+    ) {
+        try {
+            ContributionWorkflowService.CashReconcileResult r = contributionWorkflowService.reconcilePendingCash(
+                collectedFcfa,
+                principal.getName()
+            );
+            return "redirect:/admin/contributions?success=reconcile"
+                + "&validated=" + r.validatedCount()
+                + "&debt=" + r.debtRecordedFcfa()
+                + "&pending=" + r.stillPendingCount()
+                + "&collected=" + r.collectedAmountFcfa()
+                + "&expected=" + r.expectedTotalFcfa()
+                + "&status=pending&paymentMode=cash";
+        } catch (IllegalArgumentException ex) {
+            return redirectError("/admin/contributions", ex.getMessage());
+        }
     }
 
     @PostMapping("/admin/contributions/status")
@@ -1494,7 +1738,222 @@ public class AdminViewController {
         model.addAttribute("clientMonthly", adminCrudService.clientMonthlyCollections(clientId));
         model.addAttribute("clientContributions", adminCrudService.getRecentContributionsForClient(clientId, 40));
         model.addAttribute("agentOptions", registrationService.agentOptions());
+        model.addAttribute("deliveryCase", productDeliveryService.findOpenDeliveryForClient(clientId).orElse(null));
+        model.addAttribute("productProgress", productDeliveryService.resolvePrimaryProductProgress(clientId).orElse(null));
+        model.addAttribute("credentialSummary", adminClientCredentialService.credentialSummary(clientId));
+        model.addAttribute("clientEdit", adminClientCredentialService.loadClientEditRow(clientId));
         return "client-detail";
+    }
+
+    @PostMapping(
+        value = "/admin/clients/{clientId}/credentials/reveal",
+        produces = MediaType.APPLICATION_JSON_VALUE
+    )
+    @ResponseBody
+    public ResponseEntity<Map<String, Object>> revealClientCredentials(
+        @PathVariable long clientId,
+        @RequestParam String adminPassword,
+        Principal principal
+    ) {
+        try {
+            return ResponseEntity.ok(adminClientCredentialService.revealCredentials(
+                clientId,
+                principal.getName(),
+                adminPassword
+            ));
+        } catch (IllegalArgumentException ex) {
+            return ResponseEntity.status(403).body(Map.of("error", ex.getMessage()));
+        }
+    }
+
+    @PostMapping("/admin/clients/{clientId}/credentials/recovery-request")
+    public String adminCredentialRecoveryRequest(
+        @PathVariable long clientId,
+        Principal principal,
+        RedirectAttributes redirectAttributes
+    ) {
+        try {
+            adminClientCredentialService.openRecoveryRequest(
+                clientId,
+                "admin",
+                "Signalement manuel depuis la fiche client."
+            );
+            redirectAttributes.addFlashAttribute("success", true);
+            redirectAttributes.addFlashAttribute("successText", "Demande de rappel identifiants enregistrée.");
+        } catch (IllegalArgumentException ex) {
+            redirectAttributes.addFlashAttribute("error", true);
+            redirectAttributes.addFlashAttribute("errorText", ex.getMessage());
+        }
+        return "redirect:/admin/clients/" + clientId;
+    }
+
+    @PostMapping("/admin/clients/{clientId}/credentials/recovery-resolve")
+    public String resolveCredentialRecovery(
+        @PathVariable long clientId,
+        Principal principal,
+        RedirectAttributes redirectAttributes
+    ) {
+        adminClientCredentialService.resolveRecoveryRequest(clientId, principal.getName());
+        redirectAttributes.addFlashAttribute("success", true);
+        redirectAttributes.addFlashAttribute("successText", "Demande de rappel identifiants clôturée.");
+        return "redirect:/admin/clients/" + clientId;
+    }
+
+    @PostMapping("/admin/clients/{clientId}/profile/update")
+    public String updateClientProfile(
+        @PathVariable long clientId,
+        @RequestParam String fullName,
+        @RequestParam(required = false) String email,
+        @RequestParam(required = false) String gender,
+        @RequestParam(required = false) String city,
+        @RequestParam(required = false) String profession,
+        @RequestParam(required = false) String status,
+        @RequestParam(required = false) String workplaceName,
+        @RequestParam(required = false) String workplaceAddress,
+        @RequestParam(required = false) String bossName,
+        @RequestParam(required = false) String bossPhone,
+        @RequestParam(required = false) String newPin,
+        @RequestParam(required = false) String newAccountPassword,
+        @RequestParam(required = false) String changeReason,
+        Principal principal,
+        RedirectAttributes redirectAttributes
+    ) {
+        Optional<String> reasonErr = moderationService.validateChangeReason(changeReason);
+        if (reasonErr.isPresent()) {
+            redirectAttributes.addFlashAttribute("error", true);
+            redirectAttributes.addFlashAttribute("errorText", reasonErr.get());
+            return "redirect:/admin/clients/" + clientId;
+        }
+        try {
+            adminClientCredentialService.updateClientProfile(
+                clientId,
+                fullName,
+                email,
+                gender,
+                city,
+                profession,
+                status,
+                workplaceName,
+                workplaceAddress,
+                bossName,
+                bossPhone,
+                newPin,
+                newAccountPassword
+            );
+            moderationService.logAction(
+                principal,
+                AdminAuditService.ACTION_UPDATE_STATUS,
+                "client",
+                clientId,
+                "Mise à jour fiche client #" + clientId,
+                changeReason
+            );
+            redirectAttributes.addFlashAttribute("success", true);
+            redirectAttributes.addFlashAttribute("successText", "Fiche client mise à jour.");
+        } catch (IllegalArgumentException ex) {
+            redirectAttributes.addFlashAttribute("error", true);
+            redirectAttributes.addFlashAttribute("errorText", ex.getMessage());
+        }
+        return "redirect:/admin/clients/" + clientId;
+    }
+
+    @GetMapping("/admin/deliveries")
+    public String deliveries(
+        Model model,
+        @RequestParam(required = false) String status
+    ) {
+        model.addAttribute("activePage", "deliveries");
+        model.addAttribute("statusFilter", status);
+        model.addAttribute("deliveries", productDeliveryService.listDeliveries(status, 120));
+        model.addAttribute("awaitingClosureCount", productDeliveryService.countAwaitingClosure());
+        model.addAttribute("awaitingDeliveryCount", productDeliveryService.countAwaitingDelivery());
+        return "deliveries";
+    }
+
+    @PostMapping("/admin/clients/{clientId}/delivery/open")
+    public String openDeliveryCase(
+        @PathVariable long clientId,
+        Principal principal,
+        RedirectAttributes redirectAttributes
+    ) {
+        try {
+            productDeliveryService.openClosureCase(clientId, principal.getName());
+            redirectAttributes.addFlashAttribute("success", true);
+            redirectAttributes.addFlashAttribute("successText", "Dossier clôture / livraison ouvert.");
+        } catch (IllegalArgumentException ex) {
+            redirectAttributes.addFlashAttribute("error", true);
+            redirectAttributes.addFlashAttribute("errorText", ex.getMessage());
+        }
+        return "redirect:/admin/clients/" + clientId;
+    }
+
+    @PostMapping("/admin/deliveries/{deliveryId}/validate-closure")
+    public String validateDeliveryClosure(
+        @PathVariable long deliveryId,
+        @RequestParam(required = false) String adminNote,
+        @RequestParam(required = false) String changeReason,
+        @RequestParam(defaultValue = "false") boolean forceDespiteCatchup,
+        Principal principal,
+        RedirectAttributes redirectAttributes
+    ) {
+        Optional<String> reasonErr = moderationService.validateChangeReason(changeReason);
+        if (reasonErr.isPresent()) {
+            return redirectError("/admin/deliveries", reasonErr.get());
+        }
+        try {
+            productDeliveryService.validateClosure(deliveryId, principal.getName(), adminNote, forceDespiteCatchup);
+            moderationService.logAction(
+                principal,
+                AdminAuditService.ACTION_UPDATE_STATUS,
+                "delivery",
+                deliveryId,
+                "Validation de clôture carnet / solde (dossier #" + deliveryId + ").",
+                changeReason
+            );
+            redirectAttributes.addFlashAttribute("success", true);
+            redirectAttributes.addFlashAttribute("successText", "Clôture validée — le client et l’agent sont notifiés.");
+        } catch (IllegalArgumentException ex) {
+            redirectAttributes.addFlashAttribute("error", true);
+            redirectAttributes.addFlashAttribute("errorText", ex.getMessage());
+        }
+        return "redirect:/admin/deliveries";
+    }
+
+    @PostMapping("/admin/deliveries/{deliveryId}/confirm-delivery")
+    public String confirmProductDelivery(
+        @PathVariable long deliveryId,
+        @RequestParam(required = false) String deliveryNote,
+        @RequestParam(required = false) String stockReference,
+        @RequestParam(required = false) String changeReason,
+        Principal principal,
+        RedirectAttributes redirectAttributes
+    ) {
+        Optional<String> reasonErr = moderationService.validateChangeReason(changeReason);
+        if (reasonErr.isPresent()) {
+            return redirectError("/admin/deliveries", reasonErr.get());
+        }
+        try {
+            productDeliveryService.confirmDelivery(
+                deliveryId,
+                principal.getName(),
+                deliveryNote,
+                stockReference
+            );
+            moderationService.logAction(
+                principal,
+                AdminAuditService.ACTION_UPDATE_STATUS,
+                "delivery",
+                deliveryId,
+                "Livraison équipement enregistrée (dossier #" + deliveryId + ").",
+                changeReason
+            );
+            redirectAttributes.addFlashAttribute("success", true);
+            redirectAttributes.addFlashAttribute("successText", "Livraison enregistrée — cycle terminé.");
+        } catch (IllegalArgumentException ex) {
+            redirectAttributes.addFlashAttribute("error", true);
+            redirectAttributes.addFlashAttribute("errorText", ex.getMessage());
+        }
+        return "redirect:/admin/deliveries";
     }
 
     @PostMapping("/admin/clients/{clientId}/assign-agent")
@@ -1965,10 +2424,28 @@ public class AdminViewController {
         m.put("body", r.get("body"));
         m.put("sender", r.get("sender"));
         m.put("created_at", r.get("created_at"));
+        Object url = r.get("attachment_url");
+        if (url != null && !String.valueOf(url).isBlank()) {
+            m.put("attachment_url", url);
+            m.put("attachment_kind", r.get("attachment_kind"));
+            m.put("attachment_name", r.get("attachment_name"));
+            m.put("attachment_mime", r.get("attachment_mime"));
+        }
         return m;
     }
 
     /** Chaîne de requête pour conserver les filtres dans la pagination (Thymeleaf). */
+    private static void validateAccountPasswordPair(String password, String confirm) {
+        String p = password == null ? "" : password.trim();
+        String c = confirm == null ? "" : confirm.trim();
+        if (p.length() < 8) {
+            throw new IllegalArgumentException("Le mot de passe doit contenir au moins 8 caractères.");
+        }
+        if (!p.equals(c)) {
+            throw new IllegalArgumentException("Les mots de passe ne correspondent pas.");
+        }
+    }
+
     private static void putFilterQuery(Model model, String... keyValuePairs) {
         if (keyValuePairs.length % 2 != 0) {
             throw new IllegalArgumentException("Nombre pair de paramètres requis (clé, valeur).");

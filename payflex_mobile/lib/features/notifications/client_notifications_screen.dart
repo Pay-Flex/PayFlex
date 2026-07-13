@@ -1,11 +1,10 @@
-import 'dart:async';
-
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:google_fonts/google_fonts.dart';
 
 import '../../core/constants/app_colors.dart';
+import '../../core/providers/auth_provider.dart';
 import '../../core/providers/client_inbox_provider.dart';
 import '../../core/providers/client_notifications_provider.dart';
 import 'notification_navigation.dart';
@@ -18,9 +17,6 @@ class ClientNotificationsScreen extends ConsumerStatefulWidget {
 }
 
 class _ClientNotificationsScreenState extends ConsumerState<ClientNotificationsScreen> {
-  Timer? _holdTimer;
-  bool _longPressHandled = false;
-
   @override
   void initState() {
     super.initState();
@@ -30,15 +26,11 @@ class _ClientNotificationsScreenState extends ConsumerState<ClientNotificationsS
     });
   }
 
-  @override
-  void dispose() {
-    _holdTimer?.cancel();
-    super.dispose();
-  }
-
   int? _notificationId(Map<String, dynamic> n) => (n['id'] as num?)?.toInt();
 
   bool _isRead(Map<String, dynamic> n) => n['read'] == true;
+
+  bool _isPinned(Map<String, dynamic> n) => n['pinned'] == true;
 
   Future<void> _onTap(Map<String, dynamic> n) async {
     final id = _notificationId(n);
@@ -49,22 +41,75 @@ class _ClientNotificationsScreenState extends ConsumerState<ClientNotificationsS
     await navigateForClientNotification(context, ref, n);
   }
 
-  void _onTapDown(Map<String, dynamic> n) {
-    _longPressHandled = false;
-    _holdTimer?.cancel();
-    _holdTimer = Timer(const Duration(seconds: 3), () {
-      if (!mounted) return;
-      _longPressHandled = true;
-      HapticFeedback.heavyImpact();
-      _showLongPressMenu(n);
-    });
+  Future<bool> _confirmDelete(Map<String, dynamic> n) async {
+    final title = (n['title'] ?? 'Notification').toString();
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+        title: Text(
+          'Supprimer la notification ?',
+          style: GoogleFonts.manrope(fontWeight: FontWeight.w800, fontSize: 17),
+        ),
+        content: Text(
+          '« $title » sera définitivement retirée de votre liste.',
+          style: GoogleFonts.manrope(fontSize: 14, height: 1.4),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, false),
+            child: Text('Annuler', style: GoogleFonts.manrope(fontWeight: FontWeight.w600)),
+          ),
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, true),
+            child: Text(
+              'Supprimer',
+              style: GoogleFonts.manrope(fontWeight: FontWeight.w700, color: Colors.red.shade700),
+            ),
+          ),
+        ],
+      ),
+    );
+    return confirmed == true;
   }
 
-  void _onTapEnd(Map<String, dynamic> n) {
-    _holdTimer?.cancel();
-    if (!_longPressHandled) {
-      _onTap(n);
+  Future<bool?> _onDismissConfirm(DismissDirection direction, Map<String, dynamic> n) async {
+    final id = _notificationId(n);
+    if (id == null) return false;
+
+    if (direction == DismissDirection.endToStart) {
+      final confirmed = await _confirmDelete(n);
+      if (!confirmed) return false;
+      HapticFeedback.mediumImpact();
+      final ok = await ref.read(clientNotificationsProvider.notifier).deleteOne(id);
+      if (mounted && !ok) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Suppression impossible.')),
+        );
+      }
+      return ok;
     }
+
+    if (direction == DismissDirection.startToEnd) {
+      HapticFeedback.lightImpact();
+      final ok = await ref.read(clientNotificationsProvider.notifier).togglePin(id);
+      if (mounted) {
+        final pinned = !_isPinned(n);
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(
+              ok
+                  ? (pinned ? 'Notification épinglée (suivi activé).' : 'Notification retirée du suivi.')
+                  : 'Impossible de modifier le suivi.',
+            ),
+            duration: const Duration(seconds: 2),
+          ),
+        );
+      }
+      return false;
+    }
+
+    return false;
   }
 
   Future<void> _showLongPressMenu(Map<String, dynamic> n) async {
@@ -103,6 +148,17 @@ class _ClientNotificationsScreenState extends ConsumerState<ClientNotificationsS
                 overflow: TextOverflow.ellipsis,
               ),
             ),
+            ListTile(
+              leading: Icon(
+                _isPinned(n) ? Icons.push_pin : Icons.push_pin_outlined,
+                color: AppColors.primary,
+              ),
+              title: Text(
+                _isPinned(n) ? 'Retirer du suivi' : 'Épingler / mettre en suivi',
+                style: GoogleFonts.manrope(fontWeight: FontWeight.w600),
+              ),
+              onTap: () => Navigator.pop(ctx, 'pin'),
+            ),
             if (_isRead(n))
               ListTile(
                 leading: const Icon(Icons.mark_email_unread_outlined, color: AppColors.secondary),
@@ -125,7 +181,21 @@ class _ClientNotificationsScreenState extends ConsumerState<ClientNotificationsS
 
     if (!mounted || action == null) return;
 
-    if (action == 'unread') {
+    if (action == 'pin') {
+      final wasPinned = _isPinned(n);
+      final ok = await ref.read(clientNotificationsProvider.notifier).togglePin(id);
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(
+              ok
+                  ? (wasPinned ? 'Retirée du suivi.' : 'Épinglée pour suivi.')
+                  : 'Action impossible.',
+            ),
+          ),
+        );
+      }
+    } else if (action == 'unread') {
       final ok = await ref.read(clientNotificationsProvider.notifier).markOneUnread(id);
       if (mounted && !ok) {
         ScaffoldMessenger.of(context).showSnackBar(
@@ -133,6 +203,8 @@ class _ClientNotificationsScreenState extends ConsumerState<ClientNotificationsS
         );
       }
     } else if (action == 'delete') {
+      final confirmed = await _confirmDelete(n);
+      if (!confirmed || !mounted) return;
       final ok = await ref.read(clientNotificationsProvider.notifier).deleteOne(id);
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
@@ -144,9 +216,126 @@ class _ClientNotificationsScreenState extends ConsumerState<ClientNotificationsS
     }
   }
 
+  Widget _swipeBackground({
+    required Alignment alignment,
+    required Color color,
+    required IconData icon,
+    required String label,
+  }) {
+    return Container(
+      alignment: alignment,
+      padding: const EdgeInsets.symmetric(horizontal: 24),
+      decoration: BoxDecoration(
+        color: color,
+        borderRadius: BorderRadius.circular(20),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          if (alignment == Alignment.centerLeft) ...[
+            Icon(icon, color: Colors.white, size: 26),
+            const SizedBox(width: 8),
+            Text(label, style: GoogleFonts.manrope(color: Colors.white, fontWeight: FontWeight.w700)),
+          ] else ...[
+            Text(label, style: GoogleFonts.manrope(color: Colors.white, fontWeight: FontWeight.w700)),
+            const SizedBox(width: 8),
+            Icon(icon, color: Colors.white, size: 26),
+          ],
+        ],
+      ),
+    );
+  }
+
+  Widget _notificationCard(Map<String, dynamic> n) {
+    final isRead = _isRead(n);
+    final isPinned = _isPinned(n);
+
+    return GestureDetector(
+      onTap: () => _onTap(n),
+      onLongPress: () {
+        HapticFeedback.mediumImpact();
+        _showLongPressMenu(n);
+      },
+      child: Container(
+        padding: const EdgeInsets.all(16),
+        decoration: BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.circular(20),
+          border: Border.all(
+            color: isPinned
+                ? AppColors.primary.withValues(alpha: 0.55)
+                : isRead
+                    ? const Color(0xFF38A169).withValues(alpha: 0.35)
+                    : Colors.red.withValues(alpha: 0.25),
+            width: isPinned ? 1.5 : 1,
+          ),
+        ),
+        child: Row(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Icon(
+              isRead ? Icons.check_circle_rounded : Icons.cancel_rounded,
+              color: isRead ? const Color(0xFF38A169) : Colors.red.shade700,
+              size: 28,
+            ),
+            const SizedBox(width: 12),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Row(
+                    children: [
+                      Expanded(
+                        child: Text(
+                          (n['title'] ?? 'Notification').toString(),
+                          style: GoogleFonts.manrope(
+                            fontWeight: FontWeight.w800,
+                            fontSize: 15,
+                            color: AppColors.secondary,
+                          ),
+                        ),
+                      ),
+                      if (isPinned)
+                        Padding(
+                          padding: const EdgeInsets.only(left: 6),
+                          child: Icon(Icons.push_pin_rounded, size: 16, color: AppColors.primary),
+                        ),
+                    ],
+                  ),
+                  const SizedBox(height: 6),
+                  Text(
+                    (n['body'] ?? '').toString(),
+                    style: GoogleFonts.manrope(
+                      fontSize: 13,
+                      color: Colors.grey.shade700,
+                      height: 1.4,
+                    ),
+                  ),
+                  const SizedBox(height: 8),
+                  Text(
+                    'Appuyez pour ouvrir · appui long pour plus d\'options',
+                    style: GoogleFonts.inter(
+                      fontSize: 11,
+                      color: Colors.grey.shade500,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final notif = ref.watch(clientNotificationsProvider);
+    final isAgent = ref.watch(authProvider).role == 'agent';
+    final screenTitle = isAgent ? 'Alertes clients' : 'Notifications';
+    final emptyHint = isAgent
+        ? 'Les actions de vos clients (cotisations, inscriptions, messages) apparaîtront ici.'
+        : 'Vous serez notifié des validations, messages et mises à jour PayFlex.';
 
     return Scaffold(
       backgroundColor: const Color(0xFFF8FAFC),
@@ -154,7 +343,7 @@ class _ClientNotificationsScreenState extends ConsumerState<ClientNotificationsS
         backgroundColor: Colors.white,
         elevation: 0,
         title: Text(
-          'Notifications',
+          screenTitle,
           style: GoogleFonts.manrope(
             fontWeight: FontWeight.w800,
             color: AppColors.secondary,
@@ -183,9 +372,13 @@ class _ClientNotificationsScreenState extends ConsumerState<ClientNotificationsS
           ? const Center(child: CircularProgressIndicator())
           : notif.items.isEmpty
               ? Center(
-                  child: Text(
-                    'Aucune notification pour le moment.',
-                    style: GoogleFonts.manrope(color: Colors.grey.shade600),
+                  child: Padding(
+                    padding: const EdgeInsets.symmetric(horizontal: 32),
+                    child: Text(
+                      emptyHint,
+                      textAlign: TextAlign.center,
+                      style: GoogleFonts.manrope(color: Colors.grey.shade600),
+                    ),
                   ),
                 )
               : RefreshIndicator(
@@ -197,68 +390,26 @@ class _ClientNotificationsScreenState extends ConsumerState<ClientNotificationsS
                     separatorBuilder: (_, _) => const SizedBox(height: 12),
                     itemBuilder: (context, i) {
                       final n = notif.items[i];
-                      final isRead = _isRead(n);
-                      return GestureDetector(
-                        onTapDown: (_) => _onTapDown(n),
-                        onTapUp: (_) => _onTapEnd(n),
-                        onTapCancel: () => _holdTimer?.cancel(),
-                        child: Container(
-                          padding: const EdgeInsets.all(16),
-                          decoration: BoxDecoration(
-                            color: Colors.white,
-                            borderRadius: BorderRadius.circular(20),
-                            border: Border.all(
-                              color: isRead
-                                  ? const Color(0xFF38A169).withValues(alpha: 0.35)
-                                  : Colors.red.withValues(alpha: 0.25),
-                            ),
-                          ),
-                          child: Row(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              Icon(
-                                isRead ? Icons.check_circle_rounded : Icons.cancel_rounded,
-                                color: isRead ? const Color(0xFF38A169) : Colors.red.shade700,
-                                size: 28,
-                              ),
-                              const SizedBox(width: 12),
-                              Expanded(
-                                child: Column(
-                                  crossAxisAlignment: CrossAxisAlignment.start,
-                                  children: [
-                                    Text(
-                                      (n['title'] ?? 'Notification').toString(),
-                                      style: GoogleFonts.manrope(
-                                        fontWeight: FontWeight.w800,
-                                        fontSize: 15,
-                                        color: AppColors.secondary,
-                                      ),
-                                    ),
-                                    const SizedBox(height: 6),
-                                    Text(
-                                      (n['body'] ?? '').toString(),
-                                      style: GoogleFonts.manrope(
-                                        fontSize: 13,
-                                        color: Colors.grey.shade700,
-                                        height: 1.4,
-                                      ),
-                                    ),
-                                    if (!isRead) ...[
-                                      const SizedBox(height: 8),
-                                      Text(
-                                        'Appuyez pour ouvrir · maintenez 3 s pour plus d’options',
-                                        style: GoogleFonts.inter(
-                                          fontSize: 10,
-                                          color: Colors.grey.shade500,
-                                        ),
-                                      ),
-                                    ],
-                                  ],
-                                ),
-                              ),
-                            ],
-                          ),
+                      final id = _notificationId(n);
+                      if (id == null) return _notificationCard(n);
+
+                      return Dismissible(
+                        key: ValueKey('notif-$id'),
+                        direction: DismissDirection.horizontal,
+                        confirmDismiss: (direction) => _onDismissConfirm(direction, n),
+                        background: _swipeBackground(
+                          alignment: Alignment.centerLeft,
+                          color: AppColors.primary,
+                          icon: _isPinned(n) ? Icons.push_pin_outlined : Icons.push_pin_rounded,
+                          label: _isPinned(n) ? 'Retirer suivi' : 'Épingler',
                         ),
+                        secondaryBackground: _swipeBackground(
+                          alignment: Alignment.centerRight,
+                          color: Colors.red.shade600,
+                          icon: Icons.delete_outline_rounded,
+                          label: 'Supprimer',
+                        ),
+                        child: _notificationCard(n),
                       );
                     },
                   ),

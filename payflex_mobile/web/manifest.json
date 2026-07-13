@@ -3,9 +3,9 @@
     "short_name": "PayFlex",
     "start_url": ".",
     "display": "standalone",
-    "background_color": "#0175C2",
-    "theme_color": "#0175C2",
-    "description": "A new Flutter project.",
+    "background_color": "#FFFFFF",
+    "theme_color": "#003366",
+    "description": "PayFlex — cotisez à votre rythme, équipez-vous en toute liberté.",
     "orientation": "portrait-primary",
     "prefer_related_applications": false,
     "icons": [

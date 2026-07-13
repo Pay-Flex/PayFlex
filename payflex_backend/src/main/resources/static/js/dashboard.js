@@ -1,4 +1,4 @@
-/* global Chart, weekly, topProducts, topClients, monthlyCollections */
+/* global Chart, weekly, topProducts, topClients, monthlyCollections, revenueBreakdown */
 
 (function () {
   const P = () => (typeof window.PF_ADMIN_CHART_PALETTE !== 'undefined'
@@ -123,4 +123,55 @@
     (monthlyCollections || []).map((x) => x.label),
     (monthlyCollections || []).map((x) => x.value)
   );
+
+  (function renderRevenueChart() {
+    const el = document.getElementById('revenueChart');
+    const rows = revenueBreakdown || [];
+    if (!el || !rows.length) return;
+
+    const existing = Chart.getChart(el);
+    if (existing) existing.destroy();
+
+    const labels = rows.map((r) => r.label);
+    const adhesion = rows.map((r) => Number(r.adhesionRevenueFcfa || 0));
+    const bonus = rows.map((r) => Number(r.bonusDayRevenueFcfa || 0));
+
+    new Chart(el, {
+      type: 'bar',
+      data: {
+        labels,
+        datasets: [
+          {
+            label: 'Adhésions',
+            data: adhesion,
+            backgroundColor: '#2563eb',
+            borderRadius: 4,
+            stack: 'rev'
+          },
+          {
+            label: 'Jour hors plan',
+            data: bonus,
+            backgroundColor: '#d97706',
+            borderRadius: 4,
+            stack: 'rev'
+          }
+        ]
+      },
+      options: {
+        responsive: true,
+        maintainAspectRatio: false,
+        plugins: {
+          legend: {
+            display: true,
+            position: 'bottom',
+            labels: { boxWidth: 10, padding: 6, font: { size: 10 } }
+          }
+        },
+        scales: {
+          x: { stacked: true, ticks: { font: { size: 10 } } },
+          y: { stacked: true, ticks: { font: { size: 10 } } }
+        }
+      }
+    });
+  })();
 })();

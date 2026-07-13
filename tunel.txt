@@ -1,0 +1,108 @@
+C'est un excellent choix. **LocalTunnel** est parfait pour ça : c'est totalement gratuit, tu peux sécuriser la connexion en HTTPS (ce qu'Android adore), et en choisissant un sous-domaine fixe, tu n'as pas besoin de recompiler ton APK Flutter à chaque fois que tu relances le tunnel.
+
+Voici la procédure complète, étape par étape, pour mettre cela en place et envoyer l'application à ton utilisateur à l'étranger.
+
+---
+
+### Étape 1 : Vérifier les prérequis sur ton PC
+
+Pour utiliser LocalTunnel avec la commande `npx`, tu dois avoir **Node.js** installé sur ton ordinateur.
+
+1. Ouvre ton terminal (Invite de commandes sur Windows ou Terminal sur Mac/Linux).
+2. Tape la commande suivante pour vérifier si Node.js est là :
+```bash
+node -v
+```
+
+*Si une version s'affiche (ex: `v18.x.x` ou `v20.x.x`), c'est parfait. Sinon, télécharge et installe la version LTS sur le site officiel de Node.js.*
+
+---
+
+### Étape 2 : Lancer ton serveur local
+
+Démarre ton backend normalement sur ton ordinateur. Note bien le **port** sur lequel il tourne (par exemple : `8080`, `3000`, `5000`, etc.).
+
+*PayFlex backend : port **8088** (voir `application.yml`).*
+
+```powershell
+cd payflex_backend
+.\run-local.ps1
+```
+
+---
+
+### Étape 3 : Créer le tunnel public
+
+Ouvre une **nouvelle fenêtre de terminal** (sans fermer celle où tourne ton serveur) et tape la commande suivante :
+
+```bash
+npx localtunnel --port 8088 --subdomain payflex-app
+```
+
+> 💡 **Conseil :** Le sous-domaine `payflex-app` est réservé pour PayFlex. Si quelqu'un d'autre l'utilise au même moment, LocalTunnel t'attribuera un nom aléatoire — relance ou choisis un autre nom unique.
+
+Une fois lancée, le terminal va t'afficher un message comme celui-ci :
+
+```text
+your url is: https://payflex-app.loca.lt
+```
+
+**⚠️ Page de vérification LocalTunnel (`loca.lt`) :**
+
+LocalTunnel peut afficher une page demandant ton **IP publique** (ex. `102.64.153.34`).
+
+* **App PayFlex** : contourne automatiquement cette page (en-tête `Bypass-Tunnel-Reminder`). Pas besoin de saisir l'IP dans l'app.
+* **Navigateur / test manuel** : saisis l'IP affichée une fois, ou teste avec :
+  ```bash
+  curl -H "Bypass-Tunnel-Reminder: true" https://payflex-app.loca.lt/api/mobile/health
+  ```
+* Après validation navigateur sur le même réseau, l'accès reste débloqué ~7 jours.
+
+---
+
+### Étape 4 : Configurer ton application Flutter
+
+PayFlex est déjà configuré dans `payflex_mobile/lib/core/network/api_config.dart` :
+URL tunnel par défaut : `https://payflex-app.loca.lt`
+
+Lancer l'app avec le tunnel :
+```powershell
+cd payflex_mobile
+.\scripts\run-tunnel.ps1
+```
+
+Ou manuellement :
+```bash
+flutter run --dart-define=PAYFLEX_USE_TUNNEL=true --dart-define=PAYFLEX_TUNNEL_BASE=https://payflex-app.loca.lt
+```
+
+**Backend** : dans `payflex_backend/.env`, même URL pour les liens de paiement :
+```text
+PAYFLEX_PUBLIC_URL=https://payflex-app.loca.lt
+```
+Puis redémarrer le backend (`.\run-local.ps1`).
+
+Comme l'URL LocalTunnel est en **`https://`**, pas besoin de cleartext HTTP dans `AndroidManifest.xml`.
+
+---
+
+### Étape 5 : Compiler et envoyer l'APK
+
+1. Génère l'APK final pour ton utilisateur :
+```powershell
+cd payflex_mobile
+.\scripts\build-apk.ps1
+```
+
+2. Récupère le fichier APK généré dans le dossier : `build/app/outputs/flutter-apk/app-release.apk`.
+3. Envoie ce fichier à ton utilisateur (via WhatsApp, Telegram, Google Drive, etc.).
+
+Tant que ton serveur tourne sur ton PC et que la commande `npx localtunnel` est active dans ton terminal, ton testeur à l'étranger pourra interagir avec ton ordinateur en temps réel comme si ton backend était hébergé chez Google ou AWS !
+
+---
+
+### Passer en production (plus tard)
+
+1. Backend : `PAYFLEX_PUBLIC_URL=https://api.votredomaine.com` dans `.env`
+2. Mobile : `.\scripts\build-apk.ps1 -Mode prod -ApiBase "https://api.votredomaine.com"`
+3. Plus de tunnel LocalTunnel — serveur hébergé ou Cloudflare Tunnel nommé.

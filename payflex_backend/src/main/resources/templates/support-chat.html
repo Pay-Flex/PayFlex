@@ -168,6 +168,25 @@
                 </form>
                 <div th:class="${m.sender == 'admin'} ? 'max-w-[85%] rounded-2xl rounded-tr-md px-4 py-2 pf-admin-chat-bubble text-sm shadow' : 'max-w-[85%] rounded-2xl rounded-tl-md px-4 py-2 bg-white text-slate-800 text-sm border border-slate-100 shadow-sm'">
                   <p class="whitespace-pre-wrap" th:text="${m.body}"></p>
+                  <div th:if="${m.attachment_url != null && !#strings.isEmpty(m.attachment_url)}" class="mt-2 pf-chat-attachment" th:attr="data-kind=${m.attachment_kind},data-url=${m.attachment_url},data-name=${m.attachment_name}">
+                    <button th:if="${m.attachment_kind == 'image'}" type="button" class="pf-chat-img-preview block rounded-lg overflow-hidden border border-slate-200/80 hover:opacity-90 transition-opacity" th:attr="data-url=${m.attachment_url}">
+                      <img th:src="${m.attachment_url}" alt="Image" class="max-w-[220px] max-h-[220px] object-cover">
+                    </button>
+                    <div th:if="${m.attachment_kind == 'audio'}" class="flex items-center gap-2">
+                      <button type="button" class="pf-chat-audio-play h-10 w-10 rounded-full bg-emerald-600 hover:bg-emerald-700 text-white inline-flex items-center justify-center shrink-0" th:attr="data-url=${m.attachment_url}" title="Écouter">
+                        <i class="fa-solid fa-play text-sm ml-0.5"></i>
+                      </button>
+                      <div class="min-w-0">
+                        <p class="text-xs font-semibold truncate" th:text="${m.attachment_name != null ? m.attachment_name : 'Audio'}">Audio</p>
+                        <audio class="hidden pf-chat-audio-el" th:src="${m.attachment_url}" preload="metadata"></audio>
+                      </div>
+                      <a th:href="${m.attachment_url}" download class="text-xs text-emerald-700 hover:underline shrink-0" title="Télécharger"><i class="fa-solid fa-download"></i></a>
+                    </div>
+                    <a th:if="${m.attachment_kind == 'document'}" th:href="${m.attachment_url}" download class="inline-flex items-center gap-2 text-sm text-emerald-700 hover:underline">
+                      <i class="fa-solid fa-file-arrow-down"></i>
+                      <span th:text="${m.attachment_name != null ? m.attachment_name : 'Document'}">Document</span>
+                    </a>
+                  </div>
                   <p th:class="${m.sender == 'admin'} ? 'text-[10px] pf-admin-chat-meta mt-1' : 'text-[10px] text-slate-400 mt-1'" th:text="${m.created_at}"></p>
                 </div>
                 <form th:if="${m.sender == 'admin'}" method="post" action="/admin/support-chat/delete-message" class="opacity-0 group-hover:opacity-100 transition-opacity pf-confirm-submit shrink-0 mb-1"
@@ -299,6 +318,20 @@
       return d.innerHTML;
     }
 
+    function renderAttachmentHtml(m) {
+      const url = m.attachment_url ? String(m.attachment_url) : '';
+      if (!url) return '';
+      const kind = m.attachment_kind ? String(m.attachment_kind) : 'document';
+      const name = m.attachment_name ? String(m.attachment_name) : (kind === 'audio' ? 'Audio' : 'Fichier');
+      if (kind === 'image') {
+        return `<div class="mt-2 pf-chat-attachment" data-kind="image" data-url="${escapeHtml(url)}"><button type="button" class="pf-chat-img-preview block rounded-lg overflow-hidden border border-slate-200/80 hover:opacity-90 transition-opacity" data-url="${escapeHtml(url)}"><img src="${escapeHtml(url)}" alt="Image" class="max-w-[220px] max-h-[220px] object-cover"></button></div>`;
+      }
+      if (kind === 'audio') {
+        return `<div class="mt-2 pf-chat-attachment" data-kind="audio" data-url="${escapeHtml(url)}"><div class="flex items-center gap-2"><button type="button" class="pf-chat-audio-play h-10 w-10 rounded-full bg-emerald-600 hover:bg-emerald-700 text-white inline-flex items-center justify-center shrink-0" data-url="${escapeHtml(url)}" title="Écouter"><i class="fa-solid fa-play text-sm ml-0.5"></i></button><div class="min-w-0"><p class="text-xs font-semibold truncate">${escapeHtml(name)}</p><audio class="hidden pf-chat-audio-el" src="${escapeHtml(url)}" preload="metadata"></audio></div><a href="${escapeHtml(url)}" download class="text-xs text-emerald-700 hover:underline shrink-0" title="Télécharger"><i class="fa-solid fa-download"></i></a></div></div>`;
+      }
+      return `<div class="mt-2 pf-chat-attachment" data-kind="document" data-url="${escapeHtml(url)}"><a href="${escapeHtml(url)}" download class="inline-flex items-center gap-2 text-sm text-emerald-700 hover:underline"><i class="fa-solid fa-file-arrow-down"></i><span>${escapeHtml(name)}</span></a></div>`;
+    }
+
     function renderAdminMessage(m) {
       const isAdmin = m.sender === 'admin';
       const rowClass = isAdmin ? 'flex justify-end group pf-chat-msg' : 'flex justify-start group pf-chat-msg';
@@ -307,7 +340,74 @@
         : 'max-w-[85%] rounded-2xl rounded-tl-md px-4 py-2 bg-white text-slate-800 text-sm border border-slate-100 shadow-sm';
       const metaClass = isAdmin ? 'text-[10px] pf-admin-chat-meta mt-1' : 'text-[10px] text-slate-400 mt-1';
       const created = m.created_at != null ? String(m.created_at) : '';
-      return `<div class="${rowClass}" data-msg-id="${m.id}"><div class="flex items-end gap-1 max-w-[90%]"><div class="${bubbleClass}"><p class="whitespace-pre-wrap">${escapeHtml(m.body)}</p><p class="${metaClass}">${escapeHtml(created)}</p></div></div></div>`;
+      const attachment = renderAttachmentHtml(m);
+      return `<div class="${rowClass}" data-msg-id="${m.id}"><div class="flex items-end gap-1 max-w-[90%]"><div class="${bubbleClass}"><p class="whitespace-pre-wrap">${escapeHtml(m.body)}</p>${attachment}<p class="${metaClass}">${escapeHtml(created)}</p></div></div></div>`;
+    }
+
+    let pfChatActiveAudio = null;
+
+    function bindChatAttachmentHandlers(root) {
+      if (!root) return;
+      root.querySelectorAll('.pf-chat-img-preview').forEach((btn) => {
+        if (btn.dataset.bound) return;
+        btn.dataset.bound = '1';
+        btn.addEventListener('click', () => {
+          const url = btn.getAttribute('data-url');
+          if (!url) return;
+          Swal.fire({
+            imageUrl: url,
+            imageAlt: 'Image client',
+            showConfirmButton: false,
+            showCloseButton: true,
+            width: 'auto',
+            padding: '0.5rem',
+            background: '#0f172a',
+          });
+        });
+      });
+      root.querySelectorAll('.pf-chat-audio-play').forEach((btn) => {
+        if (btn.dataset.bound) return;
+        btn.dataset.bound = '1';
+        btn.addEventListener('click', () => {
+          const wrap = btn.closest('.pf-chat-attachment');
+          const audio = wrap ? wrap.querySelector('.pf-chat-audio-el') : null;
+          if (!audio) return;
+          if (pfChatActiveAudio && pfChatActiveAudio !== audio) {
+            pfChatActiveAudio.pause();
+            pfChatActiveAudio.currentTime = 0;
+            document.querySelectorAll('.pf-chat-audio-play i').forEach((ic) => {
+              ic.classList.remove('fa-pause');
+              ic.classList.add('fa-play');
+            });
+          }
+          if (audio.paused) {
+            audio.play().catch(() => Swal.fire({ icon: 'error', title: 'Lecture impossible', text: 'Téléchargez le fichier pour l’écouter.' }));
+            pfChatActiveAudio = audio;
+            const icon = btn.querySelector('i');
+            if (icon) {
+              icon.classList.remove('fa-play');
+              icon.classList.add('fa-pause');
+            }
+            audio.onended = () => {
+              const icon2 = btn.querySelector('i');
+              if (icon2) {
+                icon2.classList.remove('fa-pause');
+                icon2.classList.add('fa-play');
+              }
+              if (pfChatActiveAudio === audio) pfChatActiveAudio = null;
+            };
+          } else {
+            audio.pause();
+            audio.currentTime = 0;
+            pfChatActiveAudio = null;
+            const icon = btn.querySelector('i');
+            if (icon) {
+              icon.classList.remove('fa-pause');
+              icon.classList.add('fa-play');
+            }
+          }
+        });
+      });
     }
 
     const chatScroll = document.getElementById('pfChatScroll');
@@ -335,10 +435,13 @@
           chatMessages.innerHTML = '<div class="text-center text-slate-400 text-sm py-12 pf-chat-empty">Aucun message.</div>';
         } else {
           chatMessages.innerHTML = messages.map(renderAdminMessage).join('');
+          bindChatAttachmentHandlers(chatMessages);
         }
         if (chatScroll) chatScroll.scrollTop = chatScroll.scrollHeight;
       } catch (_) { /* ignore */ }
     }
+
+    bindChatAttachmentHandlers(chatMessages);
 
     if (openUserId) {
       setInterval(refreshChatMessages, 3000);

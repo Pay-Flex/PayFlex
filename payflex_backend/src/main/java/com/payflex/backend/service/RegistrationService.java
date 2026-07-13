@@ -28,6 +28,9 @@ public class RegistrationService {
     private final CredentialHashService credentialHashService;
     private final UserContactUniquenessService contactUniqueness;
     private final ClientAdhesionService clientAdhesionService;
+    private final UserInboxNotificationService inboxNotifications;
+    private final CredentialVaultService credentialVaultService;
+    private final AdminWebPushService adminWebPushService;
     private final Path uploadRoot;
 
     public RegistrationService(
@@ -35,13 +38,19 @@ public class RegistrationService {
         AdminAuditService auditService,
         CredentialHashService credentialHashService,
         UserContactUniquenessService contactUniqueness,
-        ClientAdhesionService clientAdhesionService
+        ClientAdhesionService clientAdhesionService,
+        UserInboxNotificationService inboxNotifications,
+        CredentialVaultService credentialVaultService,
+        AdminWebPushService adminWebPushService
     ) throws IOException {
         this.jdbcTemplate = jdbcTemplate;
         this.auditService = auditService;
         this.credentialHashService = credentialHashService;
         this.contactUniqueness = contactUniqueness;
         this.clientAdhesionService = clientAdhesionService;
+        this.inboxNotifications = inboxNotifications;
+        this.credentialVaultService = credentialVaultService;
+        this.adminWebPushService = adminWebPushService;
         this.uploadRoot = Path.of("uploads", "registrations");
         Files.createDirectories(uploadRoot);
     }
@@ -50,25 +59,31 @@ public class RegistrationService {
         RegistrationInput normalized = withNormalizedGender(input);
         validate(normalized);
         log.info("submit phone={} role={}", maskPhone(normalized.phone()), normalized.requestedRole());
-        Optional<Long> existingPending = findPendingIdByPhone(normalized.phone());
+        Optional<Long> existingPending = Optional.empty();
+        if (normalized.phone() != null && !normalized.phone().isBlank()) {
+            existingPending = findPendingIdByPhone(normalized.phone());
+        }
         if (existingPending.isPresent()) {
             log.info("Demande pending existante id={} → resubmit", existingPending.get());
             return resubmitPendingRegistration(existingPending.get(), normalized, profilePhoto, idDocument);
         }
-        Long existingClientId = findClientUserIdByPhone(normalized.phone());
-        if (existingClientId != null && existingClientId > 0) {
-            String clientStatus = jdbcTemplate.queryForObject(
-                "SELECT status FROM users WHERE id = ? LIMIT 1",
-                String.class,
-                existingClientId
-            );
-            if (clientStatus != null && clientStatus.equalsIgnoreCase("pending")) {
-                contactUniqueness.assertPhoneAvailable(normalized.phone(), existingClientId);
+        Long existingClientId = null;
+        if (normalized.phone() != null && !normalized.phone().isBlank()) {
+            existingClientId = findClientUserIdByPhone(normalized.phone());
+            if (existingClientId != null && existingClientId > 0) {
+                String clientStatus = jdbcTemplate.queryForObject(
+                    "SELECT status FROM users WHERE id = ? LIMIT 1",
+                    String.class,
+                    existingClientId
+                );
+                if (clientStatus != null && clientStatus.equalsIgnoreCase("pending")) {
+                    contactUniqueness.assertPhoneAvailable(normalized.phone(), existingClientId);
+                } else {
+                    contactUniqueness.assertPhoneAvailable(normalized.phone(), null);
+                }
             } else {
                 contactUniqueness.assertPhoneAvailable(normalized.phone(), null);
             }
-        } else {
-            contactUniqueness.assertPhoneAvailable(normalized.phone(), null);
         }
         contactUniqueness.assertEmailAvailable(normalized.email(), existingClientId);
         if (!"agent".equalsIgnoreCase(normalized.submittedBy())) {
@@ -101,14 +116,23 @@ public class RegistrationService {
         );
         Long id = jdbcTemplate.queryForObject("SELECT LAST_INSERT_ID()", Long.class);
         long savedId = id == null ? 0L : id;
+        credentialVaultService.storeForRegistrationRequest(
+            savedId,
+            normalized.pin(),
+            normalized.accountPassword()
+        );
         log.info("Inscription sauvegardée id={} phone={}", savedId, maskPhone(normalized.phone()));
         if ("self".equalsIgnoreCase(normalized.submittedBy())) {
             RegistrationInput activationInput = asClientAccountInput(normalized);
             finalizeClientSelfRegistration(savedId, activationInput, photoPath, docPath);
             persistClientProfileSegment(savedId, normalized);
             log.info("Client activé (valide) phone={} segment={}", maskPhone(normalized.phone()), normalized.requestedRole());
-        } else if ("client".equalsIgnoreCase(normalized.requestedRole())) {
-            finalizeClientSelfRegistration(savedId, normalized, photoPath, docPath);
+        } else if ("client".equalsIgnoreCase(normalized.requestedRole())
+            || "agent".equalsIgnoreCase(normalized.submittedBy())) {
+            RegistrationInput activationInput = "agent".equalsIgnoreCase(normalized.submittedBy())
+                ? asClientAccountInput(normalized)
+                : normalized;
+            finalizeClientSelfRegistration(savedId, activationInput, photoPath, docPath);
             log.info("Client activé (valide) phone={}", maskPhone(normalized.phone()));
         }
         if ("agent".equalsIgnoreCase(normalized.submittedBy())
@@ -124,6 +148,12 @@ public class RegistrationService {
                 "Souhaite rejoindre PayFlex : demande envoyée depuis l'application (téléphone " + normalized.phone() + ")."
             );
         }
+        // Web Push temps réel vers les postes admin/support (ignoré si VAPID non configuré).
+        adminWebPushService.notifyAllAdmins(
+            "Nouvelle inscription PayFlex",
+            normalized.fullName() + " a envoyé une demande d'inscription.",
+            "/admin/registrations"
+        );
         return savedId;
     }
 
@@ -229,36 +259,44 @@ public class RegistrationService {
                 Long.class
             );
             Long existingUserId = findClientUserIdByPhone(String.valueOf(row.get("phone")));
+            long linkedUserId;
             if (existingUserId != null && existingUserId > 0) {
                 jdbcTemplate.update(
                     """
                     UPDATE users SET
                       full_name = ?, role_id = ?, city = ?, profession = ?, gender = ?, status = 'valide',
-                      pin = ?, secret_code = ?, unique_code = ?, assigned_agent_user_id = ?,
+                      pin = ?, secret_code = ?, account_password = COALESCE(account_password, ?), unique_code = ?,
+                      assigned_agent_user_id = ?,
                       profile_photo_path = ?, id_document_path = ?,
                       workplace_name = ?, workplace_address = ?, boss_name = ?, boss_phone = ?
                     WHERE id = ?
                     """,
                     row.get("full_name"), clientRoleId, row.get("city"), row.get("profession"), row.get("gender"),
-                    row.get("pin"), row.get("secret_code"), row.get("unique_code"), finalAgentId,
+                    row.get("pin"), row.get("secret_code"), row.get("account_password"), row.get("unique_code"), finalAgentId,
                     row.get("profile_photo_path"), row.get("id_document_path"),
                     row.get("workplace_name"), row.get("workplace_address"), row.get("boss_name"), row.get("boss_phone"),
                     existingUserId
                 );
+                linkedUserId = existingUserId;
             } else {
                 jdbcTemplate.update(
                     """
                     INSERT INTO users (
-                      full_name, phone, role_id, city, profession, gender, status, pin, secret_code, unique_code,
+                      full_name, phone, role_id, city, profession, gender, status, pin, secret_code, account_password, unique_code,
                       assigned_agent_user_id, profile_photo_path, id_document_path, workplace_name, workplace_address, boss_name, boss_phone
-                    ) VALUES (?, ?, ?, ?, ?, ?, 'valide', ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                    ) VALUES (?, ?, ?, ?, ?, ?, 'valide', ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                     """,
                     row.get("full_name"), row.get("phone"), clientRoleId, row.get("city"), row.get("profession"),
                     row.get("gender"),
-                    row.get("pin"), row.get("secret_code"), row.get("unique_code"),
+                    row.get("pin"), row.get("secret_code"), row.get("account_password"), row.get("unique_code"),
                     finalAgentId, row.get("profile_photo_path"), row.get("id_document_path"),
                     row.get("workplace_name"), row.get("workplace_address"), row.get("boss_name"), row.get("boss_phone")
                 );
+                Long newId = jdbcTemplate.queryForObject("SELECT LAST_INSERT_ID()", Long.class);
+                linkedUserId = newId == null ? 0L : newId;
+            }
+            if (linkedUserId > 0) {
+                credentialVaultService.copyRegistrationVaultToUser(requestId, linkedUserId);
             }
         } else if ("rejected".equals(decision)) {
             Long existingUserId = findClientUserIdByPhone(String.valueOf(row.get("phone")));
@@ -268,16 +306,42 @@ public class RegistrationService {
         }
         String nom = row.get("full_name") != null ? row.get("full_name").toString() : "Personne concernée";
         String tel = row.get("phone") != null ? row.get("phone").toString() : "";
+        Long clientUserId = findClientUserIdByPhone(tel);
         if ("approved".equals(decision)) {
             auditService.logEquipe(
                 adminUsername,
                 "Validation : « " + nom + " » (" + tel + ") peut désormais utiliser PayFlex en tant que client."
             );
+            if (clientUserId != null && clientUserId > 0) {
+                inboxNotifications.notifyClientAndAssignedAgent(
+                    clientUserId,
+                    "account_approved",
+                    "Compte validé",
+                    "Votre inscription PayFlex est approuvée. Finalisez l’adhésion (250 FCFA) pour activer les cotisations.",
+                    "Inscription validée — {client}",
+                    "Le compte de {client} est validé. Accompagnez-le pour l’adhésion et la première cotisation.",
+                    null
+                );
+            }
         } else {
             auditService.logEquipe(
                 adminUsername,
                 "Refus : la demande de « " + nom + " » (" + tel + ") n'a pas été retenue."
             );
+            if (clientUserId != null && clientUserId > 0) {
+                String motif = adminNote != null && !adminNote.isBlank()
+                    ? adminNote.trim()
+                    : "Demande non retenue par le centre PayFlex.";
+                inboxNotifications.notifyClientAndAssignedAgent(
+                    clientUserId,
+                    "account_rejected",
+                    "Inscription refusée",
+                    motif,
+                    "Inscription refusée — {client}",
+                    "L’inscription de {client} a été refusée : " + motif,
+                    null
+                );
+            }
         }
     }
 
@@ -393,7 +457,13 @@ public class RegistrationService {
             );
         }
         if (input.fullName() == null || input.fullName().isBlank()) throw new IllegalArgumentException("Nom requis");
-        if (input.phone() == null || input.phone().isBlank()) throw new IllegalArgumentException("Téléphone requis");
+        boolean agentEnrollment = "agent".equalsIgnoreCase(input.submittedBy());
+        if (!agentEnrollment && (input.phone() == null || input.phone().isBlank())) {
+            throw new IllegalArgumentException("Téléphone requis");
+        }
+        if (agentEnrollment && (input.uniqueCode() == null || input.uniqueCode().isBlank())) {
+            throw new IllegalArgumentException("Code client interne requis pour l'inscription agent.");
+        }
         String emailNorm = UserContactUniquenessService.normalizeEmail(input.email());
         if (input.email() != null && !input.email().isBlank() && (emailNorm == null || !input.email().trim().contains("@"))) {
             throw new IllegalArgumentException("Adresse e-mail invalide.");
@@ -463,6 +533,10 @@ public class RegistrationService {
         String docPath
     ) {
         syncClientUserFromRegistration(input, photoPath, docPath);
+        Long userId = resolveClientUserId(input);
+        if (userId != null && userId > 0) {
+            credentialVaultService.copyRegistrationVaultToUser(requestId, userId);
+        }
         jdbcTemplate.update(
             """
             UPDATE registration_requests
@@ -474,13 +548,15 @@ public class RegistrationService {
             "Inscription automatique — adhésion " + ClientAdhesionService.ADHESION_FEE_FCFA + " FCFA requise.",
             requestId
         );
-        Long userId = findClientUserIdByPhone(input.phone());
         if (userId != null && userId > 0) {
             clientAdhesionService.onClientAccountOpened(userId, input.assignedAgentUserId());
         }
+        String contactLabel = input.phone() != null && !input.phone().isBlank()
+            ? "téléphone " + input.phone()
+            : "code " + input.uniqueCode();
         auditService.logVisiteur(
             input.fullName(),
-            "Compte PayFlex ouvert depuis l'application (téléphone " + input.phone() + "). Adhésion à finaliser."
+            "Compte PayFlex ouvert depuis l'application (" + contactLabel + "). Adhésion à finaliser."
         );
     }
 
@@ -825,7 +901,7 @@ public class RegistrationService {
             Long.class
         );
         StoredCredentials creds = hashCredentialsForStorage(input.pin(), input.accountPassword());
-        Long existingUserId = findClientUserIdByPhone(input.phone());
+        Long existingUserId = resolveClientUserId(input);
         if (existingUserId != null && existingUserId > 0) {
             jdbcTemplate.update(
                 """
@@ -842,6 +918,7 @@ public class RegistrationService {
                 photoPath, docPath, input.workplaceName(), input.workplaceAddress(), input.bossName(), input.bossPhone(),
                 existingUserId
             );
+            credentialVaultService.storeForUser(existingUserId, input.pin(), input.accountPassword());
             return;
         }
         jdbcTemplate.update(
@@ -856,6 +933,10 @@ public class RegistrationService {
             creds.pin(), creds.secretCode(), creds.accountPassword(), input.uniqueCode(), input.assignedAgentUserId(),
             photoPath, docPath, input.workplaceName(), input.workplaceAddress(), input.bossName(), input.bossPhone()
         );
+        Long newUserId = jdbcTemplate.queryForObject("SELECT LAST_INSERT_ID()", Long.class);
+        if (newUserId != null && newUserId > 0) {
+            credentialVaultService.storeForUser(newUserId, input.pin(), input.accountPassword());
+        }
     }
 
     /** @deprecated compat interne — utiliser {@link #syncClientUserFromRegistration}. */
@@ -908,6 +989,7 @@ public class RegistrationService {
             docPath = null;
         }
         StoredCredentials creds = hashCredentialsForStorage(input.pin(), input.accountPassword());
+        credentialVaultService.storeForRegistrationRequest(id, input.pin(), input.accountPassword());
         jdbcTemplate.update(
             """
             UPDATE registration_requests SET
@@ -969,6 +1051,39 @@ public class RegistrationService {
 
     public Optional<Long> linkedClientUserIdForPhone(String phoneRaw) {
         return Optional.ofNullable(findClientUserIdByPhone(phoneRaw));
+    }
+
+    public Optional<Long> linkedClientUserIdForUniqueCode(String uniqueCode) {
+        return Optional.ofNullable(findClientUserIdByUniqueCode(uniqueCode));
+    }
+
+    private Long resolveClientUserId(RegistrationInput input) {
+        Long byPhone = null;
+        if (input.phone() != null && !input.phone().isBlank()) {
+            byPhone = findClientUserIdByPhone(input.phone());
+        }
+        if (byPhone != null && byPhone > 0) {
+            return byPhone;
+        }
+        return findClientUserIdByUniqueCode(input.uniqueCode());
+    }
+
+    private Long findClientUserIdByUniqueCode(String uniqueCode) {
+        if (uniqueCode == null || uniqueCode.isBlank()) {
+            return null;
+        }
+        List<Long> ids = jdbcTemplate.query(
+            """
+            SELECT u.id FROM users u
+            INNER JOIN roles r ON r.id = u.role_id AND r.code = 'client'
+            WHERE TRIM(u.unique_code) = ?
+            ORDER BY u.id DESC
+            LIMIT 1
+            """,
+            (rs, i) -> rs.getLong(1),
+            uniqueCode.trim()
+        );
+        return ids.isEmpty() ? null : ids.get(0);
     }
 
     private Long findClientUserIdByPhone(String phoneRaw) {

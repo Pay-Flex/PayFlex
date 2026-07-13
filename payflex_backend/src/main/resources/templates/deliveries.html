@@ -1,0 +1,132 @@
+<!doctype html>
+<html lang="fr" xmlns:th="http://www.thymeleaf.org">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Admin — Clôture &amp; livraison</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.2/css/all.min.css">
+  <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
+  <link rel="stylesheet" href="/css/admin-wow.css">
+</head>
+<body class="pf-admin bg-slate-100 min-h-screen">
+<th:block th:replace="~{fragments/admin-chrome :: startMain('')}"/>
+<th:block th:replace="~{fragments/admin-chrome :: pageHeader('Clôture &amp; livraison', 'Objectif atteint → validation solde et carnet → remise de l’équipement au client.')}"/>
+
+    <div class="flex flex-col gap-6 md:gap-8 mt-2">
+
+    <div class="bg-blue-50 border border-blue-200 rounded-xl p-5 md:p-6 text-sm text-blue-900 shadow-sm">
+      <p class="font-semibold mb-2"><i class="fa-solid fa-box-open mr-2"></i>Processus centre (phase 4.2)</p>
+      <ol class="list-decimal pl-5 space-y-2 text-blue-800/95">
+        <li><strong>Clôture</strong> : vérifier solde cotisations validées ≥ prix produit et carnet (rattrapage).</li>
+        <li><strong>Livraison</strong> : enregistrer la remise outil / stock — notification client + agent.</li>
+      </ol>
+    </div>
+
+    <div class="grid grid-cols-1 sm:grid-cols-2 gap-4 md:gap-6">
+      <a href="/admin/deliveries?status=awaiting_closure"
+         class="pf-dash-kpi-link bg-white rounded-xl p-5 md:p-6 shadow-sm border border-slate-200/80 border-l-4 border-l-amber-500 min-h-[7rem] flex flex-col justify-center">
+        <h3 class="text-xs text-slate-500 mb-2"><i class="fa-solid fa-clipboard-check mr-1 text-amber-600"></i>En attente de clôture</h3>
+        <strong class="text-3xl text-amber-800 leading-none" th:text="${awaitingClosureCount}">0</strong>
+      </a>
+      <a href="/admin/deliveries?status=closure_validated"
+         class="pf-dash-kpi-link bg-white rounded-xl p-5 md:p-6 shadow-sm border border-slate-200/80 border-l-4 border-l-emerald-500 min-h-[7rem] flex flex-col justify-center">
+        <h3 class="text-xs text-slate-500 mb-2"><i class="fa-solid fa-box-open mr-1 text-emerald-600"></i>À livrer</h3>
+        <strong class="text-3xl text-emerald-800 leading-none" th:text="${awaitingDeliveryCount}">0</strong>
+      </a>
+    </div>
+
+    <form method="get" action="/admin/deliveries" class="bg-white rounded-xl p-5 md:p-6 shadow-sm border border-slate-200/80 flex flex-wrap gap-4 items-end">
+      <div class="min-w-[12rem]">
+        <label class="block text-xs font-medium text-slate-600 mb-2">Filtrer</label>
+        <select name="status" class="border rounded-lg px-3 py-2.5 text-sm bg-white w-full min-w-[14rem]">
+          <option value="">Tous (actifs en premier)</option>
+          <option value="awaiting_closure" th:selected="${statusFilter == 'awaiting_closure'}">En attente de clôture</option>
+          <option value="closure_validated" th:selected="${statusFilter == 'closure_validated'}">Clôture validée — à livrer</option>
+          <option value="delivered" th:selected="${statusFilter == 'delivered'}">Livrés</option>
+        </select>
+      </div>
+      <button type="submit" class="pf-btn pf-btn-secondary text-sm">Appliquer</button>
+      <a href="/admin/deliveries" class="text-sm text-blue-700 hover:underline pb-2">Réinitialiser</a>
+    </form>
+
+    <section class="pf-detail-table-card bg-white rounded-xl shadow-sm border border-slate-200/80 overflow-hidden">
+      <div class="px-4 md:px-5 py-3 border-b border-slate-100 bg-slate-50/80">
+        <h3 class="text-sm font-bold text-slate-800"><i class="fa-solid fa-list mr-2 text-slate-500"></i>Dossiers clôture &amp; livraison</h3>
+      </div>
+      <div class="overflow-x-auto p-1 md:p-2">
+      <table class="w-full text-sm min-w-[900px]">
+        <thead>
+        <tr class="text-left text-slate-600 border-b border-slate-200 bg-slate-50/50">
+          <th class="py-4 px-4">Client</th>
+          <th class="py-4 px-4">Produit</th>
+          <th class="py-4 px-4 text-right">Solde / objectif</th>
+          <th class="py-4 px-4">Carnet</th>
+          <th class="py-4 px-4">Statut</th>
+          <th class="py-4 px-4 min-w-[14rem]">Actions</th>
+        </tr>
+        </thead>
+        <tbody>
+        <tr th:if="${deliveries == null || deliveries.isEmpty()}">
+          <td colspan="6" class="py-12 px-4 text-center text-slate-500">Aucun dossier pour ce filtre.</td>
+        </tr>
+        <tr th:each="d : ${deliveries}" class="border-t border-slate-100 align-top hover:bg-slate-50/40">
+          <td class="py-4 px-4">
+            <a th:href="@{/admin/clients/{id}(id=${d.userId()})}" class="font-semibold text-blue-700 hover:underline" th:text="${d.clientName()}">Client</a>
+            <p class="text-xs text-slate-500" th:text="${d.clientPhone()}"></p>
+          </td>
+          <td class="py-4 px-4" th:text="${d.productName()}">Produit</td>
+          <td class="py-4 px-4 text-right tabular-nums">
+            <span th:text="${#numbers.formatInteger(d.totalValidated(),0,'POINT')} + ' / ' + ${#numbers.formatInteger(d.productPrice(),0,'POINT')} + ' FCFA'"></span>
+            <p th:if="${d.balanceGap() > 0}" class="text-xs text-red-700">Manque <span th:text="${#numbers.formatInteger(d.balanceGap(),0,'POINT')}"></span></p>
+          </td>
+          <td class="py-4 px-4 text-xs" th:text="${d.catchupDaysSnapshot() > 0} ? (d.catchupDaysSnapshot() + ' j. rattrapage') : 'OK'"></td>
+          <td class="py-4 px-4">
+            <span class="pf-badge-soft text-xs font-bold"
+                  th:classappend="${d.status() == 'awaiting_closure'} ? ' pf-badge-soft--amber' : (${d.status() == 'closure_validated'} ? ' pf-badge-soft--emerald' : ' pf-badge-soft--slate')"
+                  th:text="${d.statusLabel()}"></span>
+          </td>
+          <td class="py-3 px-3">
+            <div th:if="${d.status() == 'awaiting_closure'}" class="space-y-3 max-w-xs py-1">
+              <form method="post" th:action="@{/admin/deliveries/{id}/validate-closure(id=${d.id()})}" class="space-y-2">
+                <input type="hidden" th:name="${_csrf.parameterName}" th:value="${_csrf.token}">
+                <textarea name="adminNote" rows="2" placeholder="Note interne (optionnel)"
+                          class="w-full border rounded-lg px-2 py-1 text-xs"></textarea>
+                <label class="flex items-center gap-2 text-xs text-amber-900" th:if="${d.catchupDaysSnapshot() > 0}">
+                  <input type="checkbox" name="forceDespiteCatchup" value="true">
+                  Forcer malgré rattrapage carnet
+                </label>
+                <th:block th:if="${adminRequiresChangeReason}">
+                  <input name="changeReason" required minlength="8" placeholder="Motif (gestionnaire)" class="w-full border rounded-lg px-2 py-1 text-xs">
+                </th:block>
+                <button type="submit" class="pf-btn pf-btn-primary text-xs w-full">Valider la clôture</button>
+              </form>
+            </div>
+            <div th:if="${d.status() == 'closure_validated'}" class="space-y-3 max-w-xs py-1">
+              <form method="post" th:action="@{/admin/deliveries/{id}/confirm-delivery(id=${d.id()})}" class="space-y-2">
+                <input type="hidden" th:name="${_csrf.parameterName}" th:value="${_csrf.token}">
+                <input name="stockReference" placeholder="Réf. stock / série" class="w-full border rounded-lg px-2 py-1 text-xs">
+                <textarea name="deliveryNote" rows="2" placeholder="Lieu, date remise…" class="w-full border rounded-lg px-2 py-1 text-xs"></textarea>
+                <th:block th:if="${adminRequiresChangeReason}">
+                  <input name="changeReason" required minlength="8" placeholder="Motif (gestionnaire)" class="w-full border rounded-lg px-2 py-1 text-xs">
+                </th:block>
+                <button type="submit" class="pf-btn pf-btn-success text-xs w-full">Confirmer la livraison</button>
+              </form>
+            </div>
+            <p th:if="${d.status() == 'delivered'}" class="text-xs text-slate-600">
+              Livré <span th:if="${d.deliveredAt() != null}" th:text="${d.deliveredAt()}"></span>
+              <span th:if="${d.stockReference() != null}"> · <span th:text="${d.stockReference()}"></span></span>
+            </p>
+          </td>
+        </tr>
+        </tbody>
+      </table>
+      </div>
+    </section>
+
+    </div>
+
+<th:block th:replace="~{fragments/admin-chrome :: endMain}"/>
+<script src="/js/admin-wow.js"></script>
+</body>
+</html>

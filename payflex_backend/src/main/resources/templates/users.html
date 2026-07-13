@@ -123,11 +123,17 @@
               <input name="mobilePinConfirm" type="password" inputmode="numeric" pattern="[0-9]{4,12}" minlength="4" maxlength="12" autocomplete="new-password"
                      class="border rounded-lg px-3 py-2 w-full text-sm">
             </div>
-            <div class="md:col-span-2">
-              <label class="block text-xs font-semibold text-slate-600 mb-1">Mot de passe compte (optionnel, 8–64 caractères)</label>
+            <div>
+              <label class="block text-xs font-semibold text-slate-600 mb-1">Mot de passe compte (8–64 caractères) <span class="text-red-500">*</span></label>
               <input name="accountPassword" type="password" minlength="8" maxlength="64" autocomplete="new-password"
-                     class="border rounded-lg px-3 py-2 w-full text-sm max-w-md" placeholder="Connexion alternative à l’app">
+                     class="border rounded-lg px-3 py-2 w-full text-sm" placeholder="Connexion à l’app">
             </div>
+            <div>
+              <label class="block text-xs font-semibold text-slate-600 mb-1">Confirmer le mot de passe <span class="text-red-500">*</span></label>
+              <input name="accountPasswordConfirm" type="password" minlength="8" maxlength="64" autocomplete="new-password"
+                     class="border rounded-lg px-3 py-2 w-full text-sm">
+            </div>
+            <p class="text-xs text-slate-500 md:col-span-2">Les clients paient l’adhésion PayFlex (250 FCFA) après validation du dossier. Les agents terrain n’y sont pas soumis.</p>
             <div class="md:col-span-2">
               <label class="block text-xs font-semibold text-slate-600 mb-1">Agent parrain</label>
               <select name="assignedAgentUserId" class="border rounded-lg px-3 py-2 w-full text-sm bg-white max-w-md">
@@ -194,6 +200,17 @@
               <input name="mobilePinConfirm" type="password" inputmode="numeric" pattern="[0-9]{4,12}" minlength="4" maxlength="12" autocomplete="new-password"
                      class="border rounded-lg px-3 py-2 w-full text-sm">
             </div>
+            <div>
+              <label class="block text-xs font-semibold text-slate-600 mb-1">Mot de passe compte (8–64 caractères) <span class="text-red-500">*</span></label>
+              <input name="accountPassword" type="password" minlength="8" maxlength="64" autocomplete="new-password"
+                     class="border rounded-lg px-3 py-2 w-full text-sm" placeholder="Connexion à l’app">
+            </div>
+            <div>
+              <label class="block text-xs font-semibold text-slate-600 mb-1">Confirmer le mot de passe <span class="text-red-500">*</span></label>
+              <input name="accountPasswordConfirm" type="password" minlength="8" maxlength="64" autocomplete="new-password"
+                     class="border rounded-lg px-3 py-2 w-full text-sm">
+            </div>
+            <p class="text-xs text-slate-500 md:col-span-3">Aucune adhésion pour les agents terrain — compte actif dès la création.</p>
           </div>
           <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
             <div><label class="block text-xs font-semibold text-slate-600 mb-1">Urgence — nom</label><input name="emergencyContactName" class="border rounded-lg px-3 py-2 w-full text-sm"></div>
@@ -552,6 +569,20 @@
           e.preventDefault();
           Swal.fire({ icon: 'error', title: 'PIN', text: 'Les codes PIN ne correspondent pas.' });
           return;
+        }
+        const ap = form.querySelector('input[name="accountPassword"]:not([disabled])');
+        const apc = form.querySelector('input[name="accountPasswordConfirm"]:not([disabled])');
+        if (ap && apc) {
+          if (!ap.value || ap.value.length < 8) {
+            e.preventDefault();
+            Swal.fire({ icon: 'error', title: 'Mot de passe', text: 'Le mot de passe doit contenir au moins 8 caractères.' });
+            return;
+          }
+          if (ap.value !== apc.value) {
+            e.preventDefault();
+            Swal.fire({ icon: 'error', title: 'Mot de passe', text: 'Les mots de passe ne correspondent pas.' });
+            return;
+          }
         }
       }
       if (key.startsWith('team:')) {

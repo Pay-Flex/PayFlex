@@ -8,14 +8,21 @@ import '../../core/providers/auth_provider.dart';
 import '../../core/providers/client_inbox_provider.dart';
 import '../../core/providers/client_notifications_provider.dart';
 import '../../core/widgets/count_badge.dart';
+import '../../core/widgets/offline_banner.dart';
 import '../../core/widgets/payflex_profile_avatar.dart';
 import '../auth/widgets/registration_feature_guard.dart';
 import '../../core/providers/finance_provider.dart';
 import '../../core/providers/navigation_provider.dart';
+import '../../core/utils/money_format.dart';
 import '../chat/chat_screen.dart';
 import '../notifications/client_notifications_screen.dart';
 import '../payment/adhesion_payment_screen.dart';
 import 'dashboard_project_detail_screen.dart';
+import '../profile/profile_screen.dart';
+import '../support/client_report_screen.dart';
+import '../vitrine/job_offers_screen.dart';
+import '../../core/widgets/client_bonus_savings_card.dart';
+import '../../core/widgets/payflex_quick_access_row.dart';
 
 class DashboardScreen extends ConsumerWidget {
   const DashboardScreen({super.key});
@@ -88,12 +95,18 @@ class DashboardScreen extends ConsumerWidget {
                         children: [
                           Row(
                             children: [
-                              PayflexProfileAvatar(
-                                letter: auth.avatarLetter,
-                                imageUrl: auth.profilePhotoUrl,
-                                awaitingAdminApproval: auth.awaitingAdminApproval,
-                                radius: 20,
-                                letterFontSize: 18,
+                              GestureDetector(
+                                onTap: () => Navigator.push(
+                                  context,
+                                  MaterialPageRoute(builder: (_) => const ProfileScreen()),
+                                ),
+                                child: PayflexProfileAvatar(
+                                  letter: auth.avatarLetter,
+                                  imageUrl: auth.profilePhotoUrl,
+                                  awaitingAdminApproval: auth.awaitingAdminApproval,
+                                  radius: 20,
+                                  letterFontSize: 18,
+                                ),
                               ),
                               const SizedBox(width: 12),
                               Expanded(
@@ -182,7 +195,7 @@ class DashboardScreen extends ConsumerWidget {
                           ),
                           const SizedBox(height: 6),
                           Text(
-                            '${financeState.balance.toStringAsFixed(0).replaceAllMapped(RegExp(r"(\d{1,3})(?=(\d{3})+(?!\d))"), (m) => "${m[1]}.")} FCFA',
+                            formatFcfaLong(financeState.balance),
                             style: GoogleFonts.manrope(
                               color: AppColors.primary,
                               fontSize: 34,
@@ -196,6 +209,13 @@ class DashboardScreen extends ConsumerWidget {
                   ),
                 ),
               ),
+
+              if (auth.role == 'client' && financeState.isOffline)
+                const SliverToBoxAdapter(
+                  child: OfflineBanner(
+                    margin: EdgeInsets.fromLTRB(24, 16, 24, 0),
+                  ),
+                ),
 
               if (auth.awaitingAdminApproval)
                 SliverToBoxAdapter(
@@ -296,6 +316,89 @@ class DashboardScreen extends ConsumerWidget {
                   ),
                 ).animate().fadeIn(delay: 300.ms).slideY(begin: 0.1),
               ),
+
+              if (!auth.awaitingAdminApproval &&
+                  auth.role == 'client' &&
+                  financeState.bonusSavings.hasData)
+                SliverToBoxAdapter(
+                  child: ColoredBox(
+                    color: const Color(0xFFF8FAFC),
+                    child: Padding(
+                      padding: const EdgeInsets.fromLTRB(24, 16, 24, 0),
+                      child: ClientBonusSavingsCard(summary: financeState.bonusSavings),
+                    ),
+                  ).animate().fadeIn(delay: 320.ms).slideY(begin: 0.08),
+                ),
+
+              SliverToBoxAdapter(
+                child: ColoredBox(
+                  color: const Color(0xFFF8FAFC),
+                  child: Padding(
+                    padding: const EdgeInsets.fromLTRB(24, 16, 24, 0),
+                    child: PayflexQuickAccessRow(
+                      onReportTap: () => Navigator.push(
+                        context,
+                        MaterialPageRoute(builder: (_) => const ClientReportScreen()),
+                      ),
+                      onOpportunitiesTap: () => Navigator.push(
+                        context,
+                        MaterialPageRoute(builder: (_) => const JobOffersScreen()),
+                      ),
+                    ),
+                  ),
+                ),
+              ),
+
+              if (!auth.awaitingAdminApproval &&
+                  auth.role == 'client' &&
+                  (auth.deliveryCycleActive ||
+                      financeState.projects.any((p) => p.progress >= 0.999)))
+                SliverToBoxAdapter(
+                  child: ColoredBox(
+                    color: const Color(0xFFF8FAFC),
+                    child: Padding(
+                      padding: const EdgeInsets.fromLTRB(24, 18, 24, 0),
+                      child: Container(
+                        padding: const EdgeInsets.all(18),
+                        decoration: BoxDecoration(
+                          gradient: LinearGradient(
+                            colors: [AppColors.success.withValues(alpha: 0.15), Colors.white],
+                          ),
+                          borderRadius: BorderRadius.circular(16),
+                          border: Border.all(color: AppColors.success.withValues(alpha: 0.3)),
+                        ),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              auth.deliveryReadyForPickup
+                                  ? 'Prêt pour la livraison'
+                                  : 'Objectif atteint !',
+                              style: GoogleFonts.manrope(fontWeight: FontWeight.w900, color: AppColors.secondary),
+                            ),
+                            const SizedBox(height: 6),
+                            Text(
+                              auth.deliveryReadyForPickup
+                                  ? 'Le centre a validé votre clôture${auth.deliveryProductName != null ? ' pour « ${auth.deliveryProductName} »' : ''}. Votre équipement sera remis prochainement — vous serez notifié.'
+                                  : auth.deliveryStatus == 'awaiting_closure'
+                                      ? 'Votre solde est complet. Le centre valide votre carnet avant la remise de l’équipement.'
+                                      : 'Votre objectif est atteint${auth.deliveryProductName != null ? ' pour « ${auth.deliveryProductName} »' : ''}. Le centre finalise la clôture puis la livraison.',
+                              style: GoogleFonts.inter(fontSize: 12, color: Colors.grey.shade700),
+                            ),
+                            const SizedBox(height: 12),
+                            FilledButton(
+                              onPressed: () => ref.read(navigationIndexProvider.notifier).setIndex(3),
+                              child: Text(
+                                auth.deliveryReadyForPickup ? 'Suivre ma livraison' : 'Voir mon suivi',
+                                style: GoogleFonts.manrope(fontWeight: FontWeight.w800),
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ),
+                  ),
+                ),
 
               if (auth.role == 'client' && auth.needsAdhesionPayment)
                 SliverToBoxAdapter(
@@ -532,8 +635,8 @@ class DashboardScreen extends ConsumerWidget {
                           borderRadius: BorderRadius.circular(22),
                           child: ProjectCard(
                             title: project.title,
-                            saved: project.saved.toStringAsFixed(0).replaceAllMapped(RegExp(r'(\d{1,3})(?=(\d{3})+(?!\d))'), (m) => '${m[1]}.'),
-                            total: project.total.toStringAsFixed(0).replaceAllMapped(RegExp(r'(\d{1,3})(?=(\d{3})+(?!\d))'), (m) => '${m[1]}.'),
+                            saved: formatFcfa(project.saved, withSuffix: false),
+                            total: formatFcfa(project.total, withSuffix: false),
                             progress: project.progress,
                             color: AppColors.primary,
                           ),
@@ -780,7 +883,7 @@ class TransactionTile extends StatelessWidget {
           crossAxisAlignment: CrossAxisAlignment.end,
           children: [
             Text(
-              '+${transaction.amount.toStringAsFixed(0).replaceAllMapped(RegExp(r"(\d{1,3})(?=(\d{3})+(?!\d))"), (m) => "${m[1]}.")} FCFA',
+              '+${formatFcfaLong(transaction.amount)}',
               style: GoogleFonts.manrope(color: statusColor, fontWeight: FontWeight.w900, fontSize: 14),
             ),
             Container(

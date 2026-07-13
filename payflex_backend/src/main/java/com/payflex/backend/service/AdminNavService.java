@@ -11,10 +11,16 @@ public class AdminNavService {
 
     private final JdbcTemplate jdbcTemplate;
     private final ClientAdhesionService clientAdhesionService;
+    private final ProductDeliveryService productDeliveryService;
 
-    public AdminNavService(JdbcTemplate jdbcTemplate, ClientAdhesionService clientAdhesionService) {
+    public AdminNavService(
+        JdbcTemplate jdbcTemplate,
+        ClientAdhesionService clientAdhesionService,
+        ProductDeliveryService productDeliveryService
+    ) {
         this.jdbcTemplate = jdbcTemplate;
         this.clientAdhesionService = clientAdhesionService;
+        this.productDeliveryService = productDeliveryService;
     }
 
     public long adhesionUrgencies() {
@@ -49,6 +55,19 @@ public class AdminNavService {
         return n == null ? 0L : n;
     }
 
+    /** Montant total des cotisations espèces encore en attente (rapprochement fin de journée). */
+    public long pendingCashContributionsTotalFcfa() {
+        Double n = jdbcTemplate.queryForObject(
+            """
+            SELECT COALESCE(SUM(amount), 0)
+            FROM contributions
+            WHERE status = 'pending' AND LOWER(payment_mode) = 'cash'
+            """,
+            Double.class
+        );
+        return n == null ? 0L : Math.round(n);
+    }
+
     /** Conversations avec au moins un message client (fil actif). */
     public long pendingDeletionRequests() {
         Long n = jdbcTemplate.queryForObject(
@@ -56,6 +75,12 @@ public class AdminNavService {
             Long.class
         );
         return n == null ? 0L : n;
+    }
+
+    /** Dossiers clôture + livraison en attente d’action centre. */
+    public long pendingDeliveries() {
+        return productDeliveryService.countAwaitingClosure()
+            + productDeliveryService.countAwaitingDelivery();
     }
 
     public long supportThreadsWithClientMessages() {

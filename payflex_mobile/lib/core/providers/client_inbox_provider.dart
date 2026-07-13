@@ -3,8 +3,9 @@ import 'dart:async';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../network/mobile_api_service.dart';
-import '../services/local_notification_service.dart';
+import '../services/payflex_poll_config.dart';
 import 'auth_provider.dart';
+import 'payflex_auth_poll.dart';
 
 class ClientInboxState {
   final int chatUnread;
@@ -57,27 +58,45 @@ class ClientInboxState {
 class ClientInboxNotifier extends Notifier<ClientInboxState> {
   final _api = MobileApiService();
   Timer? _pollTimer;
-  int _lastChatUnread = 0;
-  int _lastNotifUnread = 0;
 
   @override
   ClientInboxState build() {
-    ref.onDispose(() => _pollTimer?.cancel());
-    _pollTimer = Timer.periodic(const Duration(seconds: 10), (_) => refresh(silent: true));
-    Future.microtask(() => refresh(silent: false));
+    ref.onDispose(_stopPolling);
+    ref.listen<AuthState>(authProvider, (prev, next) {
+      if (payflexShouldPollMobile(next)) {
+        _startPollingIfNeeded();
+      } else {
+        _stopPolling();
+        if (!next.isAuthenticated) state = const ClientInboxState();
+      }
+    });
+    if (payflexShouldPollMobile(ref.read(authProvider))) {
+      Future.microtask(() {
+        _startPollingIfNeeded();
+        refresh(silent: false);
+      });
+    }
     return const ClientInboxState(isLoading: true);
+  }
+
+  void _startPollingIfNeeded() {
+    if (_pollTimer != null) return;
+    _pollTimer = Timer.periodic(PayflexPollConfig.inboxSummary, (_) => refresh(silent: true));
+  }
+
+  void _stopPolling() {
+    _pollTimer?.cancel();
+    _pollTimer = null;
   }
 
   Future<void> refresh({bool silent = false}) async {
     final auth = ref.read(authProvider);
-    if (auth.role != 'client' ||
+    if ((auth.role != 'client' && auth.role != 'agent') ||
         !auth.isAuthenticated ||
         auth.userId == null ||
         auth.phone == null ||
         auth.pin == null) {
       state = const ClientInboxState();
-      _lastChatUnread = 0;
-      _lastNotifUnread = 0;
       return;
     }
 
@@ -93,14 +112,6 @@ class ClientInboxNotifier extends Notifier<ClientInboxState> {
 
     final chatUnread = summary.chatUnread;
     final notifUnread = summary.notificationsUnread;
-
-    if (chatUnread > _lastChatUnread || notifUnread > _lastNotifUnread) {
-      final title = summary.bannerTitle ?? 'PayFlex';
-      final body = summary.bannerBody ?? 'Nouvelle activité';
-      await LocalNotificationService.showPayFlexAlert(title: title, body: body);
-    }
-    _lastChatUnread = chatUnread;
-    _lastNotifUnread = notifUnread;
 
     final hadBanner = state.hasBanner;
     final newBannerKey =

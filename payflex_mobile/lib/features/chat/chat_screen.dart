@@ -1,8 +1,13 @@
+import 'dart:io';
+
+import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_animate/flutter_animate.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:google_fonts/google_fonts.dart';
+import 'package:image_picker/image_picker.dart';
 import '../../core/constants/app_colors.dart';
+import '../../core/network/api_config.dart';
 import '../../core/providers/auth_provider.dart';
 import '../../core/providers/chat_provider.dart';
 import '../../core/providers/client_inbox_provider.dart';
@@ -18,8 +23,10 @@ class ChatScreen extends ConsumerStatefulWidget {
 class _ChatScreenState extends ConsumerState<ChatScreen> {
   final _controller = TextEditingController();
   final _scrollController = ScrollController();
+  final _imagePicker = ImagePicker();
   int _lastMessageCount = 0;
   ChatNotifier? _chatNotifier;
+  bool _sendingAttachment = false;
 
   void _scrollToBottom({bool animated = true}) {
     if (!_scrollController.hasClients) return;
@@ -123,6 +130,143 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
     Future.delayed(const Duration(milliseconds: 120), () {
       if (mounted) _scrollToBottom();
     });
+  }
+
+  Future<void> _pickAndSendAttachment(Future<File?> Function() pick) async {
+    if (_sendingAttachment) return;
+    final file = await pick();
+    if (file == null || !mounted) return;
+    setState(() => _sendingAttachment = true);
+    final caption = _controller.text.trim().isEmpty ? null : _controller.text.trim();
+    final ok = await ref.read(chatProvider.notifier).sendAttachment(file, caption: caption);
+    if (!mounted) return;
+    setState(() => _sendingAttachment = false);
+    if (ok && caption != null) _controller.clear();
+    if (!ok) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Envoi du fichier impossible. Vérifiez le type (image, audio, document) et la taille (max 15 Mo).'),
+          backgroundColor: Colors.redAccent,
+          behavior: SnackBarBehavior.floating,
+        ),
+      );
+      return;
+    }
+    Future.delayed(const Duration(milliseconds: 120), () {
+      if (mounted) _scrollToBottom();
+    });
+  }
+
+  void _showAttachmentOptions() {
+    showModalBottomSheet<void>(
+      context: context,
+      shape: const RoundedRectangleBorder(borderRadius: BorderRadius.vertical(top: Radius.circular(20))),
+      builder: (ctx) => SafeArea(
+        child: Padding(
+          padding: const EdgeInsets.fromLTRB(16, 12, 16, 16),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Text('Joindre un fichier', style: GoogleFonts.manrope(fontWeight: FontWeight.w800, fontSize: 16)),
+              const SizedBox(height: 12),
+              ListTile(
+                leading: const Icon(Icons.photo_library_outlined, color: AppColors.secondary),
+                title: const Text('Photo (galerie)'),
+                onTap: () {
+                  Navigator.pop(ctx);
+                  _pickAndSendAttachment(() async {
+                    final x = await _imagePicker.pickImage(source: ImageSource.gallery, imageQuality: 85);
+                    return x != null ? File(x.path) : null;
+                  });
+                },
+              ),
+              ListTile(
+                leading: const Icon(Icons.photo_camera_outlined, color: AppColors.secondary),
+                title: const Text('Prendre une photo'),
+                onTap: () {
+                  Navigator.pop(ctx);
+                  _pickAndSendAttachment(() async {
+                    final x = await _imagePicker.pickImage(source: ImageSource.camera, imageQuality: 85);
+                    return x != null ? File(x.path) : null;
+                  });
+                },
+              ),
+              ListTile(
+                leading: const Icon(Icons.audiotrack_outlined, color: AppColors.secondary),
+                title: const Text('Fichier audio'),
+                onTap: () {
+                  Navigator.pop(ctx);
+                  _pickAndSendAttachment(() async {
+                    final res = await FilePicker.platform.pickFiles(
+                      type: FileType.custom,
+                      allowedExtensions: const ['mp3', 'm4a', 'aac', 'wav', 'ogg', 'webm', 'amr', '3gp'],
+                    );
+                    final path = res?.files.single.path;
+                    return path != null ? File(path) : null;
+                  });
+                },
+              ),
+              ListTile(
+                leading: const Icon(Icons.insert_drive_file_outlined, color: AppColors.secondary),
+                title: const Text('Document (PDF, Word, etc.)'),
+                onTap: () {
+                  Navigator.pop(ctx);
+                  _pickAndSendAttachment(() async {
+                    final res = await FilePicker.platform.pickFiles(
+                      type: FileType.custom,
+                      allowedExtensions: const [
+                        'pdf', 'doc', 'docx', 'xls', 'xlsx', 'ppt', 'pptx', 'txt', 'csv', 'rtf', 'odt', 'ods',
+                      ],
+                    );
+                    final path = res?.files.single.path;
+                    return path != null ? File(path) : null;
+                  });
+                },
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  String _resolveAttachmentUrl(Message msg) {
+    if (msg.localFilePath != null && msg.localFilePath!.isNotEmpty) {
+      return msg.localFilePath!;
+    }
+    final url = msg.attachmentUrl;
+    if (url == null || url.isEmpty) return '';
+    if (url.startsWith('http://') || url.startsWith('https://')) return url;
+    final base = ApiConfig.baseUrl.endsWith('/') ? ApiConfig.baseUrl.substring(0, ApiConfig.baseUrl.length - 1) : ApiConfig.baseUrl;
+    return '$base${url.startsWith('/') ? url : '/$url'}';
+  }
+
+  void _showImagePreview(String source) {
+    final isNetwork = source.startsWith('http://') || source.startsWith('https://');
+    showDialog<void>(
+      context: context,
+      builder: (ctx) => Dialog(
+        backgroundColor: Colors.black,
+        insetPadding: const EdgeInsets.all(16),
+        child: Stack(
+          children: [
+            InteractiveViewer(
+              child: isNetwork
+                  ? Image.network(source, fit: BoxFit.contain)
+                  : Image.file(File(source), fit: BoxFit.contain),
+            ),
+            Positioned(
+              top: 8,
+              right: 8,
+              child: IconButton(
+                onPressed: () => Navigator.pop(ctx),
+                icon: const Icon(Icons.close_rounded, color: Colors.white),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
   }
 
   @override
@@ -263,12 +407,70 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
             style: GoogleFonts.manrope(color: Colors.grey.shade400, fontWeight: FontWeight.w600, fontSize: 13),
             ),
           const SizedBox(height: 8),
-          Text('Appui long sur un message pour le supprimer.',
+          Text('Joignez une image, un audio ou un document via le bouton +.\nAppui long sur un message pour le supprimer.',
             textAlign: TextAlign.center,
             style: GoogleFonts.inter(color: Colors.grey.shade400, fontSize: 11),
             ),
         ],
       ),
+    );
+  }
+
+  Widget _buildAttachmentPreview(Message msg, bool isMe) {
+    final kind = msg.attachmentKind ?? 'document';
+    final source = _resolveAttachmentUrl(msg);
+    final name = msg.attachmentName ?? 'Fichier';
+    final textColor = isMe ? Colors.white : AppColors.secondary;
+    final subColor = isMe ? Colors.white.withOpacity(0.75) : Colors.grey.shade600;
+
+    if (kind == 'image' && source.isNotEmpty) {
+      final isNetwork = source.startsWith('http://') || source.startsWith('https://');
+      return GestureDetector(
+        onTap: () => _showImagePreview(source),
+        child: ClipRRect(
+          borderRadius: BorderRadius.circular(12),
+          child: isNetwork
+              ? Image.network(source, width: 180, height: 140, fit: BoxFit.cover,
+                  loadingBuilder: (_, child, progress) => progress == null ? child : const SizedBox(
+                    width: 180, height: 140, child: Center(child: CircularProgressIndicator(strokeWidth: 2)),
+                  ),
+                  errorBuilder: (_, __, ___) => _attachmentFallback(Icons.broken_image_outlined, 'Image', textColor, subColor),
+                )
+              : Image.file(File(source), width: 180, height: 140, fit: BoxFit.cover),
+        ),
+      );
+    }
+
+    IconData icon;
+    String label;
+    if (kind == 'audio') {
+      icon = Icons.mic_rounded;
+      label = 'Message vocal';
+    } else {
+      icon = Icons.insert_drive_file_rounded;
+      label = 'Document';
+    }
+    return _attachmentFallback(icon, label, textColor, subColor, subtitle: name);
+  }
+
+  Widget _attachmentFallback(IconData icon, String label, Color textColor, Color subColor, {String? subtitle}) {
+    return Row(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        Icon(icon, color: textColor, size: 22),
+        const SizedBox(width: 8),
+        Flexible(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(label, style: GoogleFonts.inter(color: textColor, fontWeight: FontWeight.w700, fontSize: 13)),
+              if (subtitle != null && subtitle.isNotEmpty)
+                Text(subtitle, maxLines: 1, overflow: TextOverflow.ellipsis,
+                  style: GoogleFonts.inter(color: subColor, fontSize: 11)),
+            ],
+          ),
+        ),
+      ],
     );
   }
 
@@ -296,12 +498,17 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
           child: Column(
             crossAxisAlignment: isMe ? CrossAxisAlignment.end : CrossAxisAlignment.start,
             children: [
-              Text(msg.text,
-                style: GoogleFonts.inter(
-                  color: isMe ? Colors.white : AppColors.secondary,
-                  fontSize: 14,
-                  height: 1.4,
-                )),
+              if (msg.hasAttachment) ...[
+                _buildAttachmentPreview(msg, isMe),
+                if (msg.text.isNotEmpty && msg.text != 'Envoi du fichier…') const SizedBox(height: 8),
+              ],
+              if (msg.text.isNotEmpty)
+                Text(msg.text,
+                  style: GoogleFonts.inter(
+                    color: isMe ? Colors.white : AppColors.secondary,
+                    fontSize: 14,
+                    height: 1.4,
+                  )),
               const SizedBox(height: 4),
               Text('${msg.timestamp.hour}:${msg.timestamp.minute.toString().padLeft(2, '0')}',
                 style: TextStyle(
@@ -324,6 +531,12 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
       ),
       child: Row(
         children: [
+          IconButton(
+            onPressed: _sendingAttachment ? null : _showAttachmentOptions,
+            icon: _sendingAttachment
+                ? const SizedBox(width: 22, height: 22, child: CircularProgressIndicator(strokeWidth: 2))
+                : const Icon(Icons.add_circle_outline_rounded, color: AppColors.secondary, size: 28),
+          ),
           Expanded(
             child: Container(
               padding: const EdgeInsets.symmetric(horizontal: 16),

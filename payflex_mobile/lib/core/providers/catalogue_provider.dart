@@ -1,5 +1,6 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../database/database_service.dart';
+import '../models/cart_line_item.dart';
 import '../models/product_model.dart';
 import '../network/mobile_api_service.dart';
 
@@ -23,9 +24,13 @@ class CatalogueState {
   final String selectedCategory;
   final String searchQuery;
   final bool isLoading;
-  final List<Product> cart;
+  final List<CartLineItem> cart;
   final List<Product> featuredProducts;
   final List<String> categoryFilterOptions;
+
+  /// `true` lorsque les articles affichés proviennent du cache local (SQLite)
+  /// parce que le serveur PayFlex était injoignable.
+  final bool isOffline;
 
   const CatalogueState({
     this.products = const [],
@@ -36,7 +41,12 @@ class CatalogueState {
     this.cart = const [],
     this.featuredProducts = const [],
     this.categoryFilterOptions = catalogueCategories,
+    this.isOffline = false,
   });
+
+  double get cartTotal => cart.fold(0.0, (s, l) => s + l.lineTotal);
+
+  int get cartItemCount => cart.fold(0, (s, l) => s + l.quantity);
 
   CatalogueState copyWith({
     List<Product>? products,
@@ -44,9 +54,10 @@ class CatalogueState {
     String? selectedCategory,
     String? searchQuery,
     bool? isLoading,
-    List<Product>? cart,
+    List<CartLineItem>? cart,
     List<Product>? featuredProducts,
     List<String>? categoryFilterOptions,
+    bool? isOffline,
   }) {
     return CatalogueState(
       products: products ?? this.products,
@@ -57,6 +68,7 @@ class CatalogueState {
       cart: cart ?? this.cart,
       featuredProducts: featuredProducts ?? this.featuredProducts,
       categoryFilterOptions: categoryFilterOptions ?? this.categoryFilterOptions,
+      isOffline: isOffline ?? this.isOffline,
     );
   }
 }
@@ -92,8 +104,10 @@ class CatalogueNotifier extends Notifier<CatalogueState> {
       } catch (_) {}
 
       List<Map<String, dynamic>> maps = [];
+      var reachedServer = false;
       try {
         maps = await _api.fetchProducts();
+        reachedServer = true;
       } catch (_) {
         maps = [];
       }
@@ -115,8 +129,12 @@ class CatalogueNotifier extends Notifier<CatalogueState> {
         categoryFilterOptions: filterOptions,
         selectedCategory: selected,
         isLoading: false,
+        // Hors ligne uniquement si le serveur n'a pas répondu ET qu'on affiche
+        // malgré tout des articles issus du cache local.
+        isOffline: !reachedServer && products.isNotEmpty,
       );
       _applyFilters();
+      await restoreCartFromStorage();
     } catch (e) {
       state = state.copyWith(isLoading: false);
     }
@@ -149,19 +167,74 @@ class CatalogueNotifier extends Notifier<CatalogueState> {
     state = state.copyWith(filteredProducts: filtered);
   }
 
-  void addToCart(Product product) {
-    if (!state.cart.any((p) => p.id == product.id)) {
-      state = state.copyWith(cart: [...state.cart, product]);
+  void addToCart(Product product, {int quantity = 1}) {
+    final q = quantity < 1 ? 1 : quantity;
+    final idx = state.cart.indexWhere((l) => l.product.id == product.id);
+    if (idx >= 0) {
+      final updated = [...state.cart];
+      updated[idx] = updated[idx].copyWith(quantity: updated[idx].quantity + q);
+      state = state.copyWith(cart: updated);
+    } else {
+      state = state.copyWith(cart: [...state.cart, CartLineItem(product: product, quantity: q)]);
     }
+    _persistCart();
+  }
+
+  void setCartQuantity(String productId, int quantity) {
+    if (quantity <= 0) {
+      removeFromCart(productId);
+      return;
+    }
+    state = state.copyWith(
+      cart: state.cart
+          .map((l) => l.product.id == productId ? l.copyWith(quantity: quantity) : l)
+          .toList(),
+    );
+    _persistCart();
   }
 
   void removeFromCart(String productId) {
     state = state.copyWith(
-      cart: state.cart.where((p) => p.id != productId).toList(),
+      cart: state.cart.where((l) => l.product.id != productId).toList(),
     );
+    _persistCart();
   }
 
-  bool isInCart(String productId) => state.cart.any((p) => p.id == productId);
+  void clearCart() {
+    state = state.copyWith(cart: []);
+    _persistCart();
+  }
+
+  bool isInCart(String productId) => state.cart.any((l) => l.product.id == productId);
+
+  Future<void> _persistCart() async {
+    try {
+      await _db.saveCartLines(state.cart.map((l) => {
+            'id': l.product.id,
+            'quantity': l.quantity,
+          }).toList());
+    } catch (_) {}
+  }
+
+  Future<void> restoreCartFromStorage() async {
+    try {
+      final rows = await _db.loadCartLines();
+      if (rows.isEmpty) return;
+      final restored = <CartLineItem>[];
+      for (final row in rows) {
+        final id = row['id']?.toString();
+        final qty = (row['quantity'] as num?)?.toInt() ?? 1;
+        if (id == null) continue;
+        try {
+          final p = state.products.firstWhere((x) => x.id == id);
+          restored.add(CartLineItem(product: p, quantity: qty));
+        } catch (_) {}
+      }
+      if (restored.isNotEmpty) {
+        state = state.copyWith(cart: restored);
+      }
+    } catch (_) {}
+  }
 }
 
 final catalogueProvider = NotifierProvider<CatalogueNotifier, CatalogueState>(

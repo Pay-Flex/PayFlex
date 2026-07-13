@@ -56,6 +56,12 @@
       <span class="pf-nav-text">Cotisations</span>
       <span th:if="${navPendingContributions > 0}" class="pf-nav-badge" th:text="${navPendingContributions}">0</span>
     </a>
+    <a href="/admin/deliveries" th:classappend="${activePage == 'deliveries'} ? ' pf-admin-nav-active' : ' pf-admin-nav-idle'"
+       class="pf-admin-nav-link px-3 py-2 rounded-lg" title="Clôture et livraison">
+      <i class="fa-solid fa-box-open pf-nav-icon" aria-hidden="true"></i>
+      <span class="pf-nav-text">Clôture &amp; livraison</span>
+      <span th:if="${navPendingDeliveries > 0}" class="pf-nav-badge" th:text="${navPendingDeliveries}">0</span>
+    </a>
     <a href="/admin/agents" th:classappend="${activePage == 'agents'} ? ' pf-admin-nav-active' : ' pf-admin-nav-idle'"
        class="pf-admin-nav-link px-3 py-2 rounded-lg" title="Agents">
       <i class="fa-solid fa-user-tie pf-nav-icon" aria-hidden="true"></i>
@@ -81,6 +87,16 @@
       <i class="fa-solid fa-comments pf-nav-icon" aria-hidden="true"></i>
       <span class="pf-nav-text">Chat support</span>
       <span th:if="${navSupportThreads > 0}" class="pf-nav-badge pf-nav-badge--muted" th:text="${navSupportThreads}">0</span>
+    </a>
+    <a href="/admin/legal-documents" th:classappend="${activePage == 'legal-documents'} ? ' pf-admin-nav-active' : ' pf-admin-nav-idle'"
+       class="pf-admin-nav-link px-3 py-2 rounded-lg" title="CGU &amp; confidentialité">
+      <i class="fa-solid fa-scale-balanced pf-nav-icon" aria-hidden="true"></i>
+      <span class="pf-nav-text">CGU &amp; confidentialité</span>
+    </a>
+    <a href="/admin/job-offers" th:classappend="${activePage == 'job-offers'} ? ' pf-admin-nav-active' : ' pf-admin-nav-idle'"
+       class="pf-admin-nav-link px-3 py-2 rounded-lg" title="Offres d'emploi">
+      <i class="fa-solid fa-briefcase pf-nav-icon" aria-hidden="true"></i>
+      <span class="pf-nav-text">Offres d'emploi</span>
     </a>
     <a th:if="${adminFullAccess}" href="/admin/roles-permissions" th:classappend="${activePage == 'roles-permissions'} ? ' pf-admin-nav-active' : ' pf-admin-nav-idle'"
        class="pf-admin-nav-link px-3 py-2 rounded-lg" title="Rôles &amp; permissions">

@@ -46,3 +46,6 @@ app.*.map.json
 
 # Logs récupérés depuis le téléphone (scripts/pull-logs.ps1)
 logs_mobile/
+
+# FVM Version Cache
+.fvm/

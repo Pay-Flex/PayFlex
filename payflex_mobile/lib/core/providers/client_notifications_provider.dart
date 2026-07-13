@@ -3,9 +3,11 @@ import 'dart:async';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../network/mobile_api_service.dart';
+import '../services/payflex_poll_config.dart';
 import 'auth_provider.dart';
 import 'client_inbox_provider.dart';
 import 'finance_provider.dart';
+import 'payflex_auth_poll.dart';
 
 class ClientNotificationsState {
   final int unreadCount;
@@ -43,15 +45,37 @@ class ClientNotificationsNotifier extends Notifier<ClientNotificationsState> {
 
   @override
   ClientNotificationsState build() {
-    ref.onDispose(() => _pollTimer?.cancel());
-    _pollTimer = Timer.periodic(const Duration(seconds: 28), (_) => refresh(silent: true));
-    Future.microtask(() => refresh(silent: false));
+    ref.onDispose(_stopPolling);
+    ref.listen<AuthState>(authProvider, (prev, next) {
+      if (payflexShouldPollMobile(next)) {
+        _startPollingIfNeeded();
+      } else {
+        _stopPolling();
+        if (!next.isAuthenticated) state = const ClientNotificationsState();
+      }
+    });
+    if (payflexShouldPollMobile(ref.read(authProvider))) {
+      Future.microtask(() {
+        _startPollingIfNeeded();
+        refresh(silent: false);
+      });
+    }
     return const ClientNotificationsState(isLoading: true);
+  }
+
+  void _startPollingIfNeeded() {
+    if (_pollTimer != null) return;
+    _pollTimer = Timer.periodic(PayflexPollConfig.notifications, (_) => refresh(silent: true));
+  }
+
+  void _stopPolling() {
+    _pollTimer?.cancel();
+    _pollTimer = null;
   }
 
   Future<void> refresh({bool silent = false, bool unreadOnly = true}) async {
     final auth = ref.read(authProvider);
-    if (auth.role != 'client' ||
+    if ((auth.role != 'client' && auth.role != 'agent') ||
         !auth.isAuthenticated ||
         auth.userId == null ||
         auth.phone == null ||
@@ -92,6 +116,9 @@ class ClientNotificationsNotifier extends Notifier<ClientNotificationsState> {
         );
         _processedContributionIds.add(cid);
         snack = (n['title'] ?? 'Cotisation refusée').toString();
+      } else if (type == 'bonus_savings_credited') {
+        await ref.read(financeProvider.notifier).reload();
+        snack = (n['title'] ?? 'Épargne bonus créditée').toString();
       }
     }
 
@@ -167,6 +194,30 @@ class ClientNotificationsNotifier extends Notifier<ClientNotificationsState> {
     return ok;
   }
 
+  Future<bool> togglePin(int notificationId) async {
+    final auth = ref.read(authProvider);
+    if (auth.userId == null || auth.phone == null || auth.pin == null) return false;
+
+    final current = state.items.cast<Map<String, dynamic>?>().firstWhere(
+      (n) => (n?['id'] as num?)?.toInt() == notificationId,
+      orElse: () => null,
+    );
+    if (current == null) return false;
+
+    final nextPinned = current['pinned'] != true;
+    final ok = await _api.setClientNotificationPinned(
+      userId: auth.userId!,
+      phone: auth.phone!,
+      pin: auth.pin!,
+      notificationId: notificationId,
+      pinned: nextPinned,
+    );
+    if (ok) {
+      _patchPin(notificationId, pinned: nextPinned);
+    }
+    return ok;
+  }
+
   void _patchLocal(int notificationId, {required bool read}) {
     final next = state.items.map((n) {
       if ((n['id'] as num?)?.toInt() != notificationId) return n;
@@ -174,6 +225,20 @@ class ClientNotificationsNotifier extends Notifier<ClientNotificationsState> {
     }).toList();
     final unread = next.where((n) => n['read'] != true).length;
     state = state.copyWith(items: next, unreadCount: unread);
+  }
+
+  void _patchPin(int notificationId, {required bool pinned}) {
+    final next = state.items.map((n) {
+      if ((n['id'] as num?)?.toInt() != notificationId) return n;
+      return Map<String, dynamic>.from(n)..['pinned'] = pinned;
+    }).toList();
+    next.sort((a, b) {
+      final ap = a['pinned'] == true ? 1 : 0;
+      final bp = b['pinned'] == true ? 1 : 0;
+      if (ap != bp) return bp.compareTo(ap);
+      return 0;
+    });
+    state = state.copyWith(items: next);
   }
 
   void clearSnack() {

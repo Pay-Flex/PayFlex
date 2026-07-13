@@ -7,8 +7,22 @@ application-local.properties
 secrets/
 *.pem
 *.key
+# Firebase service account (push FCM) — ne jamais committer
+*firebase*service*account*.json
+*service-account*.json
 
 # Build / logs
 target/
+# Dossier de logs dédié (logback-spring.xml → PAYFLEX_LOG_DIR, défaut logs/)
+logs/
 erreur.log
 *.log
+diagnostic.log*
+mobile-api.log*
+*.log.*
+*.log.*.gz
+*.log.*.tmp
+
+# Ad-hoc API test captures (local debugging)
+login-*-test.json
+login-res*.txt

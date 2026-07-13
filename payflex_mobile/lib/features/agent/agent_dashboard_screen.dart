@@ -3,12 +3,20 @@ import 'package:flutter_animate/flutter_animate.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../core/constants/app_colors.dart';
-import '../../core/database/database_service.dart';
+import '../../core/providers/client_inbox_provider.dart';
+import '../../core/providers/client_notifications_provider.dart';
+import '../../core/widgets/count_badge.dart';
+import '../notifications/client_notifications_screen.dart';
+import '../../core/network/mobile_api_service.dart';
+import '../../core/providers/agent_provider.dart';
 import '../../core/providers/auth_provider.dart';
-import 'agent_collect_screen.dart';
+import 'agent_registry_screen.dart';
 import 'agent_validation_queue_screen.dart';
 import 'agent_enrollment_screen.dart';
 import 'agent_client_detail_screen.dart';
+import '../support/client_report_screen.dart';
+import '../vitrine/job_offers_screen.dart';
+import '../../core/widgets/payflex_quick_access_row.dart';
 
 class AgentDashboardScreen extends ConsumerStatefulWidget {
   const AgentDashboardScreen({super.key});
@@ -18,32 +26,83 @@ class AgentDashboardScreen extends ConsumerStatefulWidget {
 }
 
 class _AgentDashboardScreenState extends ConsumerState<AgentDashboardScreen> {
-  final DatabaseService _dbService = DatabaseService();
-  List<Map<String, dynamic>> _clients = [];
   final TextEditingController _searchController = TextEditingController();
-  
-  // Données de démo pour l'UI
-  final double _todayCollected = 145500;
-  final double _targetAmount = 180000;
+  String _searchQuery = '';
 
   @override
   void initState() {
     super.initState();
-    _loadClients();
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      ref.read(clientInboxProvider.notifier).refresh(silent: true);
+      ref.read(clientNotificationsProvider.notifier).refresh(silent: true, unreadOnly: false);
+      ref.read(agentDataProvider.notifier).refresh(silent: false);
+    });
   }
 
-  Future<void> _loadClients() async {
-    final auth = ref.read(authProvider);
-    if (auth.userId != null) {
-      final clients = await _dbService.getClientsForAgent(auth.userId!);
-      setState(() {
-        _clients = clients;
-      });
+  @override
+  void dispose() {
+    _searchController.dispose();
+    super.dispose();
+  }
+
+  bool _hasDashboardData(Map<String, dynamic>? dashboard) => dashboard?['hasData'] == true;
+
+  List<Map<String, dynamic>> _filteredClients(List<Map<String, dynamic>> clients) {
+    if (_searchQuery.trim().isEmpty) return clients;
+    final q = _searchQuery.toLowerCase();
+    return clients.where((c) {
+      final name = (c['full_name'] ?? c['name'] ?? '').toString().toLowerCase();
+      final phone = (c['phone'] ?? '').toString().toLowerCase();
+      final id = (c['id'] ?? '').toString();
+      return name.contains(q) || phone.contains(q) || id.contains(q);
+    }).toList();
+  }
+
+  String _formatFcfa(num? v) {
+    if (v == null) return 'Aucune info à afficher';
+    final n = v.toInt();
+    if (n <= 0) return 'Aucune info à afficher';
+    return '${_thousands(n)} FCFA';
+  }
+
+  String _thousands(int n) {
+    final s = n.toString();
+    final buf = StringBuffer();
+    for (var i = 0; i < s.length; i++) {
+      if (i > 0 && (s.length - i) % 3 == 0) buf.write(' ');
+      buf.write(s[i]);
     }
+    return buf.toString();
+  }
+
+  String _formatLastPayment(dynamic raw) {
+    if (raw == null) return 'Aucune info à afficher';
+    final s = raw.toString();
+    if (s.isEmpty) return 'Aucune info à afficher';
+    try {
+      final dt = DateTime.parse(s.replaceFirst(' ', 'T'));
+      return '${dt.day.toString().padLeft(2, '0')}/${dt.month.toString().padLeft(2, '0')}/${dt.year}';
+    } catch (_) {
+      return s.length > 16 ? s.substring(0, 16) : s;
+    }
+  }
+
+  String _clientName(Map<String, dynamic> c) =>
+      (c['full_name'] ?? c['name'] ?? 'Client').toString();
+
+  String _clientZone(Map<String, dynamic> c) {
+    final z = c['displayZone'] ?? c['city'] ?? c['profession'];
+    if (z == null || z.toString().trim().isEmpty) return 'Aucune info à afficher';
+    return z.toString();
   }
   
   @override
   Widget build(BuildContext context) {
+    final agent = ref.watch(agentDataProvider);
+    final dashboard = agent.dashboard;
+    final clients = _filteredClients(agent.clients);
+    final hasDashboard = _hasDashboardData(dashboard);
+
     return Scaffold(
       backgroundColor: const Color(0xFFF8FAFC),
       body: Stack(
@@ -64,7 +123,10 @@ class _AgentDashboardScreenState extends ConsumerState<AgentDashboardScreen> {
           ),
 
           SafeArea(
-            child: CustomScrollView(
+            child: RefreshIndicator(
+              onRefresh: () => ref.read(agentDataProvider.notifier).refresh(silent: false),
+              child: CustomScrollView(
+              physics: const AlwaysScrollableScrollPhysics(),
               slivers: [
                 // AppBar Agent (Toujours en haut)
                 SliverToBoxAdapter(
@@ -119,7 +181,7 @@ class _AgentDashboardScreenState extends ConsumerState<AgentDashboardScreen> {
                       },
                     ),
                         const Spacer(),
-                        _buildHeaderAction(Icons.notifications_none_rounded),
+                        _buildNotificationAction(context, ref),
                       ],
                     ),
                   ),
@@ -161,9 +223,11 @@ class _AgentDashboardScreenState extends ConsumerState<AgentDashboardScreen> {
                                   ),
                                   const SizedBox(height: 4),
                                   Text(
-                                    '145.500 FCFA',
+                                    hasDashboard
+                                        ? _formatFcfa(dashboard!['todayCollectedFcfa'] as num?)
+                                        : 'Aucune info à afficher',
                                     style: GoogleFonts.manrope(
-                                      fontSize: 32,
+                                      fontSize: hasDashboard ? 32 : 16,
                                       fontWeight: FontWeight.w900,
                                       color: AppColors.secondary,
                                       letterSpacing: -1,
@@ -195,7 +259,9 @@ class _AgentDashboardScreenState extends ConsumerState<AgentDashboardScreen> {
                                   ),
                                   child: FractionallySizedBox(
                                     alignment: Alignment.centerLeft,
-                                    widthFactor: _todayCollected / _targetAmount,
+                                    widthFactor: hasDashboard
+                                        ? (((dashboard!['todayProgressPercent'] as num?) ?? 0) / 100).clamp(0.0, 1.0)
+                                        : 0,
                                     child: Container(
                                       decoration: BoxDecoration(
                                         gradient: const LinearGradient(
@@ -209,7 +275,9 @@ class _AgentDashboardScreenState extends ConsumerState<AgentDashboardScreen> {
                               ),
                               const SizedBox(width: 12),
                               Text(
-                                '${((_todayCollected / _targetAmount) * 100).toInt()}%',
+                                hasDashboard
+                                    ? '${(dashboard!['todayProgressPercent'] as num?)?.toInt() ?? 0}%'
+                                    : '—',
                                 style: GoogleFonts.manrope(
                                   fontSize: 12,
                                   fontWeight: FontWeight.w800,
@@ -236,17 +304,84 @@ class _AgentDashboardScreenState extends ConsumerState<AgentDashboardScreen> {
 
                 const SliverToBoxAdapter(child: SizedBox(height: 16)),
 
+                SliverToBoxAdapter(
+                  child: Padding(
+                    padding: const EdgeInsets.symmetric(horizontal: 20),
+                    child: PayflexQuickAccessRow(
+                      onReportTap: () => Navigator.push(
+                        context,
+                        MaterialPageRoute(builder: (_) => const ClientReportScreen()),
+                      ),
+                      onOpportunitiesTap: () => Navigator.push(
+                        context,
+                        MaterialPageRoute(builder: (_) => const JobOffersScreen()),
+                      ),
+                    ),
+                  ),
+                ),
+
+                const SliverToBoxAdapter(child: SizedBox(height: 16)),
+
+                SliverToBoxAdapter(
+                  child: Padding(
+                    padding: const EdgeInsets.symmetric(horizontal: 20),
+                    child: InkWell(
+                      onTap: () => Navigator.push(context, MaterialPageRoute(builder: (_) => const AgentRegistryScreen())),
+                      borderRadius: BorderRadius.circular(18),
+                      child: Container(
+                        padding: const EdgeInsets.all(16),
+                        decoration: BoxDecoration(
+                          color: Colors.white,
+                          borderRadius: BorderRadius.circular(18),
+                          border: Border.all(color: AppColors.primary.withValues(alpha: 0.2)),
+                        ),
+                        child: Row(
+                          children: [
+                            const Icon(Icons.receipt_long_rounded, color: AppColors.primary),
+                            const SizedBox(width: 12),
+                            Expanded(
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  Text('Registre des collectes', style: GoogleFonts.manrope(fontWeight: FontWeight.w800)),
+                                  Text(
+                                    '${agent.registry.length} opération(s) · MAJ auto',
+                                    style: GoogleFonts.inter(fontSize: 12, color: Colors.grey.shade700),
+                                  ),
+                                ],
+                              ),
+                            ),
+                            const Icon(Icons.chevron_right_rounded, color: Colors.grey),
+                          ],
+                        ),
+                      ),
+                    ),
+                  ),
+                ),
+
+                const SliverToBoxAdapter(child: SizedBox(height: 16)),
+
                 // Statistiques de l'agent (Collecté / Objectif en second)
                 SliverToBoxAdapter(
                   child: Padding(
                     padding: const EdgeInsets.symmetric(horizontal: 20),
                     child: Row(
                       children: [
-                        _buildStatCard('COLLECTÉ', '15.400 F', Icons.account_balance_wallet_rounded)
-                          .animate().fadeIn(delay: 300.ms).slideY(begin: 0.1),
+                        _buildStatCard(
+                          'COLLECTÉ',
+                          hasDashboard
+                              ? _formatFcfa(dashboard!['totalCollectedFcfa'] as num?)
+                              : 'Aucune info à afficher',
+                          Icons.account_balance_wallet_rounded,
+                        ).animate().fadeIn(delay: 300.ms).slideY(begin: 0.1),
                         const SizedBox(width: 12),
-                        _buildStatCard('OBJECTIF', '25.000 F', Icons.flag_rounded)
-                          .animate().fadeIn(delay: 400.ms).slideY(begin: 0.1),
+                        _buildStatCard(
+                          'OBJECTIF',
+                          hasDashboard
+                              ? _formatFcfa(dashboard!['terrainObjectiveFcfa'] as num?)
+                              : 'Aucune info à afficher',
+                          Icons.flag_rounded,
+                        ).animate().fadeIn(delay: 400.ms).slideY(begin: 0.1),
                       ],
                     ),
                   ),
@@ -292,7 +427,7 @@ class _AgentDashboardScreenState extends ConsumerState<AgentDashboardScreen> {
                           ),
                         ),
                         Text(
-                          '${_clients.length} AU TOTAL',
+                          '${clients.length} AU TOTAL',
                           style: GoogleFonts.manrope(
                             fontSize: 11,
                             fontWeight: FontWeight.w900,
@@ -316,6 +451,7 @@ class _AgentDashboardScreenState extends ConsumerState<AgentDashboardScreen> {
                       ),
                       child: TextField(
                         controller: _searchController,
+                        onChanged: (v) => setState(() => _searchQuery = v),
                         decoration: InputDecoration(
                           hintText: 'Rechercher par Nom ou ID Client',
                           hintStyle: GoogleFonts.manrope(color: Colors.grey, fontSize: 13),
@@ -327,30 +463,54 @@ class _AgentDashboardScreenState extends ConsumerState<AgentDashboardScreen> {
                     ),
                   ),
                 ),
-                SliverPadding(
-                  padding: const EdgeInsets.fromLTRB(20, 0, 20, 100),
-                  sliver: SliverList(
-                    delegate: SliverChildBuilderDelegate(
-                      (context, index) {
-                        final client = _clients[index];
-                        return Padding(
-                          padding: const EdgeInsets.only(bottom: 12),
-                          child: _buildClientCard(
-                            context,
-                            (client['id'] as num).toInt(),
-                            (client['name'] as String?) ?? 'Client PayFlex',
-                            (client['profession'] as String?) ?? 'Metier non renseigne',
-                            'Aujourd hui',
-                            'https://i.pravatar.cc/150?u=${client['id']}',
-                            true,
-                          ),
-                        );
-                      },
-                      childCount: _clients.length,
+                if (agent.isLoading && clients.isEmpty)
+                  const SliverToBoxAdapter(
+                    child: Padding(
+                      padding: EdgeInsets.all(32),
+                      child: Center(child: CircularProgressIndicator()),
+                    ),
+                  )
+                else if (clients.isEmpty)
+                  SliverToBoxAdapter(
+                    child: Padding(
+                      padding: const EdgeInsets.all(32),
+                      child: Text(
+                        'Aucune info à afficher',
+                        textAlign: TextAlign.center,
+                        style: GoogleFonts.manrope(
+                          fontWeight: FontWeight.w700,
+                          color: Colors.grey,
+                        ),
+                      ),
+                    ),
+                  )
+                else
+                  SliverPadding(
+                    padding: const EdgeInsets.fromLTRB(20, 0, 20, 100),
+                    sliver: SliverList(
+                      delegate: SliverChildBuilderDelegate(
+                        (context, index) {
+                          final client = clients[index];
+                          final id = (client['id'] as num).toInt();
+                          final selfManaged = client['self_managed'] == true;
+                          return Padding(
+                            padding: const EdgeInsets.only(bottom: 12),
+                            child: _buildClientCard(
+                              context,
+                              id,
+                              _clientName(client),
+                              _clientZone(client),
+                              _formatLastPayment(client['last_payment_at']),
+                              !selfManaged,
+                            ),
+                          );
+                        },
+                        childCount: clients.length,
+                      ),
                     ),
                   ),
-                ),
               ],
+            ),
             ),
           ),
         ],
@@ -376,7 +536,28 @@ class _AgentDashboardScreenState extends ConsumerState<AgentDashboardScreen> {
     );
   }
 
-  Widget _buildClientCard(BuildContext context, int clientDbId, String name, String zone, String lastPay, String img, bool isPhysical, {bool amountIncoherent = false}) {
+  Widget _buildNotificationAction(BuildContext context, WidgetRef ref) {
+    final inbox = ref.watch(clientInboxProvider);
+    return GestureDetector(
+      onTap: () {
+        Navigator.push(
+          context,
+          MaterialPageRoute(builder: (_) => const ClientNotificationsScreen()),
+        );
+      },
+      child: Stack(
+        clipBehavior: Clip.none,
+        children: [
+          _buildHeaderAction(Icons.notifications_none_rounded),
+          if (inbox.notificationsUnread > 0)
+            CountBadge(count: inbox.notificationsUnread, top: -4, right: -4),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildClientCard(BuildContext context, int clientDbId, String name, String zone, String lastPay, bool isPhysical) {
+    final initial = name.trim().isNotEmpty ? name.trim()[0].toUpperCase() : 'C';
     return GestureDetector(
       onTap: () {
         Navigator.push(
@@ -386,7 +567,6 @@ class _AgentDashboardScreenState extends ConsumerState<AgentDashboardScreen> {
               clientId: clientDbId,
               name: name,
               zone: zone,
-              img: img,
               isPhysical: isPhysical,
             ),
           ),
@@ -396,7 +576,7 @@ class _AgentDashboardScreenState extends ConsumerState<AgentDashboardScreen> {
         decoration: BoxDecoration(
           color: Colors.white,
         borderRadius: BorderRadius.circular(24),
-        border: Border.all(color: amountIncoherent ? Colors.red.withOpacity(0.3) : Colors.transparent),
+        border: Border.all(color: Colors.transparent),
         boxShadow: [
           BoxShadow(
             color: AppColors.secondary.withOpacity(0.03),
@@ -411,9 +591,13 @@ class _AgentDashboardScreenState extends ConsumerState<AgentDashboardScreen> {
             padding: const EdgeInsets.all(16),
             child: Row(
               children: [
-                ClipRRect(
-                  borderRadius: BorderRadius.circular(14),
-                  child: Image.network(img, width: 48, height: 48, fit: BoxFit.cover),
+                CircleAvatar(
+                  radius: 24,
+                  backgroundColor: AppColors.primary.withValues(alpha: 0.15),
+                  child: Text(
+                    initial,
+                    style: GoogleFonts.manrope(fontWeight: FontWeight.w900, color: AppColors.secondary),
+                  ),
                 ),
                 const SizedBox(width: 12),
                 Expanded(
@@ -435,37 +619,21 @@ class _AgentDashboardScreenState extends ConsumerState<AgentDashboardScreen> {
                   crossAxisAlignment: CrossAxisAlignment.end,
                   children: [
                     Text('DERNIER PAIEMENT', style: GoogleFonts.manrope(fontSize: 8, fontWeight: FontWeight.w900, color: Colors.grey)),
-                    Text(lastPay, style: GoogleFonts.manrope(fontSize: 12, fontWeight: FontWeight.w700, color: lastPay.contains('Hier') ? const Color(0xFF48BB78) : Colors.redAccent)),
+                    Text(
+                      lastPay,
+                      style: GoogleFonts.manrope(
+                        fontSize: 11,
+                        fontWeight: FontWeight.w700,
+                        color: lastPay == 'Aucune info à afficher' ? Colors.grey : AppColors.secondary,
+                      ),
+                    ),
                   ],
                 ),
               ],
             ),
           ),
           
-          if (amountIncoherent)
-            Container(
-              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-              margin: const EdgeInsets.fromLTRB(16, 0, 16, 16),
-              decoration: BoxDecoration(
-                color: Colors.red.withOpacity(0.05),
-                borderRadius: BorderRadius.circular(16),
-              ),
-              child: Row(
-                children: [
-                  const Icon(Icons.warning_amber_rounded, color: Colors.red, size: 18),
-                  const SizedBox(width: 10),
-                  Expanded(
-                    child: Text(
-                      'MONTANT INCOHÉRENT : 1500F ne correspond pas à un nombre entier de jours (200F/j)',
-                      style: GoogleFonts.manrope(color: Colors.red, fontSize: 10, fontWeight: FontWeight.w700),
-                    ),
-                  ),
-                  Text('Corriger', style: GoogleFonts.manrope(color: Colors.red, fontSize: 11, fontWeight: FontWeight.w900, decoration: TextDecoration.underline)),
-                ],
-              ),
-            ),
-
-          if (isPhysical && !amountIncoherent)
+          if (isPhysical)
             Padding(
               padding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
               child: ElevatedButton(
@@ -473,9 +641,14 @@ class _AgentDashboardScreenState extends ConsumerState<AgentDashboardScreen> {
                   Navigator.push(
                     context,
                     MaterialPageRoute(
-                      builder: (context) => AgentCollectScreen(clientName: name, clientId: clientDbId),
+                      builder: (context) => AgentClientDetailScreen(
+                        clientId: clientDbId,
+                        name: name,
+                        zone: zone,
+                        isPhysical: isPhysical,
+                      ),
                     ),
-                  );
+                  ).then((_) => ref.read(agentDataProvider.notifier).refresh(silent: true));
                 },
                 style: ElevatedButton.styleFrom(
                   backgroundColor: AppColors.secondary,

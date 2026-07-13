@@ -36,12 +36,17 @@ public class SecurityConfig {
     @Bean
     public SecurityFilterChain filterChain(HttpSecurity http) throws Exception {
         http
+            // Le service worker Web Push est servi à la racine (/sw.js) pour couvrir
+            // le scope /admin ; les abonnements sont postés en JSON depuis un JS statique
+            // qui ne peut pas lire le jeton CSRF de session, d'où l'exemption ciblée.
+            .csrf(csrf -> csrf.ignoringRequestMatchers("/admin/web-push/**"))
             .authorizeHttpRequests(auth -> auth
                 .requestMatchers(
                     "/login",
                     "/css/**",
                     "/js/**",
                     "/img/**",
+                    "/sw.js",
                     "/actuator/health",
                     "/uploads/**"
                 ).permitAll()

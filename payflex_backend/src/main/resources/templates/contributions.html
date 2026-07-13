@@ -16,8 +16,8 @@
     <div class="bg-blue-50 border border-blue-200 rounded-xl p-4 text-sm text-blue-900">
       <p class="font-semibold mb-1"><i class="fa-solid fa-circle-info mr-2"></i>Processus centre</p>
       <p class="text-blue-800/95 leading-relaxed">Les <strong>clients smartphone</strong> peuvent payer via <strong>FedaPay</strong> (sandbox) : validation automatique à la confirmation du paiement. Sinon déclaration classique → agent ou validation auto après <strong>24 h</strong> sans réponse.</p>
-      <p class="text-blue-800/95 leading-relaxed mt-1">Les <strong>espèces saisies par l'agent</strong> sur mobile sont <strong>confirmées immédiatement</strong>. Les espèces saisies au centre restent à confirmer manuellement (Actions : Confirmer / Refuser).</p>
-      <p class="text-blue-800/95 leading-relaxed mt-1">Le client reçoit une <strong>notification</strong> dans l'app dès qu'une cotisation est confirmée ou refusée. Utilisez le bouton <strong>Espèces en attente</strong> au-dessus du tableau pour le rapprochement caisse.</p>
+      <p class="text-blue-800/95 leading-relaxed mt-1">Les <strong>espèces collectées par l'agent terrain</strong> (clients avec ou sans téléphone) arrivent en <strong>attente</strong> avec le mode <strong>Espèces</strong>. Après rapprochement caisse en fin de journée, validez-les via <strong>Confirmer toutes les espèces en attente</strong> ou ligne par ligne (Confirmer).</p>
+      <p class="text-blue-800/95 leading-relaxed mt-1">Les déclarations <strong>smartphone / mobile money</strong> sont validées par l'agent sur l'app ou automatiquement après 24 h. Le client reçoit une notification dès confirmation ou refus.</p>
     </div>
 
     <div th:if="${contributionAlerts != null && !contributionAlerts.isEmpty()}"
@@ -39,19 +39,76 @@
       </div>
     </div>
 
-    <form th:if="${navPendingContributions > 0}" method="post" action="/admin/contributions/bulk-validate"
+    <div th:if="${navPendingCashContributions > 0}"
+         class="bg-amber-50 border border-amber-200 rounded-xl p-4 md:p-5 shadow-sm space-y-4">
+      <div class="flex flex-wrap items-center justify-between gap-4">
+        <div>
+          <p class="text-xs font-semibold uppercase tracking-wide text-amber-800/80 mb-1">
+            <i class="fa-solid fa-money-bill-wave mr-1"></i>Espèces en attente — rapprochement caisse
+          </p>
+          <p class="text-3xl md:text-4xl font-bold text-amber-950 tabular-nums">
+            <span th:text="${#numbers.formatInteger(navPendingCashTotalFcfa, 0, 'POINT')}">0</span>
+            <span class="text-lg font-semibold ml-1">FCFA</span>
+          </p>
+          <p class="text-sm text-amber-900 mt-1">
+            <span th:text="${navPendingCashContributions}">0</span> collecte(s) terrain agent à confirmer après comptage.
+          </p>
+        </div>
+        <form method="post" action="/admin/contributions/bulk-validate-cash"
+              class="pf-confirm-submit shrink-0"
+              data-confirm-title="Rapprochement espèces complet"
+              th:attr="data-confirm-text=|Vous avez compté ${#numbers.formatInteger(navPendingCashTotalFcfa, 0, 'POINT')} FCFA en caisse ? Toutes les collectes espèces en attente seront confirmées.|"
+              data-confirm-icon="warning"
+              data-confirm-yes="Oui, tout confirmer">
+          <input type="hidden" th:name="${_csrf.parameterName}" th:value="${_csrf.token}">
+          <button type="submit" class="pf-btn text-sm font-semibold px-5 py-2.5" style="background:linear-gradient(135deg,#f59e0b,#d97706);color:#fff;border:none;">
+            Confirmer toutes les espèces en attente
+          </button>
+        </form>
+      </div>
+
+      <details class="bg-white/70 border border-amber-200/80 rounded-lg">
+        <summary class="cursor-pointer px-4 py-3 text-sm font-semibold text-amber-950 select-none">
+          <i class="fa-solid fa-scale-unbalanced mr-2 text-amber-700"></i>Rapprochement incomplet (montant compté insuffisant)
+        </summary>
+        <form method="post" action="/admin/contributions/reconcile-cash"
+              class="px-4 pb-4 pt-1 flex flex-wrap items-end gap-3 pf-confirm-submit"
+              data-confirm-title="Rapprochement incomplet"
+              data-confirm-text="Valider uniquement le montant compté ? Le reliquat sera porté en dette sur le(s) agent(s) concerné(s) — à rembourser au centre."
+              data-confirm-icon="warning"
+              data-confirm-yes="Oui, enregistrer la dette">
+          <input type="hidden" th:name="${_csrf.parameterName}" th:value="${_csrf.token}">
+          <div class="min-w-[12rem] flex-1">
+            <label class="block text-xs font-medium text-slate-600 mb-1">Montant réellement compté (FCFA)</label>
+            <input name="collectedFcfa" type="number" min="0" step="1" required
+                   th:attr="max=${navPendingCashTotalFcfa - 1}"
+                   class="border rounded-lg px-3 py-2 w-full text-sm"
+                   placeholder="Ex. 45000">
+          </div>
+          <p class="text-xs text-amber-900/90 w-full md:w-auto md:flex-1 leading-relaxed">
+            Attendu : <strong th:text="${#numbers.formatInteger(navPendingCashTotalFcfa, 0, 'POINT')}">0</strong> FCFA.
+            Les cotisations couvertes par le montant saisi seront validées (ordre chronologique). Le reste reste en attente ; l’écart est enregistré comme <strong>dette agent</strong>.
+          </p>
+          <button type="submit" class="pf-btn pf-btn-secondary text-sm font-semibold whitespace-nowrap">
+            Valider le montant compté
+          </button>
+        </form>
+      </details>
+    </div>
+
+    <form th:if="${navPendingContributions > navPendingCashContributions}" method="post" action="/admin/contributions/bulk-validate"
           class="bg-emerald-50 border border-emerald-200 rounded-xl p-4 shadow-sm flex flex-wrap items-center justify-between gap-3 pf-confirm-submit"
-          data-confirm-title="Valider les cotisations"
-          data-confirm-text="Confirmer toutes les cotisations en attente après rapprochement caisse / app ?"
+          data-confirm-title="Valider les cotisations smartphone"
+          data-confirm-text="Confirmer toutes les déclarations mobile money en attente ?"
           data-confirm-icon="warning"
           data-confirm-yes="Oui, tout valider">
       <p class="text-sm text-emerald-900">
-        <i class="fa-solid fa-clock mr-2"></i>
-        <span th:text="${navPendingContributions}">0</span> cotisation(s) en attente. Le bouton ci-dessous valide les déclarations smartphone (hors espèces terrain).
+        <i class="fa-solid fa-mobile-screen mr-2"></i>
+        Déclarations <strong>smartphone / mobile money</strong> en attente (hors espèces terrain).
       </p>
       <input type="hidden" th:name="${_csrf.parameterName}" th:value="${_csrf.token}">
       <div class="flex flex-wrap gap-2">
-        <button type="submit" class="pf-btn pf-btn-primary text-sm">Valider toutes les en attente</button>
+        <button type="submit" class="pf-btn pf-btn-primary text-sm">Valider mobile money en attente</button>
         <form method="post" action="/admin/contributions/run-auto-validate" class="inline pf-confirm-submit"
               data-confirm-title="Validation automatique"
               data-confirm-text="Appliquer la règle des 24 h maintenant sur les mobile money sans réponse agent ?"
@@ -289,14 +346,40 @@
   const errorParam = [[${param.error}]];
   if (successParam) {
     const p = new URLSearchParams(window.location.search);
-    const bulk = p.get('success') === 'bulk';
+    const kind = p.get('success');
+    const bulk = kind === 'bulk';
+    const bulkCash = kind === 'bulkCash';
+    const reconcile = kind === 'reconcile';
     const count = p.get('count');
+    let title = 'Succès';
+    let text = 'Cotisation enregistrée.';
+    if (bulk && count) {
+      title = 'Mobile money validé';
+      text = count + ' déclaration(s) confirmée(s).';
+    } else if (bulkCash && count) {
+      title = 'Espèces confirmées';
+      text = count + ' collecte(s) espèces validée(s) après rapprochement complet.';
+    } else if (reconcile) {
+      const validated = p.get('validated') || '0';
+      const debt = p.get('debt') || '0';
+      const pending = p.get('pending') || '0';
+      const collected = p.get('collected') || '0';
+      const expected = p.get('expected') || '0';
+      title = Number(debt) > 0 ? 'Rapprochement incomplet' : 'Rapprochement validé';
+      text = validated + ' cotisation(s) confirmée(s) pour ' + collected + ' FCFA sur ' + expected + ' FCFA attendus.';
+      if (Number(debt) > 0) {
+        text += ' Dette agent enregistrée : ' + debt + ' FCFA (à rembourser).';
+      }
+      if (Number(pending) > 0) {
+        text += ' ' + pending + ' cotisation(s) restent en attente.';
+      }
+    }
     Swal.fire({
-      icon:'success',
-      title: bulk ? 'Rapprochement validé' : 'Succès',
-      text: bulk && count ? count + ' cotisation(s) confirmée(s) après contrôle.' : 'Cotisation enregistrée.',
-      timer: bulk ? 2200 : 1600,
-      showConfirmButton: false
+      icon: reconcile && Number(p.get('debt') || '0') > 0 ? 'warning' : 'success',
+      title,
+      text,
+      timer: reconcile ? 3200 : (bulk || bulkCash ? 2200 : 1600),
+      showConfirmButton: reconcile
     });
   }
   if (errorParam) {

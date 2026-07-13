@@ -2,10 +2,15 @@ import 'dart:async';
 
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../calendar/calendar_day_detail.dart';
 import '../calendar/calendar_plan_logic.dart';
 import '../database/database_service.dart';
+import '../finance/client_bonus_savings_logic.dart';
 import '../network/mobile_api_service.dart';
 import 'auth_provider.dart';
+
+/// `null` = tous les articles combinés ; sinon id projet (`prod_12`).
+typedef CalendarProductFilter = String?;
 
 class FinanceState {
   final double balance;
@@ -18,6 +23,16 @@ class FinanceState {
   final int calendarViewMonth;
   /// Projet utilisé pour le carnet (profil courant ou premier projet).
   final ProjectModel? calendarActiveProject;
+  /// Filtre carnet : null = combiné, sinon un article précis.
+  final CalendarProductFilter calendarProductFilter;
+  final int estimatedDaysRemaining;
+  final DateTime? estimatedEndDate;
+  final String calendarScopeLabel;
+  final BonusSavingsSummary bonusSavings;
+
+  /// `true` lorsque la dernière synchro serveur a échoué (réseau) : les données
+  /// affichées proviennent du cache local SQLite.
+  final bool isOffline;
 
   FinanceState({
     required this.balance,
@@ -28,6 +43,12 @@ class FinanceState {
     int? calendarViewYear,
     int? calendarViewMonth,
     this.calendarActiveProject,
+    this.calendarProductFilter,
+    this.estimatedDaysRemaining = 0,
+    this.estimatedEndDate,
+    this.calendarScopeLabel = 'Tous les articles',
+    this.bonusSavings = const BonusSavingsSummary(),
+    this.isOffline = false,
   })  : calendarViewYear = calendarViewYear ?? DateTime.now().year,
         calendarViewMonth = calendarViewMonth ?? DateTime.now().month;
 
@@ -40,6 +61,12 @@ class FinanceState {
     int? calendarViewYear,
     int? calendarViewMonth,
     ProjectModel? calendarActiveProject,
+    CalendarProductFilter? calendarProductFilter,
+    int? estimatedDaysRemaining,
+    DateTime? estimatedEndDate,
+    String? calendarScopeLabel,
+    BonusSavingsSummary? bonusSavings,
+    bool? isOffline,
   }) {
     return FinanceState(
       balance: balance ?? this.balance,
@@ -50,6 +77,12 @@ class FinanceState {
       calendarViewYear: calendarViewYear ?? this.calendarViewYear,
       calendarViewMonth: calendarViewMonth ?? this.calendarViewMonth,
       calendarActiveProject: calendarActiveProject ?? this.calendarActiveProject,
+      calendarProductFilter: calendarProductFilter ?? this.calendarProductFilter,
+      estimatedDaysRemaining: estimatedDaysRemaining ?? this.estimatedDaysRemaining,
+      estimatedEndDate: estimatedEndDate ?? this.estimatedEndDate,
+      calendarScopeLabel: calendarScopeLabel ?? this.calendarScopeLabel,
+      bonusSavings: bonusSavings ?? this.bonusSavings,
+      isOffline: isOffline ?? this.isOffline,
     );
   }
 }
@@ -106,6 +139,9 @@ class FinanceNotifier extends Notifier<FinanceState> {
   final MobileApiService _api = MobileApiService();
   int _calendarYear = DateTime.now().year;
   int _calendarMonth = DateTime.now().month;
+  CalendarProductFilter _calendarProductFilter;
+
+  FinanceNotifier() : _calendarProductFilter = null;
 
   @override
   FinanceState build() {
@@ -121,8 +157,39 @@ class FinanceNotifier extends Notifier<FinanceState> {
     _loadData();
   }
 
+  void setCalendarProductFilter(CalendarProductFilter projectId) {
+    _calendarProductFilter = projectId;
+    _loadData();
+  }
+
+  List<ProjectModel> _scopedProjects(List<ProjectModel> all) {
+    if (_calendarProductFilter == null || _calendarProductFilter!.isEmpty) {
+      return all;
+    }
+    return all.where((p) => p.id == _calendarProductFilter).toList();
+  }
+
+  String _scopeLabel(List<ProjectModel> scoped) {
+    if (_calendarProductFilter == null || scoped.length > 1) {
+      return scoped.isEmpty ? 'Aucun article' : 'Tous les articles (${scoped.length})';
+    }
+    return scoped.first.title;
+  }
+
+  ({double saved, double total, double daily}) _aggregateScope(List<ProjectModel> scoped) {
+    var saved = 0.0;
+    var total = 0.0;
+    var daily = 0.0;
+    for (final p in scoped) {
+      saved += p.saved;
+      total += p.total;
+      daily += p.dailySuggested;
+    }
+    return (saved: saved, total: total, daily: daily);
+  }
+
   Future<void> _loadData() async {
-    await _syncFromServerIfPossible();
+    final offline = await _syncFromServerIfPossible();
     final projectsData = await _db.getProjects();
     final transactionsData = await _db.getTransactions();
 
@@ -160,29 +227,67 @@ class FinanceNotifier extends Notifier<FinanceState> {
 
     Map<int, String> statuses = {};
     var orangeCurrentMonth = 0;
+    var estimatedDays = 0;
+    DateTime? estimatedEnd;
+    final scoped = _scopedProjects(projects);
+    final scopeLabel = _scopeLabel(scoped);
+    final agg = _aggregateScope(scoped);
 
-    if (activeProject != null) {
-      final catchUpView =
-          await _db.getValidatedCatchupDaysForMonth(activeProject.id, _calendarYear, _calendarMonth);
+    if (scoped.isNotEmpty && agg.daily > 0) {
+      estimatedDays = CalendarPlanLogic.estimateDaysRemaining(
+        targetAmount: agg.total,
+        savedAmount: agg.saved,
+        dailySuggested: agg.daily,
+      );
+      estimatedEnd = CalendarPlanLogic.estimateEndDate(
+        targetAmount: agg.total,
+        savedAmount: agg.saved,
+        dailySuggested: agg.daily,
+      );
+
+      final validatedCatchUp = <int>{};
+      final pendingCatchUp = <int>{};
+      for (final p in scoped) {
+        validatedCatchUp.addAll(
+          await _db.getValidatedCatchupDaysForMonth(p.id, _calendarYear, _calendarMonth),
+        );
+        pendingCatchUp.addAll(
+          await _db.getPendingCatchupDaysForMonth(p.id, _calendarYear, _calendarMonth),
+        );
+      }
+
       statuses = CalendarPlanLogic.buildDayStatuses(
-        savedAmount: activeProject.saved,
-        dailySuggested: activeProject.dailySuggested,
-        validatedCatchUpDaysInMonth: catchUpView,
+        savedAmount: agg.saved,
+        dailySuggested: agg.daily,
+        validatedCatchUpDaysInMonth: validatedCatchUp,
         year: _calendarYear,
         month: _calendarMonth,
+        pendingCatchUpDays: pendingCatchUp,
       );
 
       final now = DateTime.now();
-      final catchUpNow = await _db.getValidatedCatchupDaysForMonth(activeProject.id, now.year, now.month);
+      final validatedNow = <int>{};
+      final pendingNow = <int>{};
+      for (final p in scoped) {
+        validatedNow.addAll(await _db.getValidatedCatchupDaysForMonth(p.id, now.year, now.month));
+        pendingNow.addAll(await _db.getPendingCatchupDaysForMonth(p.id, now.year, now.month));
+      }
       final stNow = CalendarPlanLogic.buildDayStatuses(
-        savedAmount: activeProject.saved,
-        dailySuggested: activeProject.dailySuggested,
-        validatedCatchUpDaysInMonth: catchUpNow,
+        savedAmount: agg.saved,
+        dailySuggested: agg.daily,
+        validatedCatchUpDaysInMonth: validatedNow,
         year: now.year,
         month: now.month,
+        pendingCatchUpDays: pendingNow,
       );
-      orangeCurrentMonth = CalendarPlanLogic.countOrange(stNow);
+      orangeCurrentMonth = CalendarPlanLogic.countGaps(stNow);
     }
+
+    final bonusSavings = await _resolveBonusSavings(
+      projects: projects,
+      transactions: transactions,
+      totalDaily: agg.daily > 0 ? agg.daily : projects.fold(0.0, (s, p) => s + p.dailySuggested),
+    );
 
     state = state.copyWith(
       balance: totalBalance,
@@ -193,29 +298,87 @@ class FinanceNotifier extends Notifier<FinanceState> {
       calendarViewYear: _calendarYear,
       calendarViewMonth: _calendarMonth,
       calendarActiveProject: activeProject,
+      calendarProductFilter: _calendarProductFilter,
+      estimatedDaysRemaining: estimatedDays,
+      estimatedEndDate: estimatedEnd,
+      calendarScopeLabel: scopeLabel,
+      bonusSavings: bonusSavings,
+      isOffline: offline,
     );
 
     _pushCatchupSnapshotIfNeeded(orangeCurrentMonth);
   }
 
-  Future<void> _syncFromServerIfPossible() async {
+  Future<BonusSavingsSummary> _resolveBonusSavings({
+    required List<ProjectModel> projects,
+    required List<TransactionModel> transactions,
+    required double totalDaily,
+  }) async {
     try {
       final auth = ref.read(authProvider);
       final uid = auth.userId;
       final phone = auth.phone;
       final pin = auth.pin;
-      if (!auth.isAuthenticated ||
-          auth.role != 'client' ||
-          uid == null ||
-          phone == null ||
-          pin == null ||
-          pin.isEmpty) {
-        return;
+      if (auth.isAuthenticated &&
+          auth.role == 'client' &&
+          uid != null &&
+          phone != null &&
+          pin != null &&
+          pin.isNotEmpty) {
+        final remote = await _api.fetchBonusSavings(userId: uid, phone: phone, pin: pin);
+        if (remote != null) return BonusSavingsSummary.fromMap(remote);
       }
+    } catch (_) {}
+
+    final now = DateTime.now();
+    final monthly = ClientBonusSavingsLogic.monthlyClientBonus(totalDaily);
+    final lines = projects
+        .map(
+          (p) => BonusSavingsLine(
+            productName: p.title,
+            quantity: 1,
+            unitDailyMin: p.dailySuggested,
+            monthlyBonus: ClientBonusSavingsLogic.monthlyLineBonus(
+              unitDailyMin: p.dailySuggested,
+              quantity: 1,
+            ),
+          ),
+        )
+        .toList();
+    return BonusSavingsSummary(
+      accruedFcfa: 0,
+      monthlyFcfa: monthly,
+      activeMonths: 0,
+      officialDaysThisMonth: ClientBonusSavingsLogic.officialDaysInMonth(now.year, now.month),
+      dailyContribution: totalDaily,
+      lines: lines,
+      creditedInDatabase: false,
+    );
+  }
+
+  /// Retourne `true` si le serveur était injoignable (mode hors-ligne, cache
+  /// local conservé). Retourne `false` si la synchro a réussi ou n'était pas
+  /// applicable (utilisateur non authentifié).
+  Future<bool> _syncFromServerIfPossible() async {
+    final auth = ref.read(authProvider);
+    final uid = auth.userId;
+    final phone = auth.phone;
+    final pin = auth.pin;
+    if (!auth.isAuthenticated ||
+        auth.role != 'client' ||
+        uid == null ||
+        phone == null ||
+        pin == null ||
+        pin.isEmpty) {
+      return false;
+    }
+    try {
       final items = await _api.fetchContributionHistory(userId: uid, phone: phone, pin: pin);
       await _db.replaceFinanceFromServer(userId: uid, contributions: items);
+      return false;
     } catch (_) {
       // Hors-ligne: on garde le cache local.
+      return true;
     }
   }
 
@@ -293,7 +456,10 @@ class FinanceNotifier extends Notifier<FinanceState> {
     required String paymentMode,
     int? contributorUserId,
   }) async {
-    final projectId = await _db.resolveProjectIdForContribution(clientUserId: contributorUserId);
+    String? projectId = _calendarProductFilter;
+    if (projectId == null || projectId.isEmpty) {
+      projectId = await _db.resolveProjectIdForContribution(clientUserId: contributorUserId);
+    }
     if (projectId == null || projectId.isEmpty) return false;
 
     final pmap = await _db.getProjectById(projectId);
@@ -341,6 +507,91 @@ class FinanceNotifier extends Notifier<FinanceState> {
 
     await _loadData();
     return true;
+  }
+
+  Future<CalendarDayDetail> buildCalendarDayDetail({
+    required int day,
+    required int year,
+    required int month,
+    required String status,
+  }) async {
+    final scoped = _scopedProjects(state.projects);
+    final scopeLabel = _scopeLabel(scoped);
+    final agg = _aggregateScope(scoped);
+    final projectIds = scoped.map((p) => p.id).toList();
+
+    final today = DateTime.now();
+    final cellDate = DateTime(year, month, day);
+    final isFuture = cellDate.isAfter(DateTime(today.year, today.month, today.day));
+
+    final statusLabel = switch (status) {
+      'vert' => 'À jour',
+      'orange' => 'Rattrapage',
+      'bleu' => 'Anticipé',
+      'gris' => 'Non payé',
+      _ => 'À venir',
+    };
+    final isAnticipated = status == 'bleu' || (status == 'vert' && isFuture);
+    final isCatchup = status == 'orange';
+    final isGap = status == 'gris';
+
+    final tx = await _db.findCatchupTransactionForDay(
+      projectIds: projectIds,
+      year: year,
+      month: month,
+      day: day,
+    );
+
+    String? contributionDate;
+    String? paymentModeLabel;
+    double? contributionAmount;
+    String? referenceCode;
+    String? productName;
+    var coverageNote = '';
+
+    if (tx != null) {
+      final rawDate = tx['date']?.toString() ?? '';
+      final parsed = DateTime.tryParse(rawDate);
+      contributionDate = parsed != null
+          ? '${parsed.day.toString().padLeft(2, '0')}/${parsed.month.toString().padLeft(2, '0')}/${parsed.year}'
+          : rawDate;
+      contributionAmount = (tx['amount'] as num?)?.toDouble();
+      referenceCode = tx['id']?.toString();
+      productName = tx['product_title']?.toString();
+      final mode = tx['type']?.toString() ?? '';
+      paymentModeLabel = mode == 'cash' ? 'Espèces' : 'Mobile money';
+      final st = tx['status']?.toString() ?? '';
+      if (st == 'pending') {
+        coverageNote = 'Versement en attente de validation agent ou centre.';
+      }
+    } else if (status == 'bleu' || (status == 'vert' && !isCatchup)) {
+      coverageNote = isAnticipated
+          ? 'Jour couvert par votre épargne cumulée (paiement anticipé sur le plan).'
+          : 'Jour couvert par votre épargne cumulée selon le rythme journalier.';
+    } else if (isGap) {
+      coverageNote = 'Aucune cotisation enregistrée pour couvrir cette date.';
+    } else if (isCatchup) {
+      coverageNote = 'Date passée non couverte — vous pouvez rattraper ce jour.';
+    }
+
+    return CalendarDayDetail(
+      day: day,
+      year: year,
+      month: month,
+      status: status,
+      statusLabel: statusLabel,
+      isAnticipated: isAnticipated,
+      isCatchup: isCatchup,
+      isGap: isGap,
+      dailyAmount: agg.daily,
+      scopeLabel: scopeLabel,
+      contributionDate: contributionDate,
+      paymentModeLabel: paymentModeLabel,
+      contributionAmount: contributionAmount,
+      referenceCode: referenceCode,
+      productName: productName,
+      coverageNote: coverageNote,
+    );
   }
 }
 

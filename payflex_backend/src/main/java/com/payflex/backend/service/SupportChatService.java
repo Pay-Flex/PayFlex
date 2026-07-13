@@ -3,7 +3,9 @@ package com.payflex.backend.service;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.web.multipart.MultipartFile;
 
+import java.io.IOException;
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -20,16 +22,22 @@ public class SupportChatService {
 
     private final JdbcTemplate jdbcTemplate;
     private final ContributionWorkflowService contributionWorkflowService;
-    private final PushNotificationService pushNotificationService;
+    private final UserInboxNotificationService inboxNotifications;
+    private final SupportChatAttachmentStorage attachmentStorage;
+    private final AdminWebPushService adminWebPushService;
 
     public SupportChatService(
         JdbcTemplate jdbcTemplate,
         ContributionWorkflowService contributionWorkflowService,
-        PushNotificationService pushNotificationService
+        UserInboxNotificationService inboxNotifications,
+        SupportChatAttachmentStorage attachmentStorage,
+        AdminWebPushService adminWebPushService
     ) {
         this.jdbcTemplate = jdbcTemplate;
         this.contributionWorkflowService = contributionWorkflowService;
-        this.pushNotificationService = pushNotificationService;
+        this.inboxNotifications = inboxNotifications;
+        this.attachmentStorage = attachmentStorage;
+        this.adminWebPushService = adminWebPushService;
     }
 
     public List<Map<String, Object>> listThreads() {
@@ -83,7 +91,8 @@ public class SupportChatService {
         int lim = Math.max(1, Math.min(limit, 500));
         return jdbcTemplate.queryForList(
             """
-            SELECT id, user_id, sender, body, created_at, read_at, broadcast_batch_id
+            SELECT id, user_id, sender, body, created_at, read_at, broadcast_batch_id,
+                   attachment_url, attachment_kind, attachment_name, attachment_mime
             FROM support_chat_messages
             WHERE user_id = ?
             ORDER BY id ASC
@@ -94,17 +103,74 @@ public class SupportChatService {
     }
 
     public long addMessage(long userId, String sender, String body) {
-        return addMessageInternal(userId, sender, body, null, true);
+        return addMessageInternal(userId, sender, body, null, null, null, null, true);
     }
 
     public long addAdminMessage(long userId, String body) {
-        return addMessageInternal(userId, "admin", body, null, true);
+        return addMessageInternal(userId, "admin", body, null, null, null, null, true);
+    }
+
+    public long addClientAttachment(long userId, MultipartFile file, String caption) throws IOException {
+        SupportChatAttachmentStorage.StoredFile stored = attachmentStorage.store(file, userId);
+        String body = buildAttachmentBody(stored.kind(), stored.originalName(), caption);
+        return addMessageInternal(
+            userId,
+            "client",
+            body,
+            stored.relativeUrl(),
+            stored.kind(),
+            stored.originalName(),
+            stored.mime(),
+            true
+        );
+    }
+
+    private static String buildAttachmentBody(String kind, String originalName, String caption) {
+        String trimmedCaption = caption == null ? "" : caption.trim();
+        if (!trimmedCaption.isBlank()) {
+            return trimmedCaption.length() > 4000 ? trimmedCaption.substring(0, 4000) : trimmedCaption;
+        }
+        String label = switch (kind) {
+            case "image" -> "Image";
+            case "audio" -> "Message vocal";
+            default -> "Document";
+        };
+        String name = originalName == null || originalName.isBlank() ? "" : " — " + originalName;
+        return label + name;
     }
 
     private long addMessageInternal(
         long userId,
         String sender,
         String body,
+        String attachmentUrl,
+        String attachmentKind,
+        String attachmentName,
+        String attachmentMime,
+        boolean notifyClient
+    ) {
+        String broadcastBatchId = null;
+        return addMessageInternal(
+            userId,
+            sender,
+            body,
+            attachmentUrl,
+            attachmentKind,
+            attachmentName,
+            attachmentMime,
+            broadcastBatchId,
+            notifyClient
+        );
+    }
+
+    private long addMessageInternal(
+        long userId,
+        String sender,
+        String body,
+        String attachmentUrl,
+        String attachmentKind,
+        String attachmentName,
+        String attachmentMime,
         String broadcastBatchId,
         boolean notifyClient
     ) {
@@ -117,24 +183,50 @@ public class SupportChatService {
         String trimmed = body.length() > 4000 ? body.substring(0, 4000) : body;
         jdbcTemplate.update(
             """
-            INSERT INTO support_chat_messages (user_id, sender, body, broadcast_batch_id)
-            VALUES (?, ?, ?, ?)
+            INSERT INTO support_chat_messages (
+              user_id, sender, body, broadcast_batch_id,
+              attachment_url, attachment_kind, attachment_name, attachment_mime
+            )
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?)
             """,
-            userId, sender, trimmed, broadcastBatchId
+            userId,
+            sender,
+            trimmed,
+            broadcastBatchId,
+            attachmentUrl,
+            attachmentKind,
+            attachmentName,
+            attachmentMime
         );
         Long id = jdbcTemplate.queryForObject("SELECT LAST_INSERT_ID()", Long.class);
         long messageId = id == null ? 0L : id;
 
-        if (notifyClient && "admin".equals(sender)) {
+        if ("admin".equals(sender) && notifyClient) {
             String title = broadcastBatchId != null ? "Message PayFlex" : "Support PayFlex";
+            String preview = trimmed.length() > 180 ? trimmed.substring(0, 177) + "…" : trimmed;
             contributionWorkflowService.notifyClientInbox(
                 userId,
                 "admin_message",
                 title,
-                trimmed.length() > 180 ? trimmed.substring(0, 177) + "…" : trimmed,
+                preview,
                 null
             );
-            pushNotificationService.notifyUser(userId, title, trimmed);
+        } else if ("client".equals(sender)) {
+            String preview = trimmed.length() > 180 ? trimmed.substring(0, 177) + "…" : trimmed;
+            inboxNotifications.notifyAssignedAgentOnly(
+                userId,
+                "client_chat",
+                "Message de {client}",
+                "{client} vous a écrit : " + preview,
+                null
+            );
+            // Web Push temps réel vers les postes admin/support (ignoré si VAPID non configuré).
+            String clientName = inboxNotifications.clientDisplayName(userId);
+            adminWebPushService.notifyAllAdmins(
+                "Nouveau message support",
+                clientName + " : " + preview,
+                "/admin/support-chat?user=" + userId
+            );
         }
         return messageId;
     }
@@ -166,7 +258,7 @@ public class SupportChatService {
         );
 
         for (Long uid : recipients) {
-            addMessageInternal(uid, "admin", body.trim(), batchId, true);
+            addMessageInternal(uid, "admin", body.trim(), null, null, null, null, batchId, true);
         }
         return recipients.size();
     }
@@ -270,13 +362,20 @@ public class SupportChatService {
         if (messageId <= 0) {
             return 0;
         }
+        String attachmentUrl = findAttachmentUrl(messageId, ownerUserId);
+        int n;
         if (ownerUserId != null && ownerUserId > 0) {
-            return jdbcTemplate.update(
+            n = jdbcTemplate.update(
                 "DELETE FROM support_chat_messages WHERE id = ? AND user_id = ?",
                 messageId, ownerUserId
             );
+        } else {
+            n = jdbcTemplate.update("DELETE FROM support_chat_messages WHERE id = ?", messageId);
         }
-        return jdbcTemplate.update("DELETE FROM support_chat_messages WHERE id = ?", messageId);
+        if (n > 0) {
+            attachmentStorage.deleteIfPresent(attachmentUrl);
+        }
+        return n;
     }
 
     /**
@@ -288,7 +387,40 @@ public class SupportChatService {
         if (userId <= 0) {
             return 0;
         }
-        return jdbcTemplate.update("DELETE FROM support_chat_messages WHERE user_id = ?", userId);
+        List<String> urls = jdbcTemplate.query(
+            "SELECT attachment_url FROM support_chat_messages WHERE user_id = ? AND attachment_url IS NOT NULL",
+            (rs, i) -> rs.getString(1),
+            userId
+        );
+        int n = jdbcTemplate.update("DELETE FROM support_chat_messages WHERE user_id = ?", userId);
+        for (String url : urls) {
+            attachmentStorage.deleteIfPresent(url);
+        }
+        return n;
+    }
+
+    private String findAttachmentUrl(long messageId, Long ownerUserId) {
+        if (ownerUserId != null && ownerUserId > 0) {
+            List<String> rows = jdbcTemplate.query(
+                """
+                SELECT attachment_url FROM support_chat_messages
+                WHERE id = ? AND user_id = ? AND attachment_url IS NOT NULL
+                """,
+                (rs, i) -> rs.getString(1),
+                messageId,
+                ownerUserId
+            );
+            return rows.isEmpty() ? null : rows.get(0);
+        }
+        List<String> rows = jdbcTemplate.query(
+            """
+            SELECT attachment_url FROM support_chat_messages
+            WHERE id = ? AND attachment_url IS NOT NULL
+            """,
+            (rs, i) -> rs.getString(1),
+            messageId
+        );
+        return rows.isEmpty() ? null : rows.get(0);
     }
 
     public Map<String, Object> inboxSummary(long userId) {
