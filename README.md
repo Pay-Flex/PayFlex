@@ -55,7 +55,7 @@ L’**administration** (admin ou gestionnaire) valide les inscriptions, supervis
                                                         │
                                          ┌──────────────▼───────────────┐
                                          │  MySQL (payflexdb)           │
-                                         │  Flyway (48 migrations)      │
+                                         │  Flyway (52 migrations)      │
                                          └──────────────────────────────┘
 
 ┌─────────────────┐
@@ -111,7 +111,7 @@ copy .env.example .env
 .\run-local.ps1
 ```
 
-Au premier démarrage, Flyway applique les migrations (`V1` à `V48`). Un compte admin par défaut est créé (voir [Administration](#administration-web)).
+Au premier démarrage, Flyway applique les migrations (`V1` à `V52`). Un compte admin par défaut est créé (voir [Administration](#administration-web)).
 
 ### 3. Mobile
 
@@ -364,7 +364,7 @@ Avec `-SplitPerAbi` : `app-armeabi-v7a-release.apk` pour les anciens téléphone
 - **Tournée de zone** : clients à visiter par secteur
 - **Planning hebdomadaire** : disponibilités configurables
 - **Changement de PIN** agent
-- **Dette espèces** : suivi des montants collectés en attente de rapprochement admin
+- **Dette espèces** : suivi des montants collectés en attente de rapprochement admin, dette individuelle en cas d’écart constaté, notifications (manque constaté / remboursement enregistré) et ligne « dernier remboursement » dans le profil
 - Accès **notifications**, **chat**, **signalements**, **offres d’emploi**
 
 ### Administration web (`/admin`)
@@ -373,14 +373,14 @@ Accessible aux rôles **ADMIN** et **GESTIONNAIRE** (permissions différenciées
 
 | Module | Fonctionnalités |
 |--------|-----------------|
-| **Tableau de bord** | KPIs (comptes, agents, clients, produits, collecte, en attente), graphiques, revenus PayFlex (adhésions + part épargne bonus), alertes rattrapage |
+| **Tableau de bord** | KPIs (comptes, agents, clients, produits, collecte, en attente), graphiques, revenus PayFlex (adhésions + part épargne bonus), alertes rattrapage, badge sidebar « dettes agents actives » |
 | **Inscriptions** | File d’attente, approbation/refus, modification, photos et pièces d’identité |
 | **Comptes** | CRUD utilisateurs, statuts, export CSV/PDF |
 | **Clients** | Fiche détaillée, agent assigné, adhésion, mode autonome, récupération credentials, impression clients assidus |
 | **Produits & catégories** | CRUD avec images, prix, cotisation minimale |
-| **Cotisations** | Liste, validation/rejet, validation groupée, rapprochement espèces agent, auto-validation programmée |
+| **Cotisations** | Liste, validation/rejet, validation groupée, rapprochement de caisse **par agent** (+ rapprochement global FIFO en secours), alerte dettes agents, auto-validation programmée |
 | **Clôture & livraison** | Ouverture dossier, validation clôture, confirmation remise produit |
-| **Agents** | Embauche (dossier, contrat, photo), zones, dette espèces |
+| **Agents** | Embauche (dossier, contrat, photo), zones, dette espèces, remboursement de dette (partiel ou total), historiques écarts + remboursements sur la fiche agent |
 | **Gestionnaires** | CRUD réservé admin complet |
 | **Zones** | Définition géographique, affectation agents/clients |
 | **Chat support** | Threads par utilisateur, broadcast, pièces jointes, suppression messages |
@@ -391,6 +391,29 @@ Accessible aux rôles **ADMIN** et **GESTIONNAIRE** (permissions différenciées
 | **Journal d’activité** | Audit des actions admin, export |
 
 **Connexion admin** : http://localhost:8088/login — compte seed `admin` / `admin123` (à changer immédiatement en production).
+
+#### Rapprochement de caisse par agent
+
+Depuis la page **Cotisations**, le tableau « Caisse par agent » liste chaque agent ayant des espèces en attente (nombre de collectes, total attendu, dette actuelle). L’admin saisit le **montant compté** et rapproche agent par agent :
+
+| Cas | Résultat |
+|-----|----------|
+| Compté **=** attendu | Toutes les cotisations en attente sont validées |
+| Compté **<** attendu | Cotisations validées + **dette individuelle** créée pour l’agent (écart) |
+| Compté **>** attendu | Toutes validées + **excédent signalé** (jamais enregistré) |
+
+Le **rapprochement global FIFO** reste disponible en secours (section dépliante).
+
+#### Dette agent & remboursement
+
+- Dette individuelle portée par `agents.cash_debt_fcfa`, journal des écarts dans `agent_cash_debt_events`.
+- **Remboursement** (partiel ou total) enregistrable par l’admin sur la fiche agent — table `agent_debt_repayments` (migration V52) ; historiques des écarts et des remboursements visibles sur la fiche agent.
+- **Notifications agent** : manque constaté lors d’un rapprochement, remboursement enregistré ; ligne « dernier remboursement » dans le profil agent mobile.
+- **Alertes admin** : alerte sur la page Cotisations + web push admin à la création d’une dette ; badge sidebar « dettes agents actives ».
+
+#### Cohérence des totaux
+
+Tous les montants « versé / collecté » affichés côté admin (fiche client, fiche agent, dashboard, graphiques) comptent uniquement les cotisations **validées**, alignés avec les totaux affichés dans l’app mobile (client et agent).
 
 ### Backend — services métier
 
@@ -441,6 +464,8 @@ Base : `POST/GET /api/mobile/*` (authentification par `userId` + `phone` + `pin`
 Webhook/IPN PayDunya : `POST /api/paydunya/webhook`
 
 API admin JSON : `GET /api/admin/dashboard`
+
+Actions admin (caisse agent) : `POST /admin/agents/{id}/reconcile-cash` (rapprochement de caisse par agent), `POST /admin/agents/{id}/debt-repayment` (enregistrement d’un remboursement de dette)
 
 Exports admin : `GET /admin/export/{entity}.csv` (users, products, agents, contributions, audit)
 
@@ -494,7 +519,7 @@ PayFlex/
 │   ├── src/main/java/      # Controllers, services, config
 │   ├── src/main/resources/
 │   │   ├── application.yml
-│   │   ├── db/migration/   # Flyway V1–V48
+│   │   ├── db/migration/   # Flyway V1–V52
 │   │   ├── templates/      # Pages admin Thymeleaf
 │   │   └── static/         # CSS/JS admin
 │   └── uploads/              # Photos, produits, pièces jointes
