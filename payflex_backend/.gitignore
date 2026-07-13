@@ -26,3 +26,6 @@ mobile-api.log*
 # Ad-hoc API test captures (local debugging)
 login-*-test.json
 login-res*.txt
+
+# Données runtime (photos de profil, pièces, images produits) — jamais dans git
+uploads/
