@@ -119,6 +119,140 @@
   </section>
 
   <section class="pf-detail-panel">
+    <h2 class="pf-detail-section-head"><i class="fa-solid fa-cash-register"></i>Caisse</h2>
+
+    <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+      <div class="bg-amber-50 border border-amber-200 rounded-xl p-4 space-y-3">
+        <p class="text-xs font-semibold uppercase tracking-wide text-amber-800/80">
+          <i class="fa-solid fa-money-bill-wave mr-1"></i>Espèces en attente de rapprochement
+        </p>
+        <p class="text-2xl font-bold text-amber-950 tabular-nums">
+          <span th:text="${#numbers.formatInteger(agentPendingCash['totalFcfa'], 0, 'POINT')}">0</span>
+          <span class="text-base font-semibold ml-1">FCFA</span>
+          <span class="text-sm font-medium text-amber-800 ml-2">(<span th:text="${agentPendingCash['count']}">0</span> collecte(s))</span>
+        </p>
+        <form th:if="${agentPendingCash['count'] > 0}" method="post"
+              th:action="@{/admin/agents/{id}/reconcile-cash(id=${agentDetails.agentId()})}"
+              class="flex flex-wrap items-end gap-2 pf-confirm-submit"
+              data-confirm-title="Rapprochement caisse agent"
+              th:attr="data-confirm-text=|Valider le montant compté pour ${agentDetails.fullName()} ? Si le compté est inférieur à ${#numbers.formatInteger(agentPendingCash['totalFcfa'], 0, 'POINT')} FCFA, l'écart sera porté en dette sur cet agent.|"
+              data-confirm-icon="warning"
+              data-confirm-yes="Oui, rapprocher">
+          <input type="hidden" th:name="${_csrf.parameterName}" th:value="${_csrf.token}">
+          <input type="hidden" name="from" value="agent">
+          <div>
+            <label class="block text-xs font-medium text-slate-600 mb-1">Montant compté (FCFA)</label>
+            <input name="collectedFcfa" type="number" min="0" step="1" required
+                   class="border rounded-lg px-3 py-2 w-40 text-sm"
+                   th:placeholder="${#numbers.formatInteger(agentPendingCash['totalFcfa'], 0, 'POINT')}">
+          </div>
+          <button type="submit" class="pf-btn pf-btn-primary text-sm py-2 px-4">
+            <i class="fa-solid fa-scale-balanced mr-1"></i>Rapprocher
+          </button>
+        </form>
+        <p th:if="${agentPendingCash['count'] == 0}" class="text-sm text-amber-900/80">
+          Aucune collecte espèces en attente pour cet agent.
+        </p>
+      </div>
+
+      <div th:classappend="${agentDetails.cashDebtFcfa() > 0} ? 'bg-rose-50 border-rose-200' : 'bg-slate-50 border-slate-200'"
+           class="border rounded-xl p-4 space-y-3">
+        <p class="text-xs font-semibold uppercase tracking-wide"
+           th:classappend="${agentDetails.cashDebtFcfa() > 0} ? 'text-rose-800/80' : 'text-slate-500'">
+          <i class="fa-solid fa-hand-holding-dollar mr-1"></i>Dette de caisse actuelle
+        </p>
+        <p class="text-2xl font-bold tabular-nums"
+           th:classappend="${agentDetails.cashDebtFcfa() > 0} ? 'text-rose-700' : 'text-slate-700'"
+           th:text="${#numbers.formatInteger(agentDetails.cashDebtFcfa(), 0, 'POINT')} + ' FCFA'">0</p>
+        <form th:if="${agentDetails.cashDebtFcfa() > 0}" method="post"
+              th:action="@{/admin/agents/{id}/debt-repayment(id=${agentDetails.agentId()})}"
+              class="space-y-2 pf-confirm-submit"
+              data-confirm-title="Enregistrer un remboursement"
+              th:attr="data-confirm-text=|Enregistrer ce remboursement pour ${agentDetails.fullName()} ? La dette sera réduite d'autant et l'agent sera notifié.|"
+              data-confirm-icon="question"
+              data-confirm-yes="Oui, enregistrer">
+          <input type="hidden" th:name="${_csrf.parameterName}" th:value="${_csrf.token}">
+          <div class="flex flex-wrap items-end gap-2">
+            <div>
+              <label class="block text-xs font-medium text-slate-600 mb-1">Remboursement reçu (FCFA)</label>
+              <input name="amountFcfa" type="number" min="1" step="1" required
+                     th:attr="max=${agentDetails.cashDebtFcfa()}"
+                     class="border rounded-lg px-3 py-2 w-40 text-sm">
+            </div>
+            <div class="flex-1 min-w-[10rem]">
+              <label class="block text-xs font-medium text-slate-600 mb-1">Note (optionnelle)</label>
+              <input name="note" maxlength="500" class="border rounded-lg px-3 py-2 w-full text-sm"
+                     placeholder="Ex. remis en espèces au centre">
+            </div>
+            <button type="submit" class="pf-btn pf-btn-success text-sm py-2 px-4 whitespace-nowrap">
+              <i class="fa-solid fa-circle-check mr-1"></i>Enregistrer
+            </button>
+          </div>
+        </form>
+        <p th:if="${agentDetails.cashDebtFcfa() == 0}" class="text-sm text-slate-500">
+          Aucune dette en cours — rien à rembourser.
+        </p>
+      </div>
+    </div>
+
+    <div class="mt-4 grid grid-cols-1 lg:grid-cols-2 gap-4"
+         th:if="${(agentDebtEvents != null && !agentDebtEvents.isEmpty()) || (agentDebtRepayments != null && !agentDebtRepayments.isEmpty())}">
+      <div th:if="${agentDebtEvents != null && !agentDebtEvents.isEmpty()}">
+        <h3 class="text-xs font-bold text-rose-800 uppercase mb-2">Historique des écarts de caisse</h3>
+        <div class="pf-detail-table-card overflow-x-auto">
+          <table class="w-full text-sm min-w-[480px]">
+            <thead>
+            <tr>
+              <th class="text-left py-2 px-3">Date</th>
+              <th class="text-right py-2 px-3">Manque</th>
+              <th class="text-right py-2 px-3">Compté / attendu</th>
+              <th class="text-left py-2 px-3">Note</th>
+            </tr>
+            </thead>
+            <tbody>
+            <tr th:each="e : ${agentDebtEvents}" class="border-t border-slate-100">
+              <td class="py-2 px-3 text-slate-600 text-xs whitespace-nowrap font-mono" th:text="${e['created_at']}"></td>
+              <td class="py-2 px-3 text-right font-semibold text-rose-700 tabular-nums"
+                  th:text="${#numbers.formatInteger(e['amount_fcfa'], 0, 'POINT')} + ' FCFA'"></td>
+              <td class="py-2 px-3 text-right text-slate-600 text-xs tabular-nums whitespace-nowrap">
+                <span th:text="${e['collected_fcfa'] != null ? #numbers.formatInteger(e['collected_fcfa'], 0, 'POINT') : '—'}"></span>
+                /
+                <span th:text="${e['expected_fcfa'] != null ? #numbers.formatInteger(e['expected_fcfa'], 0, 'POINT') : '—'}"></span>
+              </td>
+              <td class="py-2 px-3 text-slate-600 text-xs" th:text="${e['note']}"></td>
+            </tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+      <div th:if="${agentDebtRepayments != null && !agentDebtRepayments.isEmpty()}">
+        <h3 class="text-xs font-bold text-emerald-800 uppercase mb-2">Historique des remboursements</h3>
+        <div class="pf-detail-table-card overflow-x-auto">
+          <table class="w-full text-sm min-w-[420px]">
+            <thead>
+            <tr>
+              <th class="text-left py-2 px-3">Date</th>
+              <th class="text-right py-2 px-3">Montant</th>
+              <th class="text-left py-2 px-3">Enregistré par</th>
+              <th class="text-left py-2 px-3">Note</th>
+            </tr>
+            </thead>
+            <tbody>
+            <tr th:each="r : ${agentDebtRepayments}" class="border-t border-slate-100">
+              <td class="py-2 px-3 text-slate-600 text-xs whitespace-nowrap font-mono" th:text="${r['created_at']}"></td>
+              <td class="py-2 px-3 text-right font-semibold text-emerald-700 tabular-nums"
+                  th:text="${#numbers.formatInteger(r['amount_fcfa'], 0, 'POINT')} + ' FCFA'"></td>
+              <td class="py-2 px-3 text-slate-600 text-xs" th:text="${r['created_by']}"></td>
+              <td class="py-2 px-3 text-slate-600 text-xs" th:text="${r['note']}"></td>
+            </tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <section class="pf-detail-panel">
     <h2 class="pf-detail-section-head"><i class="fa-solid fa-receipt"></i>Cotisations remontées (centre)</h2>
     <p class="text-xs text-slate-500 mb-3">Historique issu de la base PayFlex — les espèces saisies sur l’app agent arrivent <strong>en attente</strong> jusqu’à validation au centre (rapprochement fin de journée).</p>
     <p class="text-sm text-slate-600 py-4" th:if="${agentRecentContributions == null || agentRecentContributions.isEmpty()}">Aucune cotisation enregistrée pour cet agent dans la base centrale pour l’instant.</p>
@@ -194,6 +328,42 @@
 <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
 <script th:if="${param.hired != null && param.hired.length > 0}">
   Swal.fire({icon:'success',title:'Employé créé',text:'Compte mobile actif avec le PIN défini.',timer:2200,showConfirmButton:false});
+</script>
+<script th:if="${param.success != null && param.success.length > 0}">
+  (() => {
+    const p = new URLSearchParams(window.location.search);
+    const kind = p.get('success');
+    if (kind === 'reconcileAgent') {
+      const validated = p.get('validated') || '0';
+      const debt = p.get('debt') || '0';
+      const pending = p.get('pending') || '0';
+      const collected = p.get('collected') || '0';
+      const expected = p.get('expected') || '0';
+      const surplus = p.get('surplus') || '0';
+      let text = validated + ' cotisation(s) confirmée(s) pour ' + collected + ' FCFA sur ' + expected + ' FCFA attendus.';
+      if (Number(debt) > 0) text += ' Dette agent enregistrée : ' + debt + ' FCFA (à rembourser).';
+      if (Number(surplus) > 0) text += ' Excédent compté : ' + surplus + ' FCFA — vérifiez le comptage (aucun crédit enregistré).';
+      if (Number(pending) > 0) text += ' ' + pending + ' cotisation(s) restent en attente.';
+      Swal.fire({
+        icon: Number(debt) > 0 ? 'warning' : 'success',
+        title: Number(debt) > 0 ? 'Rapprochement incomplet' : 'Rapprochement validé',
+        text,
+        showConfirmButton: true
+      });
+    } else if (kind === 'repayment') {
+      const amount = p.get('amount') || '';
+      Swal.fire({
+        icon: 'success',
+        title: 'Remboursement enregistré',
+        text: (amount ? amount + ' FCFA déduits de la dette. ' : '') + "L'agent a été notifié dans son application.",
+        timer: 2600,
+        showConfirmButton: false
+      });
+    }
+  })();
+</script>
+<script th:if="${param.error != null && param.error.length > 0}" th:inline="javascript">
+  Swal.fire({icon:'error',title:'Action impossible',text:[[${param.error[0]}]]});
 </script>
 <script src="/js/admin-wow.js"></script>
 </body>

@@ -171,6 +171,23 @@ public class AgentMobileService {
             out.put("clientsCount", toLong(row.get("clients_count")));
             out.put("recoveryPercent", recoveryPct);
             out.put("cashDebtFcfa", Math.round(toDouble(row.get("cash_debt_fcfa"))));
+            try {
+                Map<String, Object> lastRepayment = jdbcTemplate.queryForMap(
+                    """
+                    SELECT amount_fcfa, created_at
+                    FROM agent_debt_repayments
+                    WHERE agent_user_id = ?
+                    ORDER BY created_at DESC, id DESC
+                    LIMIT 1
+                    """,
+                    agentUserId
+                );
+                out.put("lastDebtRepaymentFcfa", Math.round(toDouble(lastRepayment.get("amount_fcfa"))));
+                Object repaidAt = lastRepayment.get("created_at");
+                out.put("lastDebtRepaymentAt", repaidAt == null ? null : repaidAt.toString());
+            } catch (EmptyResultDataAccessException ignored) {
+                // Aucun remboursement enregistré pour cet agent.
+            }
         } catch (EmptyResultDataAccessException ex) {
             out.put("hasData", false);
         }

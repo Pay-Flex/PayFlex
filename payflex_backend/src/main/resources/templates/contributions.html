@@ -44,55 +44,124 @@
       <div class="flex flex-wrap items-center justify-between gap-4">
         <div>
           <p class="text-xs font-semibold uppercase tracking-wide text-amber-800/80 mb-1">
-            <i class="fa-solid fa-money-bill-wave mr-1"></i>Espèces en attente — rapprochement caisse
+            <i class="fa-solid fa-money-bill-wave mr-1"></i>Espèces en attente — rapprochement caisse par agent
           </p>
           <p class="text-3xl md:text-4xl font-bold text-amber-950 tabular-nums">
             <span th:text="${#numbers.formatInteger(navPendingCashTotalFcfa, 0, 'POINT')}">0</span>
             <span class="text-lg font-semibold ml-1">FCFA</span>
           </p>
           <p class="text-sm text-amber-900 mt-1">
-            <span th:text="${navPendingCashContributions}">0</span> collecte(s) terrain agent à confirmer après comptage.
+            <span th:text="${navPendingCashContributions}">0</span> collecte(s) terrain à confirmer après comptage —
+            comptez la caisse <strong>agent par agent</strong> : un manque devient une dette de l'agent concerné uniquement.
           </p>
         </div>
-        <form method="post" action="/admin/contributions/bulk-validate-cash"
-              class="pf-confirm-submit shrink-0"
-              data-confirm-title="Rapprochement espèces complet"
-              th:attr="data-confirm-text=|Vous avez compté ${#numbers.formatInteger(navPendingCashTotalFcfa, 0, 'POINT')} FCFA en caisse ? Toutes les collectes espèces en attente seront confirmées.|"
-              data-confirm-icon="warning"
-              data-confirm-yes="Oui, tout confirmer">
-          <input type="hidden" th:name="${_csrf.parameterName}" th:value="${_csrf.token}">
-          <button type="submit" class="pf-btn text-sm font-semibold px-5 py-2.5" style="background:linear-gradient(135deg,#f59e0b,#d97706);color:#fff;border:none;">
-            Confirmer toutes les espèces en attente
-          </button>
-        </form>
       </div>
+
+      <div class="bg-white/80 border border-amber-200/80 rounded-lg overflow-x-auto" th:if="${cashByAgent != null && !cashByAgent.isEmpty()}">
+        <table class="w-full text-sm min-w-[720px]">
+          <thead class="bg-amber-100/60">
+          <tr>
+            <th class="text-left py-2 px-3">Agent</th>
+            <th class="text-right py-2 px-3">Collectes</th>
+            <th class="text-right py-2 px-3">Total attendu</th>
+            <th class="text-right py-2 px-3">Dette actuelle</th>
+            <th class="text-left py-2 px-3">Montant compté (FCFA)</th>
+            <th class="text-right py-2 px-3">Actions</th>
+          </tr>
+          </thead>
+          <tbody>
+          <tr th:each="row : ${cashByAgent}" class="border-t border-amber-100">
+            <td class="py-2 px-3 align-middle font-medium text-slate-800">
+              <a th:href="@{/admin/agents/{id}(id=${row.agentId()})}" class="hover:underline" th:text="${row.fullName()}">Agent</a>
+            </td>
+            <td class="py-2 px-3 align-middle text-right tabular-nums" th:text="${row.pendingCount()}">0</td>
+            <td class="py-2 px-3 align-middle text-right font-semibold tabular-nums"
+                th:text="${#numbers.formatInteger(row.expectedFcfa(), 0, 'POINT')} + ' FCFA'">0</td>
+            <td class="py-2 px-3 align-middle text-right tabular-nums"
+                th:classappend="${row.cashDebtFcfa() > 0} ? ' text-rose-700 font-semibold' : ' text-slate-500'"
+                th:text="${#numbers.formatInteger(row.cashDebtFcfa(), 0, 'POINT')} + ' FCFA'">0</td>
+            <td class="py-2 px-3 align-middle" colspan="2">
+              <form method="post" th:action="@{/admin/agents/{id}/reconcile-cash(id=${row.agentId()})}"
+                    class="flex flex-wrap items-center gap-2 pf-confirm-submit"
+                    data-confirm-title="Rapprochement caisse agent"
+                    th:attr="data-confirm-text=|Valider le montant compté pour ${row.fullName()} ? Si le compté est inférieur à ${#numbers.formatInteger(row.expectedFcfa(), 0, 'POINT')} FCFA, l'écart sera porté en dette sur cet agent.|"
+                    data-confirm-icon="warning"
+                    data-confirm-yes="Oui, rapprocher">
+                <input type="hidden" th:name="${_csrf.parameterName}" th:value="${_csrf.token}">
+                <input name="collectedFcfa" type="number" min="0" step="1" required
+                       class="border rounded-lg px-3 py-1.5 w-32 text-sm"
+                       th:placeholder="${#numbers.formatInteger(row.expectedFcfa(), 0, 'POINT')}">
+                <button type="submit" class="pf-btn pf-btn-primary text-xs py-1.5 px-3 whitespace-nowrap">
+                  <i class="fa-solid fa-scale-balanced mr-1"></i>Rapprocher
+                </button>
+              </form>
+              <form method="post" th:action="@{/admin/agents/{id}/reconcile-cash(id=${row.agentId()})}"
+                    class="inline-block mt-1.5 pf-confirm-submit"
+                    data-confirm-title="Caisse complète"
+                    th:attr="data-confirm-text=|Vous avez compté ${#numbers.formatInteger(row.expectedFcfa(), 0, 'POINT')} FCFA pour ${row.fullName()} ? Toutes ses collectes espèces seront confirmées.|"
+                    data-confirm-icon="question"
+                    data-confirm-yes="Oui, tout confirmer">
+                <input type="hidden" th:name="${_csrf.parameterName}" th:value="${_csrf.token}">
+                <input type="hidden" name="collectedFcfa" th:value="${row.expectedFcfa()}">
+                <button type="submit" class="pf-btn pf-btn-success text-xs py-1.5 px-3 whitespace-nowrap">
+                  <i class="fa-solid fa-circle-check mr-1"></i>Tout confirmer
+                </button>
+              </form>
+            </td>
+          </tr>
+          </tbody>
+        </table>
+      </div>
+
+      <p th:if="${pendingCashUnassigned > 0}" class="text-xs text-amber-900 bg-amber-100/60 border border-amber-200 rounded-lg px-3 py-2">
+        <i class="fa-solid fa-triangle-exclamation mr-1"></i>
+        <span th:text="${pendingCashUnassigned}">0</span> collecte(s) espèces sans agent rattaché : utilisez le rapprochement global de secours ci-dessous.
+      </p>
 
       <details class="bg-white/70 border border-amber-200/80 rounded-lg">
         <summary class="cursor-pointer px-4 py-3 text-sm font-semibold text-amber-950 select-none">
-          <i class="fa-solid fa-scale-unbalanced mr-2 text-amber-700"></i>Rapprochement incomplet (montant compté insuffisant)
+          <i class="fa-solid fa-scale-unbalanced mr-2 text-amber-700"></i>Rapprochement global (secours) — tous agents confondus
         </summary>
-        <form method="post" action="/admin/contributions/reconcile-cash"
-              class="px-4 pb-4 pt-1 flex flex-wrap items-end gap-3 pf-confirm-submit"
-              data-confirm-title="Rapprochement incomplet"
-              data-confirm-text="Valider uniquement le montant compté ? Le reliquat sera porté en dette sur le(s) agent(s) concerné(s) — à rembourser au centre."
-              data-confirm-icon="warning"
-              data-confirm-yes="Oui, enregistrer la dette">
-          <input type="hidden" th:name="${_csrf.parameterName}" th:value="${_csrf.token}">
-          <div class="min-w-[12rem] flex-1">
-            <label class="block text-xs font-medium text-slate-600 mb-1">Montant réellement compté (FCFA)</label>
-            <input name="collectedFcfa" type="number" min="0" step="1" required
-                   th:attr="max=${navPendingCashTotalFcfa - 1}"
-                   class="border rounded-lg px-3 py-2 w-full text-sm"
-                   placeholder="Ex. 45000">
-          </div>
-          <p class="text-xs text-amber-900/90 w-full md:w-auto md:flex-1 leading-relaxed">
-            Attendu : <strong th:text="${#numbers.formatInteger(navPendingCashTotalFcfa, 0, 'POINT')}">0</strong> FCFA.
-            Les cotisations couvertes par le montant saisi seront validées (ordre chronologique). Le reste reste en attente ; l’écart est enregistré comme <strong>dette agent</strong>.
+        <div class="px-4 pb-4 pt-1 space-y-3">
+          <p class="text-xs text-amber-900/90 leading-relaxed">
+            À n'utiliser qu'en dépannage (ex. collectes sans agent rattaché) : en cas de manque, la dette est
+            répartie <strong>proportionnellement</strong> entre tous les agents concernés. Préférez le tableau
+            « Caisse par agent » ci-dessus.
           </p>
-          <button type="submit" class="pf-btn pf-btn-secondary text-sm font-semibold whitespace-nowrap">
-            Valider le montant compté
-          </button>
-        </form>
+          <form method="post" action="/admin/contributions/bulk-validate-cash"
+                class="pf-confirm-submit inline-block"
+                data-confirm-title="Rapprochement espèces complet"
+                th:attr="data-confirm-text=|Vous avez compté ${#numbers.formatInteger(navPendingCashTotalFcfa, 0, 'POINT')} FCFA en caisse ? Toutes les collectes espèces en attente seront confirmées.|"
+                data-confirm-icon="warning"
+                data-confirm-yes="Oui, tout confirmer">
+            <input type="hidden" th:name="${_csrf.parameterName}" th:value="${_csrf.token}">
+            <button type="submit" class="pf-btn text-sm font-semibold px-5 py-2.5" style="background:linear-gradient(135deg,#f59e0b,#d97706);color:#fff;border:none;">
+              Confirmer toutes les espèces en attente
+            </button>
+          </form>
+          <form method="post" action="/admin/contributions/reconcile-cash"
+                class="flex flex-wrap items-end gap-3 pf-confirm-submit"
+                data-confirm-title="Rapprochement global incomplet"
+                data-confirm-text="Valider uniquement le montant compté ? Le reliquat sera réparti en dette entre le(s) agent(s) concerné(s) — à rembourser au centre."
+                data-confirm-icon="warning"
+                data-confirm-yes="Oui, enregistrer la dette">
+            <input type="hidden" th:name="${_csrf.parameterName}" th:value="${_csrf.token}">
+            <div class="min-w-[12rem] flex-1">
+              <label class="block text-xs font-medium text-slate-600 mb-1">Montant réellement compté (FCFA)</label>
+              <input name="collectedFcfa" type="number" min="0" step="1" required
+                     th:attr="max=${navPendingCashTotalFcfa - 1}"
+                     class="border rounded-lg px-3 py-2 w-full text-sm"
+                     placeholder="Ex. 45000">
+            </div>
+            <p class="text-xs text-amber-900/90 w-full md:w-auto md:flex-1 leading-relaxed">
+              Attendu : <strong th:text="${#numbers.formatInteger(navPendingCashTotalFcfa, 0, 'POINT')}">0</strong> FCFA.
+              Les cotisations couvertes par le montant saisi seront validées (ordre chronologique). Le reste reste en attente ; l’écart est enregistré comme <strong>dette agent</strong>.
+            </p>
+            <button type="submit" class="pf-btn pf-btn-secondary text-sm font-semibold whitespace-nowrap">
+              Valider le montant compté
+            </button>
+          </form>
+        </div>
       </details>
     </div>
 
@@ -349,7 +418,7 @@
     const kind = p.get('success');
     const bulk = kind === 'bulk';
     const bulkCash = kind === 'bulkCash';
-    const reconcile = kind === 'reconcile';
+    const reconcile = kind === 'reconcile' || kind === 'reconcileAgent';
     const count = p.get('count');
     let title = 'Succès';
     let text = 'Cotisation enregistrée.';
@@ -365,10 +434,14 @@
       const pending = p.get('pending') || '0';
       const collected = p.get('collected') || '0';
       const expected = p.get('expected') || '0';
+      const surplus = p.get('surplus') || '0';
       title = Number(debt) > 0 ? 'Rapprochement incomplet' : 'Rapprochement validé';
       text = validated + ' cotisation(s) confirmée(s) pour ' + collected + ' FCFA sur ' + expected + ' FCFA attendus.';
       if (Number(debt) > 0) {
         text += ' Dette agent enregistrée : ' + debt + ' FCFA (à rembourser).';
+      }
+      if (Number(surplus) > 0) {
+        text += ' Excédent compté : ' + surplus + ' FCFA — vérifiez le comptage (aucun crédit enregistré).';
       }
       if (Number(pending) > 0) {
         text += ' ' + pending + ' cotisation(s) restent en attente.';

@@ -63,9 +63,10 @@
       <span th:if="${navPendingDeliveries > 0}" class="pf-nav-badge" th:text="${navPendingDeliveries}">0</span>
     </a>
     <a href="/admin/agents" th:classappend="${activePage == 'agents'} ? ' pf-admin-nav-active' : ' pf-admin-nav-idle'"
-       class="pf-admin-nav-link px-3 py-2 rounded-lg" title="Agents">
+       class="pf-admin-nav-link px-3 py-2 rounded-lg" title="Agents — dettes de caisse actives">
       <i class="fa-solid fa-user-tie pf-nav-icon" aria-hidden="true"></i>
       <span class="pf-nav-text">Agents</span>
+      <span th:if="${navAgentsWithDebt > 0}" class="pf-nav-badge pf-nav-badge--urgent" th:text="${navAgentsWithDebt}">0</span>
     </a>
     <a th:if="${adminFullAccess}" href="/admin/gestionnaires" th:classappend="${activePage == 'gestionnaires'} ? ' pf-admin-nav-active' : ' pf-admin-nav-idle'"
        class="pf-admin-nav-link px-3 py-2 rounded-lg" title="Gestionnaires">

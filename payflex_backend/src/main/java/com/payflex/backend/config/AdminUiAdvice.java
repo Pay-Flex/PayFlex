@@ -47,6 +47,16 @@ public class AdminUiAdvice {
         return adminNavService.pendingCashContributionsTotalFcfa();
     }
 
+    @ModelAttribute("navAgentsWithDebt")
+    public long navAgentsWithDebt() {
+        return adminNavService.agentsWithActiveDebt();
+    }
+
+    @ModelAttribute("navAgentsDebtTotalFcfa")
+    public long navAgentsDebtTotalFcfa() {
+        return adminNavService.agentsActiveDebtTotalFcfa();
+    }
+
     @ModelAttribute("navSupportThreads")
     public long navSupportThreads() {
         return adminNavService.supportThreadsWithClientMessages();
