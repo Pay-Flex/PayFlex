@@ -16,7 +16,7 @@ Plateforme de **cotisation journalière** et de **financement d’équipements p
 8. [Build APK / AAB](#build-apk--aab)
 9. [Fonctionnalités par rôle](#fonctionnalités-par-rôle)
 10. [API mobile (aperçu)](#api-mobile-aperçu)
-11. [Paiements FedaPay](#paiements-fedapay)
+11. [Paiements PayDunya](#paiements-paydunya)
 12. [Notifications](#notifications)
 13. [Structure du dépôt](#structure-du-dépôt)
 14. [Scripts utiles](#scripts-utiles)
@@ -31,7 +31,7 @@ PayFlex permet à un client de :
 
 - Choisir un ou plusieurs **produits** (outils, équipements) dans un catalogue ;
 - Définir une **cotisation journalière** ;
-- Payer en **espèces** (via un agent) ou en **mobile money** (FedaPay) ;
+- Payer en **espèces** (via un agent) ou en **mobile money** (PayDunya) ;
 - Suivre sa progression sur un **calendrier** (jours payés, jours « orange » de rattrapage) ;
 - Bénéficier d’une **épargne bonus** mensuelle ;
 - Recevoir son équipement après **clôture et livraison** validées par l’administration.
@@ -50,7 +50,7 @@ L’**administration** (admin ou gestionnaire) valide les inscriptions, supervis
 │  (Flutter)      │   /api/mobile/*      │  Port 8088                     │
 └─────────────────┘                      │  • API mobile JSON             │
                                          │  • Admin Thymeleaf (/admin)    │
-                                         │  • Webhooks FedaPay            │
+                                         │  • Webhook/IPN PayDunya        │
                                          └──────────────┬───────────────┘
                                                         │
                                          ┌──────────────▼───────────────┐
@@ -89,7 +89,7 @@ L’**administration** (admin ou gestionnaire) valide les inscriptions, supervis
 ### Outils réseau (développement)
 
 - `adb` pour le mode USB
-- `cloudflared` ou `localtunnel` uniquement si vous avez besoin d’une URL HTTPS publique (webhooks FedaPay, tests 4G)
+- `cloudflared` ou `localtunnel` uniquement si vous avez besoin d’une URL HTTPS publique (webhook/IPN PayDunya, tests 4G)
 
 ---
 
@@ -140,13 +140,13 @@ Copier `.env.example` vers `.env`. **Ne jamais committer `.env`.**
 
 | Variable | Description |
 |----------|-------------|
-| `FEDAPAY_API_KEY` | Clé secrète sandbox (`sk_sandbox_…`) — serveur uniquement |
-| `FEDAPAY_PUBLIC_KEY` | Clé publique (`pk_sandbox_…`) |
-| `FEDAPAY_WEBHOOK_SECRET` | Secret webhook FedaPay |
-| `FEDAPAY_SANDBOX` | `true` pour l’environnement sandbox |
-| `FEDAPAY_ENABLED` | Active/désactive l’intégration FedaPay |
-| `FEDAPAY_SIMULATE` | `true` = paiements simulés localement (défaut dev) |
-| `PAYFLEX_PUBLIC_URL` | URL publique du backend (webhooks, callbacks) |
+| `PAYDUNYA_ENABLED` | Active/désactive l’intégration PayDunya |
+| `PAYDUNYA_MODE` | `test` (sandbox) ou `live` (production) |
+| `PAYDUNYA_MASTER_KEY` | Master key PayDunya — serveur uniquement |
+| `PAYDUNYA_PRIVATE_KEY` | Private key PayDunya — serveur uniquement |
+| `PAYDUNYA_TOKEN` | Token PayDunya — serveur uniquement |
+| `PAYDUNYA_PUBLIC_KEY` | Clé publique (optionnelle) |
+| `PAYFLEX_PUBLIC_URL` | URL publique du backend (webhook/IPN, callbacks) |
 | `PAYFLEX_DB_URL` | JDBC MySQL (optionnel, défaut localhost) |
 | `PAYFLEX_DB_USER` / `PAYFLEX_DB_PASSWORD` | Identifiants MySQL |
 | `PAYFLEX_AGENT_CASH_AUTO_VALIDATE` | `false` = espèces agent en attente jusqu’au rapprochement admin |
@@ -231,7 +231,7 @@ Dans `payflex_backend/.env` :
 PAYFLEX_PUBLIC_URL=https://payflex-app.loca.lt
 ```
 
-Redémarrer le backend après modification du `.env` (webhooks FedaPay, liens de paiement).
+Redémarrer le backend après modification du `.env` (webhook/IPN PayDunya, liens de paiement).
 
 Build APK tunnel : `.\scripts\build-apk.ps1` (défaut `-Mode tunnel`).
 
@@ -282,7 +282,7 @@ Le dossier `.fvm/` (cache local du SDK) est ignoré par Git ; seul `.fvmrc` est 
 |--------|----------|
 | **Accueil** | Solde, projets, épargne bonus, adhésion, agent rattaché, raccourcis (chat, notifications, offres d’emploi, signalement) |
 | **Catalogue** | Produits par catégorie, panier, configuration cotisation journalière |
-| **Paiement** | Déclaration cotisation (espèces / mobile money), adhésion FedaPay |
+| **Paiement** | Déclaration cotisation (espèces / mobile money), adhésion PayDunya |
 | **Suivi** | Calendrier mensuel (vert / orange / gris), détail projet |
 | **Historique** | Transactions, reçus, rattrapage groupé (« combler les trous ») |
 
@@ -338,11 +338,11 @@ Avec `-SplitPerAbi` : `app-armeabi-v7a-release.apk` pour les anciens téléphone
 - **Catalogue** et sélection de produits avec cotisation journalière personnalisée
 - **Cotisation** :
   - Espèces : déclaration → validation par l’agent ou l’admin
-  - Mobile money : initiation FedaPay (WebView intégrée) ou déclaration classique
+  - Mobile money : initiation PayDunya (WebView intégrée) ou déclaration classique
 - **Calendrier** : visualisation des jours cotisés, jours orange (rattrapage), alertes seuil configurable
 - **Rattrapage** : écran « Combler les trous » pour payer plusieurs jours orange
 - **Épargne bonus** : chaque mois civil, 1 jour de cotisation est prélevé — 50 % crédités au client, 50 % PayFlex
-- **Adhésion** : frais d’adhésion (250 FCFA par défaut), paiement FedaPay ou confirmation agent ; contestation possible
+- **Adhésion** : frais d’adhésion (250 FCFA par défaut), paiement PayDunya ou confirmation agent (espèces) ; contestation possible
 - **Livraison** : suivi du statut (objectif atteint → clôture → livraison)
 - **Notifications** : inbox avec types (cotisation validée/rejetée, bonus, adhésion, rattrapage, etc.)
 - **Chat support** : messagerie avec l’administration, pièces jointes
@@ -399,7 +399,7 @@ Accessible aux rôles **ADMIN** et **GESTIONNAIRE** (permissions différenciées
 | `MobileApiService` | Orchestration API mobile |
 | `RegistrationService` | Workflow inscriptions |
 | `ContributionWorkflowService` | Validation/rejet cotisations, auto-validation |
-| `FedaPayPaymentService` / `FedaPaySimulateService` | Paiements mobile money |
+| `PayDunyaService` / `PayDunyaPaymentService` | Paiements mobile money (cotisations + adhésion) |
 | `ClientBonusSavingsService` | Crédit mensuel épargne bonus |
 | `ProductDeliveryService` | Clôture et livraison produits |
 | `ClientAdhesionService` | Frais et statut adhésion |
@@ -427,8 +427,8 @@ Base : `POST/GET /api/mobile/*` (authentification par `userId` + `phone` + `pin`
 | Profil | `POST /profile`, `/profile/update` |
 | Catalogue | `GET /product-categories`, `/products` |
 | Cotisations | `POST /contributions`, `/contributions/history`, `/contributions/pending`, `/contributions/validate`, `/contributions/reject` |
-| FedaPay | `POST /contributions/fedapay/init`, `/contributions/fedapay/status`, `GET /fedapay/simulate/*` |
-| Adhésion | `POST /adhesion/fedapay/init`, `/adhesion/fedapay/status`, `/client/adhesion/dispute` |
+| PayDunya | `POST /contributions/paydunya/init`, `/contributions/paydunya/status`, `GET /contributions/paydunya/callback` |
+| Adhésion | `POST /adhesion/paydunya/init`, `/adhesion/paydunya/status`, `/client/adhesion/dispute` |
 | Épargne bonus | `POST /client/bonus-savings` |
 | Calendrier | `POST /calendar-stats` |
 | Notifications | `POST /notifications`, `/notifications/read`, `/notifications/pin`, `/push/poll` |
@@ -438,7 +438,7 @@ Base : `POST/GET /api/mobile/*` (authentification par `userId` + `phone` + `pin`
 | Légal & emploi | `GET /legal/documents`, `GET /job-offers`, `GET /job-offers/{id}` |
 | Devices | `POST /devices/fcm-token` (ignoré — compatibilité) |
 
-Webhook FedaPay : `POST /api/fedapay/webhook`
+Webhook/IPN PayDunya : `POST /api/paydunya/webhook`
 
 API admin JSON : `GET /api/admin/dashboard`
 
@@ -446,20 +446,22 @@ Exports admin : `GET /admin/export/{entity}.csv` (users, products, agents, contr
 
 ---
 
-## Paiements FedaPay
+## Paiements PayDunya
 
-Deux modes coexistent :
+PayDunya est la **passerelle mobile money unique** (Flooz Moov, T-Money / Mixx by Yas, cartes) via
+l’API « Checkout Invoice » (Paiement Avec Redirection). Elle couvre les cotisations **et** l’adhésion.
 
-1. **Simulation** (`FEDAPAY_SIMULATE=true`, défaut) : page locale `/api/mobile/fedapay/simulate/page` avec boutons Confirmer/Annuler — aucun appel API FedaPay.
-2. **Réel** : `FEDAPAY_SIMULATE=false` + clés sandbox dans `.env` + `PAYFLEX_PUBLIC_URL` accessible publiquement.
+- `PAYDUNYA_MODE=test` = sandbox (aucun argent réel), `live` = production.
+- Repli gracieux : sans clés (`PAYDUNYA_MASTER_KEY`/`PRIVATE_KEY`/`TOKEN`), le mobile money est masqué
+  côté app → il ne reste que la déclaration classique / espèces.
 
 Flux client :
 
-1. `POST /contributions/fedapay/init` ou `/adhesion/fedapay/init`
-2. WebView intégrée dans l’app
-3. Callback + webhook ou polling → cotisation/adhésion validée + notification
+1. `POST /contributions/paydunya/init` (cotisation) ou `/adhesion/paydunya/init` (adhésion 250 FCFA)
+2. WebView intégrée dans l’app (l’utilisateur ne quitte pas PayFlex)
+3. Retour `return_url` + IPN `POST /api/paydunya/webhook` ou polling → cotisation/adhésion validée + notification
 
-Documentation détaillée : [payflex_backend/FEDAPAY.md](payflex_backend/FEDAPAY.md)
+Documentation détaillée : [payflex_backend/PAYDUNYA.md](payflex_backend/PAYDUNYA.md)
 
 ---
 
@@ -487,7 +489,7 @@ PayFlex/
 │   ├── .env.example
 │   ├── run-local.ps1
 │   ├── repair-flyway.ps1
-│   ├── FEDAPAY.md
+│   ├── PAYDUNYA.md
 │   ├── pom.xml
 │   ├── src/main/java/      # Controllers, services, config
 │   ├── src/main/resources/
@@ -532,7 +534,7 @@ PayFlex/
 | Fichier | Contenu |
 |---------|---------|
 | [TUNNEL.md](TUNNEL.md) | Wi‑Fi, USB, Cloudflare, LocalTunnel, erreurs courantes |
-| [payflex_backend/FEDAPAY.md](payflex_backend/FEDAPAY.md) | Clés, simulation, webhooks, numéros test |
+| [payflex_backend/PAYDUNYA.md](payflex_backend/PAYDUNYA.md) | Clés PayDunya, sandbox, webhook/IPN, tests |
 | [payflex_mobile/PAYFLEX_PUSH.md](payflex_mobile/PAYFLEX_PUSH.md) | Architecture notifications sans Firebase |
 | [payflex_vitrine/README.md](payflex_vitrine/README.md) | Site vitrine Next.js |
 
@@ -543,7 +545,7 @@ PayFlex/
 ### Réseau et tunnels
 
 - **LocalTunnel** (`*.loca.lt`) : sous-domaine fixe `payflex-app` ; PC + tunnel actifs ; adapté aux tests 4G, pas à la production.
-- **Quick tunnels Cloudflare** : URL change à chaque redémarrage ; mettre à jour `.env`, l’app mobile et le dashboard FedaPay.
+- **Quick tunnels Cloudflare** : URL change à chaque redémarrage ; mettre à jour `.env`, l’app mobile et le dashboard PayDunya.
 - **Production** : domaine fixe + `PAYFLEX_PUBLIC_URL` backend + `build-apk.ps1 -Mode prod -ApiBase https://api.votredomaine.com`.
 
 ### Notifications
@@ -560,8 +562,8 @@ PayFlex/
 ### Sécurité
 
 - Changer le mot de passe admin seed (`admin` / `admin123`) avant toute exposition réseau.
-- Régénérer `PAYFLEX_VAULT_KEY` et toutes les clés FedaPay en production.
-- Ne jamais exposer `FEDAPAY_API_KEY` (`sk_…`) côté mobile ou front.
+- Régénérer `PAYFLEX_VAULT_KEY` et toutes les clés PayDunya en production.
+- Ne jamais exposer les clés PayDunya (`PAYDUNYA_MASTER_KEY` / `PRIVATE_KEY` / `TOKEN`) côté mobile ou front.
 
 ---
 

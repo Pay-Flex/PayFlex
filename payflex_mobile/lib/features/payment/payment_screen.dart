@@ -1,7 +1,7 @@
 import 'dart:ui';
 import 'package:flutter/material.dart';
 import 'package:flutter_animate/flutter_animate.dart';
-import 'fedapay_checkout_screen.dart';
+import 'payment_checkout_screen.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:google_fonts/google_fonts.dart';
 import '../../core/constants/app_colors.dart';
@@ -30,11 +30,29 @@ class _PaymentScreenState extends ConsumerState<PaymentScreen> {
   String? _selectedProjectId;
   bool _isProcessing = false;
   bool _useAlternatePayerPhone = false;
+  // PayDunya = passerelle mobile money unique. Masquée si le backend ne l'a pas configurée.
+  bool _paydunyaAvailable = false;
   final TextEditingController _payerPhoneController = TextEditingController();
   final GlobalKey<FormState> _payerPhoneFormKey = GlobalKey<FormState>();
 
   final List<String> _presetsExtra = ['1000', '2500', '5000', '10000', '25000'];
   final _mobileApi = MobileApiService();
+
+  @override
+  void initState() {
+    super.initState();
+    _loadPaymentProviders();
+  }
+
+  /// Repli gracieux : on masque le mobile money si PayDunya n'est pas configuré (clés absentes)
+  /// → il ne reste que la déclaration classique / espèces.
+  Future<void> _loadPaymentProviders() async {
+    final providers = await _mobileApi.fetchPaymentProviders();
+    if (!mounted) return;
+    setState(() {
+      _paydunyaAvailable = providers.paydunyaEnabled;
+    });
+  }
 
   @override
   void dispose() {
@@ -507,36 +525,38 @@ class _PaymentScreenState extends ConsumerState<PaymentScreen> {
         ? int.tryParse(_selectedProjectId!.replaceAll(RegExp(r'[^0-9]'), ''))
         : null;
     String? serverContributionId;
-    var fedapayValidated = false;
+    var gatewayValidated = false;
 
     if (auth.userId != null && paymentMode == 'mobile_money') {
-      final fedapayInit = await _mobileApi.initFedapayContribution(
-        userId: auth.userId!,
-        amount: amount,
-        productId: productIdApi,
-        payerPhone: payerPhone,
-      );
-      final fedapayOn = fedapayInit?['fedapayEnabled'] == true;
-      if (fedapayOn && (fedapayInit?['paymentUrl']?.toString().isNotEmpty ?? false)) {
-        final paymentUrl = fedapayInit?['paymentUrl']?.toString() ?? '';
-        final contributionId = (fedapayInit?['contributionId'] as num?)?.toInt();
+      final gatewayInit = _paydunyaAvailable
+          ? await _mobileApi.initPaydunyaContribution(
+              userId: auth.userId!,
+              amount: amount,
+              productId: productIdApi,
+              payerPhone: payerPhone,
+            )
+          : null;
+      final gatewayOn = gatewayInit?['paydunyaEnabled'] == true;
+      if (gatewayOn && (gatewayInit?['paymentUrl']?.toString().isNotEmpty ?? false)) {
+        final paymentUrl = gatewayInit?['paymentUrl']?.toString() ?? '';
+        final contributionId = (gatewayInit?['contributionId'] as num?)?.toInt();
         serverContributionId = contributionId?.toString();
         if (paymentUrl.isNotEmpty && contributionId != null && context.mounted) {
           setState(() => _isProcessing = false);
-          final checkout = await Navigator.of(context).push<FedapayCheckoutResult>(
+          final checkout = await Navigator.of(context).push<PaymentCheckoutResult>(
             MaterialPageRoute(
               fullscreenDialog: true,
-              builder: (_) => FedapayCheckoutScreen(
+              builder: (_) => PaymentCheckoutScreen(
                 paymentUrl: paymentUrl,
                 contributionId: contributionId,
                 userId: auth.userId!,
                 amountFcfa: amount.round(),
-                callbackUrl: fedapayInit?['callbackUrl']?.toString() ?? '',
+                callbackUrl: gatewayInit?['callbackUrl']?.toString() ?? '',
               ),
             ),
           );
           if (!context.mounted) return;
-          if (checkout == null || checkout.outcome == FedapayCheckoutOutcome.cancelled) {
+          if (checkout == null || checkout.outcome == PaymentCheckoutOutcome.cancelled) {
             ScaffoldMessenger.of(context).showSnackBar(
               SnackBar(
                 content: Text(
@@ -548,11 +568,11 @@ class _PaymentScreenState extends ConsumerState<PaymentScreen> {
             );
             return;
           }
-          if (checkout.outcome == FedapayCheckoutOutcome.rejected) {
+          if (checkout.outcome == PaymentCheckoutOutcome.rejected) {
             ScaffoldMessenger.of(context).showSnackBar(
               SnackBar(
                 content: Text(
-                  'Paiement non confirmé par FedaPay.',
+                  'Paiement non confirmé par PayDunya.',
                   style: GoogleFonts.manrope(fontWeight: FontWeight.w600),
                 ),
                 behavior: SnackBarBehavior.floating,
@@ -560,10 +580,10 @@ class _PaymentScreenState extends ConsumerState<PaymentScreen> {
             );
             return;
           }
-          fedapayValidated = checkout.outcome == FedapayCheckoutOutcome.validated;
+          gatewayValidated = checkout.outcome == PaymentCheckoutOutcome.validated;
         }
       } else {
-        // FedaPay non configuré, erreur API ou lien absent → déclaration classique
+        // PayDunya non configuré, erreur API ou lien absent → déclaration classique
         final apiRes = await _mobileApi.sendContribution(
           userId: auth.userId!,
           amount: amount,
@@ -610,8 +630,8 @@ class _PaymentScreenState extends ConsumerState<PaymentScreen> {
     _showSuccessDialog(
       context,
       amount,
-      awaitingAgentValidation: paymentMode == 'mobile_money' && !fedapayValidated,
-      fedapayConfirmed: fedapayValidated,
+      awaitingAgentValidation: paymentMode == 'mobile_money' && !gatewayValidated,
+      gatewayConfirmed: gatewayValidated,
     );
   }
 
@@ -619,7 +639,7 @@ class _PaymentScreenState extends ConsumerState<PaymentScreen> {
     BuildContext context,
     double amount, {
     required bool awaitingAgentValidation,
-    bool fedapayConfirmed = false,
+    bool gatewayConfirmed = false,
   }) {
     final fin = ref.read(financeProvider);
     double rate = 0;
@@ -648,7 +668,7 @@ class _PaymentScreenState extends ConsumerState<PaymentScreen> {
         builder: (screenContext) => PaymentSuccessScreen(
           amount: amount,
           awaitingAgentValidation: awaitingAgentValidation,
-          fedapayConfirmed: fedapayConfirmed,
+          gatewayConfirmed: gatewayConfirmed,
           paymentModeLabel: paymentModeLabel,
           slotsCount: slotsLabel,
           productName: productName,

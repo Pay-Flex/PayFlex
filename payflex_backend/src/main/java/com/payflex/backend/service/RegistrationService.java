@@ -524,7 +524,7 @@ public class RegistrationService {
     }
 
     /**
-     * Inscription client mobile : compte actif immédiatement, adhésion 250 FCFA ensuite (agent ou FedaPay).
+     * Inscription client mobile : compte actif immédiatement, adhésion 250 FCFA ensuite (agent ou PayDunya).
      */
     private void finalizeClientSelfRegistration(
         long requestId,

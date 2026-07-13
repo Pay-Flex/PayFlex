@@ -295,7 +295,7 @@ public class ContributionWorkflowService {
     }
 
     @Transactional
-    public void validateByFedaPay(long contributionId, String fedapayTransactionId) {
+    public void validateByPaydunya(long contributionId, String paydunyaToken) {
         Map<String, Object> row = loadContribution(contributionId);
         if (row == null) {
             throw new IllegalArgumentException("Cotisation introuvable.");
@@ -303,15 +303,15 @@ public class ContributionWorkflowService {
         if (!"pending".equals(row.get("status"))) {
             return;
         }
-        String tx = Objects.toString(row.get("fedapay_transaction_id"), "");
-        if (!tx.isBlank() && fedapayTransactionId != null && !fedapayTransactionId.equals(tx)) {
-            throw new IllegalArgumentException("Transaction FedaPay non concordante.");
+        String token = Objects.toString(row.get("paydunya_token"), "");
+        if (!token.isBlank() && paydunyaToken != null && !paydunyaToken.equals(token)) {
+            throw new IllegalArgumentException("Jeton PayDunya non concordant.");
         }
         jdbcTemplate.update(
-            "UPDATE contributions SET payment_provider = 'fedapay' WHERE id = ?",
+            "UPDATE contributions SET payment_provider = 'paydunya' WHERE id = ?",
             contributionId
         );
-        applyValidation(contributionId, null, "fedapay");
+        applyValidation(contributionId, null, "paydunya");
     }
 
     /**
@@ -327,7 +327,7 @@ public class ContributionWorkflowService {
             SELECT id FROM contributions
             WHERE status = 'pending'
               AND LOWER(payment_mode) = 'mobile_money'
-              AND (fedapay_transaction_id IS NULL OR fedapay_transaction_id = '')
+              AND (paydunya_token IS NULL OR paydunya_token = '')
               AND created_at < DATE_SUB(NOW(), INTERVAL ? HOUR)
             ORDER BY created_at ASC
             LIMIT 200
@@ -353,7 +353,7 @@ public class ContributionWorkflowService {
             """
             SELECT id FROM contributions
             WHERE status = 'pending' AND LOWER(payment_mode) <> 'cash'
-              AND (fedapay_transaction_id IS NULL OR fedapay_transaction_id = '')
+              AND (paydunya_token IS NULL OR paydunya_token = '')
             """,
             (rs, i) -> rs.getLong(1)
         );
@@ -631,14 +631,14 @@ public class ContributionWorkflowService {
                 clientUserId,
                 "Cotisation de " + amt + " FCFA confirmée par votre agent PayFlex."
             );
-        } else if ("fedapay".equals(actor)) {
-            clientMsg = "FedaPay a confirmé votre versement de " + amt + " FCFA" + refSuffix;
-            agentMsg = "Paiement FedaPay confirmé pour {client} (" + amt + " FCFA).";
+        } else if ("paydunya".equals(actor)) {
+            clientMsg = "PayDunya a confirmé votre versement de " + amt + " FCFA" + refSuffix;
+            agentMsg = "Paiement PayDunya confirmé pour {client} (" + amt + " FCFA).";
             auditService.logEquipe(
-                "fedapay",
-                "Validation FedaPay cotisation #" + contributionId + " (" + amt + " FCFA)."
+                "paydunya",
+                "Validation PayDunya cotisation #" + contributionId + " (" + amt + " FCFA)."
             );
-            auditService.logClient(clientUserId, "Cotisation confirmée via FedaPay (" + amt + " FCFA).");
+            auditService.logClient(clientUserId, "Cotisation confirmée via PayDunya (" + amt + " FCFA).");
         } else if ("auto-centre".equals(actor)) {
             int hours = payflexProperties.getContributions().getAutoValidateMobileMoneyHours();
             clientMsg = "Votre versement de "
@@ -697,27 +697,26 @@ public class ContributionWorkflowService {
         maybeNotifyGoalReached(clientUserId, contributionId);
     }
 
-    /** Refus paiement FedaPay (webhook annulation / expiration). */
-    public void notifyFedaPayContributionCanceled(long contributionId) {
+    public void notifyPaydunyaContributionCanceled(long contributionId) {
         Map<String, Object> row = loadContribution(contributionId);
         if (row == null) {
             return;
         }
         long clientUserId = ((Number) row.get("user_id")).longValue();
         double amount = ((Number) row.get("amount")).doubleValue();
-        String motif = "Paiement FedaPay annulé ou expiré. Vous pouvez réessayer depuis l’application.";
+        String motif = "Paiement PayDunya annulé ou expiré. Vous pouvez réessayer depuis l’application.";
         inboxNotifications.notifyUser(
             clientUserId,
             NOTIF_TYPE_REJECTED,
             "Paiement non abouti",
-            "Votre versement de " + Math.round(amount) + " FCFA via FedaPay n’a pas abouti : " + motif,
+            "Votre versement de " + Math.round(amount) + " FCFA via PayDunya n’a pas abouti : " + motif,
             contributionId
         );
         inboxNotifications.notifyAssignedAgentOnly(
             clientUserId,
             "contribution_rejected",
-            "Paiement FedaPay — {client}",
-            "Le paiement FedaPay de {client} (" + Math.round(amount) + " FCFA) a été annulé ou a expiré.",
+            "Paiement PayDunya — {client}",
+            "Le paiement PayDunya de {client} (" + Math.round(amount) + " FCFA) a été annulé ou a expiré.",
             contributionId
         );
     }

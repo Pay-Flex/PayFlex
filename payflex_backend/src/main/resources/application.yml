@@ -38,15 +38,17 @@ payflex:
     auto-validate-mobile-money-hours: ${PAYFLEX_AUTO_VALIDATE_HOURS:24}
     # false = espèces agent en « attente » jusqu’au rapprochement fin de journée au centre admin
     agent-cash-auto-validate: ${PAYFLEX_AGENT_CASH_AUTO_VALIDATE:false}
-  fedapay:
-    enabled: ${FEDAPAY_ENABLED:true}
-    # true = page PayFlex locale (pas d'appel API). Mettre false + clé API pour FedaPay réel.
-    simulate: ${FEDAPAY_SIMULATE:true}
-    sandbox: ${FEDAPAY_SANDBOX:true}
-    # Clé secrète (sk_…) : uniquement via variable d'environnement ou fichier .env local — jamais dans Git
-    api-key: ${FEDAPAY_API_KEY:}
-    public-key: ${FEDAPAY_PUBLIC_KEY:}
-    webhook-secret: ${FEDAPAY_WEBHOOK_SECRET:}
+  paydunya:
+    # Passerelle mobile money unique (Flooz Moov, T-Money / Mixx by Yas, cartes).
+    # Repli gracieux : clés absentes = mobile money masqué côté mobile (déclaration classique).
+    enabled: ${PAYDUNYA_ENABLED:true}
+    # test = sandbox PayDunya (aucun argent réel) ; live = production.
+    mode: ${PAYDUNYA_MODE:test}
+    # Clés d'API PayDunya : uniquement via variables d'environnement / .env local — jamais dans Git.
+    master-key: ${PAYDUNYA_MASTER_KEY:}
+    private-key: ${PAYDUNYA_PRIVATE_KEY:}
+    token: ${PAYDUNYA_TOKEN:}
+    public-key: ${PAYDUNYA_PUBLIC_KEY:}
     public-base-url: ${PAYFLEX_PUBLIC_URL:http://localhost:8088}
 
 spring:

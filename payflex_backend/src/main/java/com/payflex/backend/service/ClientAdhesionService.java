@@ -116,20 +116,20 @@ public class ClientAdhesionService {
     }
 
     @Transactional
-    public void markAdhesionPaidByFedaPay(long clientUserId, String fedapayTransactionId) {
+    public void markAdhesionPaidByPaydunya(long clientUserId, String paydunyaToken) {
         ensureClient(clientUserId);
         int n = jdbcTemplate.update(
             """
             UPDATE users SET
               adhesion_fee_paid = TRUE,
               adhesion_paid_at = NOW(),
-              adhesion_fedapay_transaction_id = ?,
+              adhesion_paydunya_token = ?,
               status = ?,
               adhesion_dispute_open = FALSE,
               adhesion_dispute_resolved_at = CASE WHEN adhesion_dispute_open THEN NOW() ELSE adhesion_dispute_resolved_at END
             WHERE id = ? AND adhesion_fee_paid = FALSE
             """,
-            fedapayTransactionId,
+            paydunyaToken,
             STATUS_ADHERED,
             clientUserId
         );
@@ -146,7 +146,7 @@ public class ClientAdhesionService {
         }
         auditService.logClient(
             clientUserId,
-            "Adhésion PayFlex (" + ADHESION_FEE_FCFA + " FCFA) réglée par mobile money (FedaPay)."
+            "Adhésion PayFlex (" + ADHESION_FEE_FCFA + " FCFA) réglée par mobile money (PayDunya)."
         );
         notifyAdhesionConfirmed(clientUserId);
         recalcAssiduityBadge(clientUserId);

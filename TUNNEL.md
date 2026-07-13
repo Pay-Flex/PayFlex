@@ -80,7 +80,7 @@ URL affichée : `https://payflex-app.loca.lt`
 PAYFLEX_PUBLIC_URL=https://payflex-app.loca.lt
 ```
 
-Redémarrer le backend après modification du `.env`. Webhook FedaPay : `{PAYFLEX_PUBLIC_URL}/api/fedapay/webhook`
+Redémarrer le backend après modification du `.env`. Webhook/IPN PayDunya : `{PAYFLEX_PUBLIC_URL}/api/paydunya/webhook`
 
 ### URLs utiles
 
@@ -126,7 +126,7 @@ Les quick tunnels Cloudflare **ne conviennent pas** (URL aléatoire). Solutions 
 
 1. Backend : `PAYFLEX_PUBLIC_URL=https://api.votredomaine.com` dans `.env`
 2. Mobile : `.\scripts\build-apk.ps1 -Mode prod -ApiBase "https://api.votredomaine.com"`
-3. Dashboard FedaPay : webhook vers `https://api.votredomaine.com/api/fedapay/webhook`
+3. Dashboard PayDunya : IPN vers `https://api.votredomaine.com/api/paydunya/webhook`
 
 En prod, l’override URL dans l’app (SharedPreferences) est **ignoré** — seule l’URL compilée compte.
 

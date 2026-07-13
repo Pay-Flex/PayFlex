@@ -6,8 +6,7 @@ import com.payflex.backend.service.ClientAdhesionService;
 import com.payflex.backend.service.ClientBonusSavingsService;
 import com.payflex.backend.service.ClientProductSelectionService;
 import com.payflex.backend.service.ContributionWorkflowService;
-import com.payflex.backend.service.FedaPayPaymentService;
-import com.payflex.backend.service.FedaPaySimulateService;
+import com.payflex.backend.service.PayDunyaPaymentService;
 import com.payflex.backend.service.JobOfferService;
 import com.payflex.backend.service.LegalDocumentService;
 import com.payflex.backend.service.MobileApiService;
@@ -46,8 +45,7 @@ public class MobileApiController {
     private final AdminAuditService auditService;
     private final SupportChatService supportChatService;
     private final ContributionWorkflowService contributionWorkflowService;
-    private final FedaPayPaymentService fedaPayPaymentService;
-    private final FedaPaySimulateService fedaPaySimulateService;
+    private final PayDunyaPaymentService payDunyaPaymentService;
     private final PushNotificationService pushNotificationService;
     private final ClientAdhesionService clientAdhesionService;
     private final LegalDocumentService legalDocumentService;
@@ -64,8 +62,7 @@ public class MobileApiController {
         AdminAuditService auditService,
         SupportChatService supportChatService,
         ContributionWorkflowService contributionWorkflowService,
-        FedaPayPaymentService fedaPayPaymentService,
-        FedaPaySimulateService fedaPaySimulateService,
+        PayDunyaPaymentService payDunyaPaymentService,
         PushNotificationService pushNotificationService,
         ClientAdhesionService clientAdhesionService,
         LegalDocumentService legalDocumentService,
@@ -81,8 +78,7 @@ public class MobileApiController {
         this.auditService = auditService;
         this.supportChatService = supportChatService;
         this.contributionWorkflowService = contributionWorkflowService;
-        this.fedaPayPaymentService = fedaPayPaymentService;
-        this.fedaPaySimulateService = fedaPaySimulateService;
+        this.payDunyaPaymentService = payDunyaPaymentService;
         this.pushNotificationService = pushNotificationService;
         this.clientAdhesionService = clientAdhesionService;
         this.legalDocumentService = legalDocumentService;
@@ -661,7 +657,7 @@ public class MobileApiController {
             "status", "pending",
             "referenceCode", ref == null ? "" : ref,
             "message", "Versement enregistré. Vous serez notifié après validation par votre agent PayFlex (ou le centre si besoin).",
-            "fedapayEnabled", fedaPayPaymentService.isAvailable()
+            "paydunyaEnabled", payDunyaPaymentService.isAvailable()
         ));
     }
 
@@ -696,8 +692,29 @@ public class MobileApiController {
         return ResponseEntity.ok(clientBonusSavingsService.summary(userId, daily));
     }
 
-    @PostMapping("/contributions/fedapay/init")
-    public ResponseEntity<?> initFedaPayContribution(@RequestBody Map<String, Object> payload) {
+    private long resolveContributionOwner(long contributionId) {
+        try {
+            Long userId = mobileApiService.findContributionUserId(contributionId);
+            return userId == null ? 0L : userId;
+        } catch (Exception ex) {
+            return 0L;
+        }
+    }
+
+    /**
+     * Passerelle de paiement mobile money disponible (PayDunya, passerelle unique). Permet à l'app
+     * de masquer proprement le mobile money si PayDunya n'est pas configuré (repli gracieux :
+     * il ne reste alors que la déclaration classique / espèces).
+     */
+    @GetMapping("/payments/providers")
+    public Map<String, Object> paymentProviders() {
+        return Map.of(
+            "paydunyaEnabled", payDunyaPaymentService.isAvailable()
+        );
+    }
+
+    @PostMapping("/contributions/paydunya/init")
+    public ResponseEntity<?> initPayDunyaContribution(@RequestBody Map<String, Object> payload) {
         long userId = parseLong(payload.get("userId"));
         if (userId <= 0) {
             return ResponseEntity.badRequest().body(Map.of("message", "Client manquant."));
@@ -730,10 +747,10 @@ public class MobileApiController {
         } catch (NumberFormatException ignored) {
             agentRowId = null;
         }
-        if (!fedaPayPaymentService.isAvailable()) {
+        if (!payDunyaPaymentService.isAvailable()) {
             return ResponseEntity.ok(Map.of(
-                "fedapayEnabled", false,
-                "message", "FedaPay non configuré. Utilisez la déclaration classique."
+                "paydunyaEnabled", false,
+                "message", "PayDunya non configuré. Utilisez la déclaration classique."
             ));
         }
         String payerPhone = payload.get("payerPhone") == null
@@ -750,58 +767,29 @@ public class MobileApiController {
             payerPhone = null;
         }
         try {
-            Map<String, Object> result = fedaPayPaymentService.initMobileMoneyPayment(userId, productId, agentRowId, amount, payerPhone);
+            Map<String, Object> result = payDunyaPaymentService.initMobileMoneyPayment(userId, productId, agentRowId, amount, payerPhone);
             return ResponseEntity.ok(result);
         } catch (IllegalArgumentException | IllegalStateException ex) {
             return ResponseEntity.badRequest().body(Map.of("message", ex.getMessage()));
         }
     }
 
-    @PostMapping("/contributions/fedapay/status")
-    public ResponseEntity<?> fedaPayContributionStatus(@RequestBody Map<String, Object> payload) {
+    @PostMapping("/contributions/paydunya/status")
+    public ResponseEntity<?> payDunyaContributionStatus(@RequestBody Map<String, Object> payload) {
         long userId = parseLong(payload.get("userId"));
         long contributionId = parseLong(payload.get("contributionId"));
         if (userId <= 0 || contributionId <= 0) {
             return ResponseEntity.badRequest().body(Map.of("message", "Paramètres manquants."));
         }
         try {
-            return ResponseEntity.ok(fedaPayPaymentService.paymentStatus(contributionId, userId));
+            return ResponseEntity.ok(payDunyaPaymentService.paymentStatus(contributionId, userId));
         } catch (IllegalArgumentException ex) {
             return ResponseEntity.badRequest().body(Map.of("message", ex.getMessage()));
         }
     }
 
-    @GetMapping(value = "/fedapay/simulate/page", produces = "text/html;charset=UTF-8")
-    public ResponseEntity<String> fedaPaySimulatePage(@RequestParam("tx") String tx) {
-        try {
-            return ResponseEntity.ok(fedaPaySimulateService.renderSimulatePage(tx));
-        } catch (IllegalArgumentException ex) {
-            return ResponseEntity.badRequest().body(ex.getMessage());
-        }
-    }
-
-    @GetMapping("/fedapay/simulate/confirm")
-    public ResponseEntity<Void> fedaPaySimulateConfirm(@RequestParam("tx") String tx) {
-        try {
-            String redirect = fedaPaySimulateService.confirm(tx);
-            return ResponseEntity.status(302).header("Location", redirect).build();
-        } catch (IllegalArgumentException ex) {
-            return ResponseEntity.badRequest().build();
-        }
-    }
-
-    @GetMapping("/fedapay/simulate/cancel")
-    public ResponseEntity<Void> fedaPaySimulateCancel(@RequestParam("tx") String tx) {
-        try {
-            String redirect = fedaPaySimulateService.cancel(tx);
-            return ResponseEntity.status(302).header("Location", redirect).build();
-        } catch (IllegalArgumentException ex) {
-            return ResponseEntity.badRequest().build();
-        }
-    }
-
-    @GetMapping(value = "/contributions/fedapay/callback", produces = "text/html;charset=UTF-8")
-    public ResponseEntity<String> fedaPayCallback(
+    @GetMapping(value = "/contributions/paydunya/callback", produces = "text/html;charset=UTF-8")
+    public ResponseEntity<String> payDunyaCallback(
         @RequestParam long contributionId,
         @RequestParam(required = false) String status
     ) {
@@ -810,11 +798,11 @@ public class MobileApiController {
             try {
                 long ownerId = resolveContributionOwner(contributionId);
                 if (ownerId > 0) {
-                    Map<String, Object> synced = fedaPayPaymentService.paymentStatus(contributionId, ownerId);
+                    Map<String, Object> synced = payDunyaPaymentService.paymentStatus(contributionId, ownerId);
                     label = String.valueOf(synced.getOrDefault("status", label));
                 }
             } catch (Exception ignored) {
-                // webhook ou bouton « Vérifier » dans l'app
+                // retour navigateur ou bouton « Vérifier » dans l'app
             }
         }
         String html = """
@@ -829,15 +817,6 @@ public class MobileApiController {
             </body></html>
             """.formatted(label);
         return ResponseEntity.ok().header("Content-Type", "text/html;charset=UTF-8").body(html);
-    }
-
-    private long resolveContributionOwner(long contributionId) {
-        try {
-            Long userId = mobileApiService.findContributionUserId(contributionId);
-            return userId == null ? 0L : userId;
-        } catch (Exception ex) {
-            return 0L;
-        }
     }
 
     @PostMapping("/contributions/pending")
@@ -1256,20 +1235,20 @@ public class MobileApiController {
             .orElseGet(() -> ResponseEntity.notFound().build());
     }
 
-    @PostMapping("/adhesion/fedapay/init")
-    public ResponseEntity<?> initFedaPayAdhesion(@RequestBody Map<String, Object> payload) {
+    @PostMapping("/adhesion/paydunya/init")
+    public ResponseEntity<?> initPayDunyaAdhesion(@RequestBody Map<String, Object> payload) {
         long userId = parseLong(payload.get("userId"));
         if (userId <= 0 || !credentialsMatch(payload, userId)) {
             return ResponseEntity.status(401).body(Map.of("message", "Session invalide."));
         }
-        if (!fedaPayPaymentService.isAvailable()) {
+        if (!payDunyaPaymentService.isAvailable()) {
             return ResponseEntity.ok(Map.of(
-                "fedapayEnabled", false,
+                "paydunyaEnabled", false,
                 "message", "Paiement mobile non configuré. Réglez l'adhésion en espèces auprès de votre agent PayFlex."
             ));
         }
         try {
-            return ResponseEntity.ok(fedaPayPaymentService.initAdhesionPayment(userId));
+            return ResponseEntity.ok(payDunyaPaymentService.initAdhesionPayment(userId));
         } catch (IllegalArgumentException ex) {
             return ResponseEntity.badRequest().body(Map.of("message", ex.getMessage()));
         } catch (IllegalStateException ex) {
@@ -1279,28 +1258,28 @@ public class MobileApiController {
         }
     }
 
-    @PostMapping("/adhesion/fedapay/status")
-    public ResponseEntity<?> fedaPayAdhesionStatus(@RequestBody Map<String, Object> payload) {
+    @PostMapping("/adhesion/paydunya/status")
+    public ResponseEntity<?> payDunyaAdhesionStatus(@RequestBody Map<String, Object> payload) {
         long userId = parseLong(payload.get("userId"));
         if (userId <= 0 || !credentialsMatch(payload, userId)) {
             return ResponseEntity.status(401).body(Map.of("message", "Session invalide."));
         }
         try {
-            return ResponseEntity.ok(fedaPayPaymentService.adhesionPaymentStatus(userId));
+            return ResponseEntity.ok(payDunyaPaymentService.adhesionPaymentStatus(userId));
         } catch (IllegalArgumentException ex) {
             return ResponseEntity.badRequest().body(Map.of("message", ex.getMessage()));
         }
     }
 
-    @GetMapping(value = "/adhesion/fedapay/callback", produces = "text/html;charset=UTF-8")
-    public ResponseEntity<String> fedaPayAdhesionCallback(
+    @GetMapping(value = "/adhesion/paydunya/callback", produces = "text/html;charset=UTF-8")
+    public ResponseEntity<String> payDunyaAdhesionCallback(
         @RequestParam long userId,
         @RequestParam(required = false) String status
     ) {
         String label = status == null || status.isBlank() ? "en cours" : status;
         if (userId > 0) {
             try {
-                Map<String, Object> synced = fedaPayPaymentService.adhesionPaymentStatus(userId);
+                Map<String, Object> synced = payDunyaPaymentService.adhesionPaymentStatus(userId);
                 label = String.valueOf(synced.getOrDefault("status", label));
             } catch (Exception ignored) {
                 // webhook ou bouton « Vérifier » dans l'app

@@ -6,7 +6,7 @@ import org.springframework.boot.context.properties.ConfigurationProperties;
 public class PayflexProperties {
 
     private Contributions contributions = new Contributions();
-    private Fedapay fedapay = new Fedapay();
+    private Paydunya paydunya = new Paydunya();
     private Push push = new Push();
     /** Seuil jours orange carnet pour alerte inbox client + agent (aligné dashboard admin). */
     private int catchupAlertThreshold = 5;
@@ -21,12 +21,12 @@ public class PayflexProperties {
         this.contributions = contributions;
     }
 
-    public Fedapay getFedapay() {
-        return fedapay;
+    public Paydunya getPaydunya() {
+        return paydunya;
     }
 
-    public void setFedapay(Fedapay fedapay) {
-        this.fedapay = fedapay;
+    public void setPaydunya(Paydunya paydunya) {
+        this.paydunya = paydunya;
     }
 
     public Push getPush() {
@@ -161,16 +161,24 @@ public class PayflexProperties {
         }
     }
 
-    public static class Fedapay {
+    /**
+     * PayDunya — passerelle mobile money unique (Flooz Moov, T-Money / Mixx by Yas, cartes),
+     * via l'API « Checkout Invoice » (Paiement Avec Redirection). Repli gracieux : si les
+     * clés sont absentes, {@link #isConfigured()} renvoie false et l'option est masquée.
+     */
+    public static class Paydunya {
         private boolean enabled = true;
-        /** true = page PayFlex locale, sans appel API FedaPay (défaut si pas de clé API). */
-        private boolean simulate = true;
-        private boolean sandbox = true;
-        private String apiKey = "";
-        /** Clé publique (pk_…) — optionnelle, pour intégration client ; ne pas logger. */
+        /** test = sandbox PayDunya (pas d'argent réel) ; live = production. */
+        private String mode = "test";
+        /** PAYDUNYA-MASTER-KEY (secrète, jamais loguée). */
+        private String masterKey = "";
+        /** PAYDUNYA-PRIVATE-KEY (secrète). */
+        private String privateKey = "";
+        /** PAYDUNYA-TOKEN (secret). */
+        private String token = "";
+        /** Clé publique (optionnelle, intégration côté client). */
         private String publicKey = "";
-        private String webhookSecret = "";
-        /** URL publique du backend (webhook + callback), ex. https://payflex.example.com */
+        /** URL publique du backend (callback IPN + return_url), ex. https://payflex.example.com */
         private String publicBaseUrl = "http://localhost:8088";
 
         public boolean isEnabled() {
@@ -181,28 +189,36 @@ public class PayflexProperties {
             this.enabled = enabled;
         }
 
-        public boolean isSimulate() {
-            return simulate;
+        public String getMode() {
+            return mode;
         }
 
-        public void setSimulate(boolean simulate) {
-            this.simulate = simulate;
+        public void setMode(String mode) {
+            this.mode = mode;
         }
 
-        public boolean isSandbox() {
-            return sandbox;
+        public String getMasterKey() {
+            return masterKey;
         }
 
-        public void setSandbox(boolean sandbox) {
-            this.sandbox = sandbox;
+        public void setMasterKey(String masterKey) {
+            this.masterKey = masterKey;
         }
 
-        public String getApiKey() {
-            return apiKey;
+        public String getPrivateKey() {
+            return privateKey;
         }
 
-        public void setApiKey(String apiKey) {
-            this.apiKey = apiKey;
+        public void setPrivateKey(String privateKey) {
+            this.privateKey = privateKey;
+        }
+
+        public String getToken() {
+            return token;
+        }
+
+        public void setToken(String token) {
+            this.token = token;
         }
 
         public String getPublicKey() {
@@ -213,14 +229,6 @@ public class PayflexProperties {
             this.publicKey = publicKey;
         }
 
-        public String getWebhookSecret() {
-            return webhookSecret;
-        }
-
-        public void setWebhookSecret(String webhookSecret) {
-            this.webhookSecret = webhookSecret;
-        }
-
         public String getPublicBaseUrl() {
             return publicBaseUrl;
         }
@@ -229,26 +237,28 @@ public class PayflexProperties {
             this.publicBaseUrl = publicBaseUrl;
         }
 
-        public boolean useSimulation() {
-            if (!enabled) {
-                return false;
-            }
-            if (simulate) {
-                return true;
-            }
-            return apiKey == null || apiKey.isBlank();
+        public boolean isLive() {
+            return "live".equalsIgnoreCase(mode) || "production".equalsIgnoreCase(mode);
         }
 
-        public boolean hasApiKey() {
-            return apiKey != null && !apiKey.isBlank();
+        /** Toutes les clés d'API sont présentes. */
+        public boolean hasKeys() {
+            return isFilled(masterKey) && isFilled(privateKey) && isFilled(token);
         }
 
+        /** Activé ET clés présentes : condition d'utilisation réelle de PayDunya. */
         public boolean isConfigured() {
-            return enabled && (useSimulation() || hasApiKey());
+            return enabled && hasKeys();
         }
 
         public String apiBaseUrl() {
-            return sandbox ? "https://sandbox-api.fedapay.com/v1" : "https://api.fedapay.com/v1";
+            return isLive()
+                ? "https://app.paydunya.com/api/v1"
+                : "https://app.paydunya.com/sandbox-api/v1";
+        }
+
+        private static boolean isFilled(String value) {
+            return value != null && !value.isBlank();
         }
     }
 }

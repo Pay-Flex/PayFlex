@@ -6,9 +6,9 @@ import '../../core/network/mobile_api_service.dart';
 import '../../core/providers/auth_provider.dart';
 import '../../core/providers/navigation_provider.dart';
 import '../../core/utils/user_visible_message.dart';
-import 'fedapay_checkout_screen.dart';
+import 'payment_checkout_screen.dart';
 
-/// Paiement de l’adhésion PayFlex (250 FCFA) via FedaPay ou consigne espèces agent.
+/// Paiement de l’adhésion PayFlex (250 FCFA) via PayDunya ou consigne espèces agent.
 class AdhesionPaymentScreen extends ConsumerStatefulWidget {
   const AdhesionPaymentScreen({super.key});
 
@@ -20,7 +20,7 @@ class _AdhesionPaymentScreenState extends ConsumerState<AdhesionPaymentScreen> {
   final _api = MobileApiService();
   bool _loading = false;
 
-  Future<void> _payWithFedaPay() async {
+  Future<void> _payWithPaydunya() async {
     final auth = ref.read(authProvider);
     final uid = auth.userId;
     final phone = auth.phone?.trim() ?? '';
@@ -30,14 +30,14 @@ class _AdhesionPaymentScreenState extends ConsumerState<AdhesionPaymentScreen> {
       return;
     }
     setState(() => _loading = true);
-    final init = await _api.initFedapayAdhesion(userId: uid, phone: phone, pin: pin);
+    final init = await _api.initPaydunyaAdhesion(userId: uid, phone: phone, pin: pin);
     if (!mounted) return;
     setState(() => _loading = false);
     if (init == null) {
       _snack(UserVisibleMessage.forNetworkError());
       return;
     }
-    if (init['fedapayEnabled'] != true) {
+    if (init['paydunyaEnabled'] != true) {
       _snack(
         UserVisibleMessage.apiOrFallback(
           init['message']?.toString(),
@@ -52,10 +52,10 @@ class _AdhesionPaymentScreenState extends ConsumerState<AdhesionPaymentScreen> {
       return;
     }
     final amount = (init['amountFcfa'] as num?)?.toInt() ?? auth.adhesionFeeFcfa;
-    final result = await Navigator.push<FedapayCheckoutResult>(
+    final result = await Navigator.push<PaymentCheckoutResult>(
       context,
       MaterialPageRoute(
-        builder: (_) => FedapayCheckoutScreen(
+        builder: (_) => PaymentCheckoutScreen(
           paymentUrl: url,
           userId: uid,
           amountFcfa: amount,
@@ -67,13 +67,13 @@ class _AdhesionPaymentScreenState extends ConsumerState<AdhesionPaymentScreen> {
       ),
     );
     if (!mounted || result == null) return;
-    if (result.outcome == FedapayCheckoutOutcome.validated) {
+    if (result.outcome == PaymentCheckoutOutcome.validated) {
       await ref.read(authProvider.notifier).refreshProfile();
       if (!mounted) return;
       ref.read(navigationIndexProvider.notifier).setIndex(0);
       _snack('Adhésion confirmée ! Cotisations et paiements sont activés.', success: true);
       Navigator.pop(context, true);
-    } else if (result.outcome == FedapayCheckoutOutcome.rejected) {
+    } else if (result.outcome == PaymentCheckoutOutcome.rejected) {
       _snack('Paiement refusé ou annulé.');
     }
   }
@@ -171,7 +171,7 @@ class _AdhesionPaymentScreenState extends ConsumerState<AdhesionPaymentScreen> {
               const SizedBox(height: 8),
             ],
             ElevatedButton(
-              onPressed: _loading ? null : _payWithFedaPay,
+              onPressed: _loading ? null : _payWithPaydunya,
               style: ElevatedButton.styleFrom(
                 minimumSize: const Size(double.infinity, 52),
                 backgroundColor: AppColors.secondary,
@@ -184,7 +184,7 @@ class _AdhesionPaymentScreenState extends ConsumerState<AdhesionPaymentScreen> {
                       child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white),
                     )
                   : Text(
-                      hasAgent ? 'Payer par mobile money (FedaPay)' : 'Payer l’adhésion (FedaPay)',
+                      hasAgent ? 'Payer par mobile money (PayDunya)' : 'Payer l’adhésion (PayDunya)',
                       style: GoogleFonts.manrope(fontWeight: FontWeight.w800),
                     ),
             ),

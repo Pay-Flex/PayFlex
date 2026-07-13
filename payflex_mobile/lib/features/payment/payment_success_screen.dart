@@ -17,7 +17,7 @@ class PaymentSuccessScreen extends StatelessWidget {
     required this.awaitingAgentValidation,
     required this.paymentModeLabel,
     required this.slotsCount,
-    this.fedapayConfirmed = false,
+    this.gatewayConfirmed = false,
     this.productName,
     this.onViewReceipt,
     required this.onDone,
@@ -25,7 +25,7 @@ class PaymentSuccessScreen extends StatelessWidget {
 
   final double amount;
   final bool awaitingAgentValidation;
-  final bool fedapayConfirmed;
+  final bool gatewayConfirmed;
   final String paymentModeLabel;
   final int slotsCount;
   final String? productName;
@@ -42,7 +42,7 @@ class PaymentSuccessScreen extends StatelessWidget {
 
     final String title = awaitingAgentValidation
         ? 'Demande envoyée'
-        : (fedapayConfirmed ? 'Paiement confirmé' : 'Cotisation validée');
+        : (gatewayConfirmed ? 'Paiement confirmé' : 'Cotisation validée');
 
     final String message = awaitingAgentValidation
         ? 'Votre cotisation sera ajoutée à votre carnet après validation par votre agent.'

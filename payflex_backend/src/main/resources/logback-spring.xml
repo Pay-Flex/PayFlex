@@ -91,7 +91,7 @@
         <appender-ref ref="DIAGNOSTIC_FILE"/>
     </logger>
 
-    <logger name="com.payflex.backend.controller.FedaPayWebhookController" level="INFO" additivity="false">
+    <logger name="com.payflex.backend.controller.PayDunyaWebhookController" level="INFO" additivity="false">
         <appender-ref ref="MOBILE_API_FILE"/>
         <appender-ref ref="CONSOLE"/>
         <appender-ref ref="ERROR_FILE"/>

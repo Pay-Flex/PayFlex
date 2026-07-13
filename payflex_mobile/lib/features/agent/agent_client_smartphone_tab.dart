@@ -111,7 +111,7 @@ class AgentClientSmartphoneTab extends StatelessWidget {
             children: [
               _feature(Icons.home_rounded, 'Accueil', 'Solde, projets, livraison, épargne bonus'),
               _feature(Icons.grid_view_rounded, 'Catalogue', 'Articles et panier'),
-              _feature(Icons.account_balance_wallet_rounded, 'Paiement', 'Cotisation mobile money / FedaPay'),
+              _feature(Icons.account_balance_wallet_rounded, 'Paiement', 'Cotisation mobile money / PayDunya'),
               _feature(Icons.calendar_today_rounded, 'Suivi', 'Carnet calendrier + estimation'),
               _feature(Icons.history_rounded, 'Historique', 'Filtres et reçus'),
             ],

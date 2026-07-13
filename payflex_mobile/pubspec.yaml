@@ -55,8 +55,10 @@ dependencies:
   shared_preferences: ^2.5.5
   local_auth: ^3.0.1
   flutter_native_splash: ^2.4.6
-  firebase_core: ^4.12.0
-  firebase_messaging: ^16.4.2
+  # firebase_messaging 16.4.2 est cassé (référence 'FirebasePlugin' inexistant dans
+  # firebase_core_platform_interface 7.1.0). On épingle le dernier couple sain 16.4.1 / 4.11.0.
+  firebase_core: 4.11.0
+  firebase_messaging: 16.4.1
 
 dev_dependencies:
   flutter_test:

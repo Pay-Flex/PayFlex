@@ -30,7 +30,7 @@ public class SecurityConfig {
      */
     @Bean
     WebSecurityCustomizer mobileApiSecurityBypass() {
-        return web -> web.ignoring().requestMatchers("/api/mobile/**", "/api/fedapay/**");
+        return web -> web.ignoring().requestMatchers("/api/mobile/**", "/api/paydunya/**");
     }
 
     @Bean

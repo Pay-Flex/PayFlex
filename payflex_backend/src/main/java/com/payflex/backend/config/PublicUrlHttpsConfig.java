@@ -64,7 +64,7 @@ public class PublicUrlHttpsConfig {
     }
 
     private static boolean isHttpsPublicUrl(PayflexProperties payflexProperties) {
-        String base = payflexProperties.getFedapay().getPublicBaseUrl();
+        String base = payflexProperties.getPaydunya().getPublicBaseUrl();
         return base != null && base.regionMatches(true, 0, "https://", 0, 8);
     }
 
@@ -86,7 +86,7 @@ public class PublicUrlHttpsConfig {
             return null;
         }
         try {
-            String host = URI.create(payflexProperties.getFedapay().getPublicBaseUrl().trim()).getHost();
+            String host = URI.create(payflexProperties.getPaydunya().getPublicBaseUrl().trim()).getHost();
             return host == null || host.isBlank() ? null : host.toLowerCase();
         } catch (IllegalArgumentException ex) {
             return null;

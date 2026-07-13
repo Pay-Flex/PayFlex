@@ -10,8 +10,8 @@ import java.util.Map;
 public class ContributionValidationAlertService {
 
     public static final String TYPE_AUTO_TIMEOUT = "auto_validated_timeout";
-    public static final String TYPE_FEDAPAY_APPROVED = "fedapay_approved";
-    public static final String TYPE_FEDAPAY_CANCELED = "fedapay_canceled";
+    public static final String TYPE_PAYDUNYA_APPROVED = "paydunya_approved";
+    public static final String TYPE_PAYDUNYA_CANCELED = "paydunya_canceled";
 
     private final JdbcTemplate jdbcTemplate;
 

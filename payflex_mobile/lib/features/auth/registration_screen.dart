@@ -841,7 +841,7 @@ class _RegistrationScreenState extends ConsumerState<RegistrationScreen> {
               style: GoogleFonts.inter(fontSize: 13, fontWeight: FontWeight.w600, color: const Color(0xFF1E293B)),
             ),
             subtitle: Text(
-              'Paiement adhésion 250 FCFA par mobile money (FedaPay) dans l’app',
+              'Paiement adhésion 250 FCFA par mobile money (PayDunya) dans l’app',
               style: GoogleFonts.inter(fontSize: 11, color: Colors.grey.shade600),
             ),
             controlAffinity: ListTileControlAffinity.leading,

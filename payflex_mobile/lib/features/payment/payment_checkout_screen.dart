@@ -1,4 +1,3 @@
-import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:webview_flutter/webview_flutter.dart';
@@ -6,16 +5,17 @@ import '../../core/constants/app_colors.dart';
 import '../../core/network/api_config.dart';
 import '../../core/network/mobile_api_service.dart';
 
-enum FedapayCheckoutOutcome { validated, rejected, cancelled, pending }
+enum PaymentCheckoutOutcome { validated, rejected, cancelled, pending }
 
-class FedapayCheckoutResult {
-  const FedapayCheckoutResult(this.outcome);
-  final FedapayCheckoutOutcome outcome;
+class PaymentCheckoutResult {
+  const PaymentCheckoutResult(this.outcome);
+  final PaymentCheckoutOutcome outcome;
 }
 
-/// Paiement FedaPay intégré dans l'app (WebView) — l'utilisateur ne quitte pas PayFlex.
-class FedapayCheckoutScreen extends StatefulWidget {
-  const FedapayCheckoutScreen({
+/// Paiement PayDunya intégré dans l'app (WebView) — l'utilisateur ne quitte pas PayFlex.
+/// Sert aussi bien pour les cotisations que pour l'adhésion (250 FCFA).
+class PaymentCheckoutScreen extends StatefulWidget {
+  const PaymentCheckoutScreen({
     super.key,
     required this.paymentUrl,
     required this.userId,
@@ -34,14 +34,15 @@ class FedapayCheckoutScreen extends StatefulWidget {
   final bool adhesionMode;
   final String phone;
   final String pin;
+
   /// URL de retour PayFlex (tunnel) — détectée pour valider sans charger la page.
   final String callbackUrl;
 
   @override
-  State<FedapayCheckoutScreen> createState() => _FedapayCheckoutScreenState();
+  State<PaymentCheckoutScreen> createState() => _PaymentCheckoutScreenState();
 }
 
-class _FedapayCheckoutScreenState extends State<FedapayCheckoutScreen> {
+class _PaymentCheckoutScreenState extends State<PaymentCheckoutScreen> {
   final _api = MobileApiService();
   late final WebViewController _controller;
   var _loading = true;
@@ -106,11 +107,7 @@ class _FedapayCheckoutScreenState extends State<FedapayCheckoutScreen> {
       return false;
     }
     final cb = widget.callbackUrl.trim().toLowerCase();
-    return cb.isNotEmpty || d.contains('trycloudflare') || d.contains('fedapay/callback');
-  }
-
-  bool _isSimulateMode(String url) {
-    return url.contains('/fedapay/simulate/') || widget.paymentUrl.contains('/fedapay/simulate/');
+    return cb.isNotEmpty || d.contains('trycloudflare') || d.contains('paydunya/callback');
   }
 
   bool _isCanceledUrl(String url) {
@@ -125,9 +122,9 @@ class _FedapayCheckoutScreenState extends State<FedapayCheckoutScreen> {
     if (cb.isNotEmpty && u.startsWith(cb)) {
       return true;
     }
-    if (u.contains('fedapay/callback') ||
-        u.contains('/contributions/fedapay/callback') ||
-        u.contains('/adhesion/fedapay/callback')) {
+    if (u.contains('paydunya/callback') ||
+        u.contains('/contributions/paydunya/callback') ||
+        u.contains('/adhesion/paydunya/callback')) {
       return true;
     }
     if (u.contains('status=approved') ||
@@ -143,7 +140,7 @@ class _FedapayCheckoutScreenState extends State<FedapayCheckoutScreen> {
   void _handleFinishedUrl(String url) {
     if (_isCanceledUrl(url) && widget.adhesionMode) {
       if (!mounted || _checking) return;
-      Navigator.pop(context, const FedapayCheckoutResult(FedapayCheckoutOutcome.cancelled));
+      Navigator.pop(context, const PaymentCheckoutResult(PaymentCheckoutOutcome.cancelled));
       return;
     }
     _verifyAndClose(auto: true);
@@ -155,19 +152,19 @@ class _FedapayCheckoutScreenState extends State<FedapayCheckoutScreen> {
       _checking = true;
       _pageError = null;
     });
-    FedapayCheckoutOutcome outcome = FedapayCheckoutOutcome.pending;
+    PaymentCheckoutOutcome outcome = PaymentCheckoutOutcome.pending;
     final attempts = auto ? 10 : 4;
     for (var i = 0; i < attempts; i++) {
       if (!mounted) return;
       final Map<String, dynamic>? st;
       if (widget.adhesionMode) {
-        st = await _api.fedapayAdhesionStatus(
+        st = await _api.paydunyaAdhesionStatus(
           userId: widget.userId,
           phone: widget.phone,
           pin: widget.pin,
         );
       } else {
-        st = await _api.fedapayContributionStatus(
+        st = await _api.paydunyaContributionStatus(
           userId: widget.userId,
           contributionId: widget.contributionId,
         );
@@ -175,11 +172,11 @@ class _FedapayCheckoutScreenState extends State<FedapayCheckoutScreen> {
       final status = st?['status']?.toString() ?? 'pending';
       final adhered = st?['adhesionFeePaid'] == true || status == 'adhered';
       if (status == 'validated' || adhered) {
-        outcome = FedapayCheckoutOutcome.validated;
+        outcome = PaymentCheckoutOutcome.validated;
         break;
       }
       if (status == 'rejected') {
-        outcome = FedapayCheckoutOutcome.rejected;
+        outcome = PaymentCheckoutOutcome.rejected;
         break;
       }
       if (i < attempts - 1) {
@@ -188,16 +185,16 @@ class _FedapayCheckoutScreenState extends State<FedapayCheckoutScreen> {
     }
     if (!mounted) return;
     setState(() => _checking = false);
-    if (outcome == FedapayCheckoutOutcome.validated ||
-        outcome == FedapayCheckoutOutcome.rejected) {
-      Navigator.pop(context, FedapayCheckoutResult(outcome));
+    if (outcome == PaymentCheckoutOutcome.validated ||
+        outcome == PaymentCheckoutOutcome.rejected) {
+      Navigator.pop(context, PaymentCheckoutResult(outcome));
       return;
     }
     if (!auto && mounted) {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
           content: Text(
-            'Paiement encore en attente. Si FedaPay affiche « succès », appuyez sur « J’ai terminé le paiement ».',
+            'Paiement encore en attente. Si PayDunya affiche « succès », appuyez sur « J’ai terminé le paiement ».',
             style: GoogleFonts.manrope(fontWeight: FontWeight.w600),
           ),
           behavior: SnackBarBehavior.floating,
@@ -225,7 +222,7 @@ class _FedapayCheckoutScreenState extends State<FedapayCheckoutScreen> {
               ? null
               : () => Navigator.pop(
                     context,
-                    const FedapayCheckoutResult(FedapayCheckoutOutcome.cancelled),
+                    const PaymentCheckoutResult(PaymentCheckoutOutcome.cancelled),
                   ),
         ),
         actions: [
@@ -253,29 +250,13 @@ class _FedapayCheckoutScreenState extends State<FedapayCheckoutScreen> {
                 const SizedBox(width: 10),
                 Expanded(
                   child: Text(
-                    _isSimulateMode(widget.paymentUrl)
-                        ? '${widget.amountFcfa} FCFA · Simulation PayFlex (aucun appel FedaPay).'
-                        : '${widget.amountFcfa} FCFA · Mobile money (FedaPay). Après paiement, appuyez sur « J’ai terminé le paiement ».',
+                    '${widget.amountFcfa} FCFA · Mobile money (PayDunya). Après paiement, appuyez sur « J’ai terminé le paiement ».',
                     style: GoogleFonts.inter(fontSize: 12, color: const Color(0xFF1E3A5F)),
                   ),
                 ),
               ],
             ),
           ),
-          if (kDebugMode)
-            Container(
-              width: double.infinity,
-              padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
-              color: const Color(0xFFFFF7ED),
-              child: Text(
-                _isSimulateMode(widget.paymentUrl)
-                    ? 'Mode simulation : confirmez ou annulez sur la page PayFlex. '
-                        'PAYFLEX_PUBLIC_URL doit pointer vers le même tunnel que l’app.'
-                    : 'Sandbox FedaPay : opérateur « Momo Test », numéro 66000001 ou 64000001 (succès). '
-                        'Tunnel + backend doivent tourner.',
-                style: GoogleFonts.inter(fontSize: 11, color: const Color(0xFF9A3412), height: 1.35),
-              ),
-            ),
           if (_checking)
             LinearProgressIndicator(
               minHeight: 3,
@@ -286,7 +267,7 @@ class _FedapayCheckoutScreenState extends State<FedapayCheckoutScreen> {
             Padding(
               padding: const EdgeInsets.all(12),
               child: Text(
-                'Retour PayFlex indisponible (tunnel). Si le paiement FedaPay a réussi, '
+                'Retour PayFlex indisponible (tunnel). Si le paiement PayDunya a réussi, '
                 'utilisez le bouton ci-dessous.',
                 style: GoogleFonts.inter(color: Colors.orange.shade800, fontSize: 12),
               ),

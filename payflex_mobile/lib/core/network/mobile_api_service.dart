@@ -658,7 +658,25 @@ class MobileApiService {
     }
   }
 
-  Future<Map<String, dynamic>?> initFedapayContribution({
+  /// Passerelle de paiement mobile money activée côté backend (repli gracieux).
+  /// Renvoie {paydunyaEnabled}. En cas d'échec réseau, on suppose le mobile money
+  /// indisponible → l'app retombe sur la déclaration classique / espèces.
+  Future<({bool paydunyaEnabled})> fetchPaymentProviders() async {
+    final uri = Uri.parse('${ApiConfig.baseUrl}/api/mobile/payments/providers');
+    try {
+      final res = await _client.get(uri).timeout(const Duration(seconds: 12));
+      if (res.statusCode == 200) {
+        final map = jsonDecode(res.body);
+        if (map is Map) {
+          return (paydunyaEnabled: map['paydunyaEnabled'] == true);
+        }
+      }
+    } catch (_) {}
+    return (paydunyaEnabled: false);
+  }
+
+  /// Initie une cotisation mobile money via PayDunya (Flooz Moov, T-Money / Mixx by Yas, cartes).
+  Future<Map<String, dynamic>?> initPaydunyaContribution({
     required int userId,
     required double amount,
     int? productId,
@@ -669,7 +687,7 @@ class MobileApiService {
     String? payerPhone,
   }) async {
     final uri = Uri.parse(
-      '${ApiConfig.baseUrl}/api/mobile/contributions/fedapay/init',
+      '${ApiConfig.baseUrl}/api/mobile/contributions/paydunya/init',
     );
     final body = <String, dynamic>{'userId': userId, 'amount': amount};
     if (productId != null) body['productId'] = productId;
@@ -697,13 +715,41 @@ class MobileApiService {
     return null;
   }
 
-  Future<Map<String, dynamic>?> initFedapayAdhesion({
+  Future<Map<String, dynamic>?> paydunyaContributionStatus({
+    required int userId,
+    required int contributionId,
+  }) async {
+    final uri = Uri.parse(
+      '${ApiConfig.baseUrl}/api/mobile/contributions/paydunya/status',
+    );
+    try {
+      final res = await _client
+          .post(
+            uri,
+            headers: {'Content-Type': 'application/json'},
+            body: jsonEncode({
+              'userId': userId,
+              'contributionId': contributionId,
+            }),
+          )
+          .timeout(const Duration(seconds: 15));
+      if (res.statusCode == 200) {
+        final map = jsonDecode(res.body);
+        if (map is Map<String, dynamic>) return map;
+        if (map is Map) return Map<String, dynamic>.from(map);
+      }
+    } catch (_) {}
+    return null;
+  }
+
+  /// Initie le paiement de l'adhésion (250 FCFA) par mobile money via PayDunya.
+  Future<Map<String, dynamic>?> initPaydunyaAdhesion({
     required int userId,
     required String phone,
     required String pin,
   }) async {
     final uri = Uri.parse(
-      '${ApiConfig.baseUrl}/api/mobile/adhesion/fedapay/init',
+      '${ApiConfig.baseUrl}/api/mobile/adhesion/paydunya/init',
     );
     PayflexApiLogger.request('POST', uri);
     try {
@@ -725,16 +771,16 @@ class MobileApiService {
         return map;
       }
       if (map != null && map['message'] != null) {
-        return {'fedapayEnabled': false, 'message': map['message'].toString()};
+        return {'paydunyaEnabled': false, 'message': map['message'].toString()};
       }
     } on TimeoutException catch (e, st) {
-      PayflexApiLogger.error('initFedapayAdhesion timeout', e, st);
-      return {'fedapayEnabled': false, 'message': UserVisibleMessage.timeout};
+      PayflexApiLogger.error('initPaydunyaAdhesion timeout', e, st);
+      return {'paydunyaEnabled': false, 'message': UserVisibleMessage.timeout};
     } on SocketException catch (e, st) {
-      PayflexApiLogger.error('initFedapayAdhesion réseau', e, st);
-      return {'fedapayEnabled': false, 'message': UserVisibleMessage.forNetworkError()};
+      PayflexApiLogger.error('initPaydunyaAdhesion réseau', e, st);
+      return {'paydunyaEnabled': false, 'message': UserVisibleMessage.forNetworkError()};
     } catch (e, st) {
-      PayflexApiLogger.error('initFedapayAdhesion', e, st);
+      PayflexApiLogger.error('initPaydunyaAdhesion', e, st);
     }
     return null;
   }
@@ -748,13 +794,13 @@ class MobileApiService {
     return null;
   }
 
-  Future<Map<String, dynamic>?> fedapayAdhesionStatus({
+  Future<Map<String, dynamic>?> paydunyaAdhesionStatus({
     required int userId,
     required String phone,
     required String pin,
   }) async {
     final uri = Uri.parse(
-      '${ApiConfig.baseUrl}/api/mobile/adhesion/fedapay/status',
+      '${ApiConfig.baseUrl}/api/mobile/adhesion/paydunya/status',
     );
     try {
       final res = await _client
@@ -762,33 +808,6 @@ class MobileApiService {
             uri,
             headers: {'Content-Type': 'application/json'},
             body: jsonEncode({'userId': userId, 'phone': phone, 'pin': pin}),
-          )
-          .timeout(const Duration(seconds: 15));
-      if (res.statusCode == 200) {
-        final map = jsonDecode(res.body);
-        if (map is Map<String, dynamic>) return map;
-        if (map is Map) return Map<String, dynamic>.from(map);
-      }
-    } catch (_) {}
-    return null;
-  }
-
-  Future<Map<String, dynamic>?> fedapayContributionStatus({
-    required int userId,
-    required int contributionId,
-  }) async {
-    final uri = Uri.parse(
-      '${ApiConfig.baseUrl}/api/mobile/contributions/fedapay/status',
-    );
-    try {
-      final res = await _client
-          .post(
-            uri,
-            headers: {'Content-Type': 'application/json'},
-            body: jsonEncode({
-              'userId': userId,
-              'contributionId': contributionId,
-            }),
           )
           .timeout(const Duration(seconds: 15));
       if (res.statusCode == 200) {

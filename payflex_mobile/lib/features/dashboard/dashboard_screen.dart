@@ -448,8 +448,8 @@ class DashboardScreen extends ConsumerWidget {
                                       Text(
                                         auth.assignedAgentName != null &&
                                                 auth.assignedAgentName!.trim().isNotEmpty
-                                            ? 'Espèces chez ${auth.assignedAgentName!.trim()} ou mobile money (FedaPay).'
-                                            : 'Paiement mobile money (FedaPay). Appuyez pour payer.',
+                                            ? 'Espèces chez ${auth.assignedAgentName!.trim()} ou mobile money (PayDunya).'
+                                            : 'Paiement mobile money (PayDunya). Appuyez pour payer.',
                                         style: GoogleFonts.inter(
                                           fontSize: 12,
                                           height: 1.35,
