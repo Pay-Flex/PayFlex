@@ -528,62 +528,85 @@ class _PaymentScreenState extends ConsumerState<PaymentScreen> {
     var gatewayValidated = false;
 
     if (auth.userId != null && paymentMode == 'mobile_money') {
-      final gatewayInit = _paydunyaAvailable
-          ? await _mobileApi.initPaydunyaContribution(
-              userId: auth.userId!,
-              amount: amount,
-              productId: productIdApi,
-              payerPhone: payerPhone,
-            )
-          : null;
+      final gatewayInit = await _mobileApi.initPaydunyaContribution(
+        userId: auth.userId!,
+        amount: amount,
+        productId: productIdApi,
+        payerPhone: payerPhone,
+      );
       final gatewayOn = gatewayInit?['paydunyaEnabled'] == true;
-      if (gatewayOn && (gatewayInit?['paymentUrl']?.toString().isNotEmpty ?? false)) {
-        final paymentUrl = gatewayInit?['paymentUrl']?.toString() ?? '';
-        final contributionId = (gatewayInit?['contributionId'] as num?)?.toInt();
-        serverContributionId = contributionId?.toString();
-        if (paymentUrl.isNotEmpty && contributionId != null && context.mounted) {
-          setState(() => _isProcessing = false);
-          final checkout = await Navigator.of(context).push<PaymentCheckoutResult>(
-            MaterialPageRoute(
-              fullscreenDialog: true,
-              builder: (_) => PaymentCheckoutScreen(
-                paymentUrl: paymentUrl,
-                contributionId: contributionId,
-                userId: auth.userId!,
-                amountFcfa: amount.round(),
-                callbackUrl: gatewayInit?['callbackUrl']?.toString() ?? '',
+      final paymentUrl = gatewayInit?['paymentUrl']?.toString() ?? '';
+      final contributionId = (gatewayInit?['contributionId'] as num?)?.toInt();
+      final callbackUrl = gatewayInit?['callbackUrl']?.toString() ?? '';
+      if (mounted && gatewayOn && !_paydunyaAvailable) {
+        // Si la détection initiale a échoué (réseau), on réactive PayDunya pour la session.
+        setState(() => _paydunyaAvailable = true);
+      }
+      if (gatewayOn && paymentUrl.isNotEmpty && contributionId != null && context.mounted) {
+        serverContributionId = contributionId.toString();
+        setState(() => _isProcessing = false);
+        final checkout = await Navigator.of(context).push<PaymentCheckoutResult>(
+          MaterialPageRoute(
+            fullscreenDialog: true,
+            builder: (_) => PaymentCheckoutScreen(
+              paymentUrl: paymentUrl,
+              contributionId: contributionId,
+              userId: auth.userId!,
+              amountFcfa: amount.round(),
+              callbackUrl: callbackUrl,
+            ),
+          ),
+        );
+        if (!context.mounted) return;
+        if (checkout == null || checkout.outcome == PaymentCheckoutOutcome.cancelled) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text(
+                'Paiement annulé. Vous pouvez réessayer quand vous voulez.',
+                style: GoogleFonts.manrope(fontWeight: FontWeight.w600),
               ),
+              behavior: SnackBarBehavior.floating,
             ),
           );
-          if (!context.mounted) return;
-          if (checkout == null || checkout.outcome == PaymentCheckoutOutcome.cancelled) {
-            ScaffoldMessenger.of(context).showSnackBar(
-              SnackBar(
-                content: Text(
-                  'Paiement annulé. Vous pouvez réessayer quand vous voulez.',
-                  style: GoogleFonts.manrope(fontWeight: FontWeight.w600),
-                ),
-                behavior: SnackBarBehavior.floating,
-              ),
-            );
-            return;
-          }
-          if (checkout.outcome == PaymentCheckoutOutcome.rejected) {
-            ScaffoldMessenger.of(context).showSnackBar(
-              SnackBar(
-                content: Text(
-                  'Paiement non confirmé par PayDunya.',
-                  style: GoogleFonts.manrope(fontWeight: FontWeight.w600),
-                ),
-                behavior: SnackBarBehavior.floating,
-              ),
-            );
-            return;
-          }
-          gatewayValidated = checkout.outcome == PaymentCheckoutOutcome.validated;
+          return;
         }
+        if (checkout.outcome == PaymentCheckoutOutcome.rejected) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text(
+                'Paiement non confirmé par PayDunya.',
+                style: GoogleFonts.manrope(fontWeight: FontWeight.w600),
+              ),
+              behavior: SnackBarBehavior.floating,
+            ),
+          );
+          return;
+        }
+        gatewayValidated = checkout.outcome == PaymentCheckoutOutcome.validated;
       } else {
-        // PayDunya non configuré, erreur API ou lien absent → déclaration classique
+        if (gatewayOn && paymentUrl.isEmpty && context.mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text(
+                'Lien PayDunya indisponible. Cotisation enregistrée pour validation manuelle.',
+                style: GoogleFonts.manrope(fontWeight: FontWeight.w600),
+              ),
+              behavior: SnackBarBehavior.floating,
+            ),
+          );
+        } else if (!gatewayOn && gatewayInit?['message'] != null && context.mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text(
+                gatewayInit?['message']?.toString() ??
+                    'PayDunya indisponible. Cotisation enregistrée pour validation manuelle.',
+                style: GoogleFonts.manrope(fontWeight: FontWeight.w600),
+              ),
+              behavior: SnackBarBehavior.floating,
+            ),
+          );
+        }
+        // PayDunya non configuré, indisponible ou sans URL → déclaration classique
         final apiRes = await _mobileApi.sendContribution(
           userId: auth.userId!,
           amount: amount,

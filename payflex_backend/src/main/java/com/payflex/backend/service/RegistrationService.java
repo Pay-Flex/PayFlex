@@ -279,19 +279,19 @@ public class RegistrationService {
                 );
                 linkedUserId = existingUserId;
             } else {
-                jdbcTemplate.update(
-                    """
-                    INSERT INTO users (
+            jdbcTemplate.update(
+                """
+                INSERT INTO users (
                       full_name, phone, role_id, city, profession, gender, status, pin, secret_code, account_password, unique_code,
-                      assigned_agent_user_id, profile_photo_path, id_document_path, workplace_name, workplace_address, boss_name, boss_phone
+                  assigned_agent_user_id, profile_photo_path, id_document_path, workplace_name, workplace_address, boss_name, boss_phone
                     ) VALUES (?, ?, ?, ?, ?, ?, 'valide', ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-                    """,
-                    row.get("full_name"), row.get("phone"), clientRoleId, row.get("city"), row.get("profession"),
-                    row.get("gender"),
+                """,
+                row.get("full_name"), row.get("phone"), clientRoleId, row.get("city"), row.get("profession"),
+                row.get("gender"),
                     row.get("pin"), row.get("secret_code"), row.get("account_password"), row.get("unique_code"),
                     finalAgentId, row.get("profile_photo_path"), row.get("id_document_path"),
-                    row.get("workplace_name"), row.get("workplace_address"), row.get("boss_name"), row.get("boss_phone")
-                );
+                row.get("workplace_name"), row.get("workplace_address"), row.get("boss_name"), row.get("boss_phone")
+            );
                 Long newId = jdbcTemplate.queryForObject("SELECT LAST_INSERT_ID()", Long.class);
                 linkedUserId = newId == null ? 0L : newId;
             }
