@@ -485,6 +485,9 @@ class FinanceNotifier extends Notifier<FinanceState> {
           catchupMonth: month,
           catchupDay: day,
         );
+          if (apiRes != null && apiRes['error'] != null) {
+            return false;
+          }
         final sid = apiRes?['id']?.toString();
         if (sid != null && sid.isNotEmpty) {
           newId = sid;

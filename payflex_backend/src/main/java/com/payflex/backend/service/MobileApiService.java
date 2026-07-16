@@ -603,6 +603,7 @@ public class MobileApiService {
         Integer catchupMonth,
         Integer catchupDay
     ) {
+        contributionWorkflowService.assertProductGoalNotReached(userId, productId);
         Long resolvedAgentId = agentId;
         if (resolvedAgentId == null) {
             resolvedAgentId = contributionWorkflowService.findAgentRowIdForClient(userId);
@@ -696,6 +697,7 @@ public class MobileApiService {
         Integer catchupMonth,
         Integer catchupDay
     ) {
+        contributionWorkflowService.assertProductGoalNotReached(clientUserId, productId);
         String ref = referenceCode != null && !referenceCode.isBlank()
             ? referenceCode.trim()
             : "PF-AGENT-" + System.currentTimeMillis();

@@ -284,10 +284,10 @@ class _AgentEnrollmentScreenState extends ConsumerState<AgentEnrollmentScreen> {
       child: SafeArea(
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: [
-            Padding(
+        children: [
+          Padding(
               padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
-              child: Row(
+            child: Row(
                 children: [
                   IconButton(
                     onPressed: _goBack,
@@ -484,7 +484,7 @@ class _AgentEnrollmentScreenState extends ConsumerState<AgentEnrollmentScreen> {
       key: _formStep1,
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
-        children: [
+      children: [
           TextFormField(
             controller: _nomCtrl,
             style: _fieldStyle,
@@ -593,7 +593,7 @@ class _AgentEnrollmentScreenState extends ConsumerState<AgentEnrollmentScreen> {
       key: _formStep2,
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
-        children: [
+      children: [
           RegistrationFormTheme.infoBanner(
             'Choisissez un mot de passe de connexion pour le client, puis définissez son code PIN secret à l’étape 4.',
           ),
@@ -794,8 +794,8 @@ class _AgentEnrollmentScreenState extends ConsumerState<AgentEnrollmentScreen> {
             const SizedBox(width: 12),
             Expanded(
               child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
                   Text(
                     p.name,
                     style: GoogleFonts.manrope(
@@ -951,7 +951,7 @@ class _AgentEnrollmentScreenState extends ConsumerState<AgentEnrollmentScreen> {
           ),
           const SizedBox(height: 20),
           RegistrationFormTheme.sectionTitle('Code PIN secret du client'),
-          const SizedBox(height: 8),
+        const SizedBox(height: 8),
           RegistrationFormTheme.infoBanner(
             'Ce code PIN est connu du client seul. Il valide les cotisations sur le terrain avec l’agent.',
           ),

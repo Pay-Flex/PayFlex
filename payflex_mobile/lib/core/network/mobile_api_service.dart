@@ -411,13 +411,28 @@ class MobileApiService {
             body: jsonEncode(body),
           )
           .timeout(const Duration(seconds: 18));
+      final map = _decodeJsonMap(res.body);
       if (res.statusCode == 200) {
-        final map = jsonDecode(res.body);
-        if (map is Map<String, dynamic>) return map;
-        if (map is Map) return Map<String, dynamic>.from(map);
+        if (map != null) return map;
+        return null;
       }
-    } catch (_) {}
-    return null;
+      final msg = map?['message']?.toString();
+      return {
+        'error': UserVisibleMessage.apiOrFallback(
+          msg,
+          UserVisibleMessage.serverUnavailable,
+        ),
+        'statusCode': res.statusCode,
+      };
+    } on TimeoutException {
+      return {'error': UserVisibleMessage.timeout};
+    } on SocketException {
+      return {'error': UserVisibleMessage.forNetworkError()};
+    } on http.ClientException catch (e) {
+      return {'error': UserVisibleMessage.forException(e)};
+    } catch (e) {
+      return {'error': UserVisibleMessage.forException(e)};
+    }
   }
 
   Future<List<Map<String, dynamic>>> fetchPendingContributionsForAgent({
@@ -706,13 +721,26 @@ class MobileApiService {
             body: jsonEncode(body),
           )
           .timeout(const Duration(seconds: 25));
+      final map = _decodeJsonMap(res.body);
       if (res.statusCode == 200) {
-        final map = jsonDecode(res.body);
-        if (map is Map<String, dynamic>) return map;
-        if (map is Map) return Map<String, dynamic>.from(map);
+        if (map != null) return map;
+        return null;
       }
-    } catch (_) {}
-    return null;
+      final msg = map?['message']?.toString();
+      return {
+        'error': UserVisibleMessage.apiOrFallback(
+          msg,
+          UserVisibleMessage.serverUnavailable,
+        ),
+        'statusCode': res.statusCode,
+      };
+    } on TimeoutException {
+      return {'error': UserVisibleMessage.timeout};
+    } on SocketException {
+      return {'error': UserVisibleMessage.forNetworkError()};
+    } catch (e) {
+      return {'error': UserVisibleMessage.forException(e)};
+    }
   }
 
   Future<Map<String, dynamic>?> paydunyaContributionStatus({

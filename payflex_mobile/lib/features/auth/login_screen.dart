@@ -131,50 +131,50 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                 Center(
                   child: _buildLogo(),
                 ).animate().fadeIn(duration: 600.ms).slideY(begin: -0.2),
-
+                
                 const SizedBox(height: 60),
-
+                
                 Center(
                   child: Text(
-                    'Bienvenue',
+                  'Bienvenue',
                     textAlign: TextAlign.center,
-                    style: GoogleFonts.manrope(
-                      fontSize: 28,
-                      fontWeight: FontWeight.w800,
-                      color: AppColors.secondary,
+                  style: GoogleFonts.manrope(
+                    fontSize: 28,
+                    fontWeight: FontWeight.w800,
+                    color: AppColors.secondary,
                     ),
                   ),
                 ).animate().fadeIn(delay: 200.ms),
-
+                
                 Center(
                   child: Text(
-                    'Connectez-vous pour gérer vos actifs.',
+                  'Connectez-vous pour gérer vos actifs.',
                     textAlign: TextAlign.center,
-                    style: GoogleFonts.inter(
-                      fontSize: 14,
-                      color: AppColors.onSurfaceVariant.withValues(alpha: 0.7),
+                  style: GoogleFonts.inter(
+                    fontSize: 14,
+                    color: AppColors.onSurfaceVariant.withValues(alpha: 0.7),
                     ),
                   ),
                 ).animate().fadeIn(delay: 300.ms),
-
+                
                 const SizedBox(height: 32),
 
                 Center(child: _buildMethodSelector()),
                 const SizedBox(height: 20),
                 _buildIdentifierField(),
-
+                
                 const SizedBox(height: 20),
-
+                
                 _buildPasswordField(
                   'Mot de passe ou code PIN',
-                  _isPasswordVisible,
+                  _isPasswordVisible, 
                   _pinController,
                   (v) => setState(() => _isPasswordVisible = v),
                   validator: (v) => (v == null || v.isEmpty) ? 'Veuillez entrer votre mot de passe ou code PIN' : null,
                 ),
-
+                
                 const SizedBox(height: 12),
-
+                
                 Align(
                   alignment: Alignment.centerRight,
                   child: TextButton(
@@ -189,16 +189,16 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                     ),
                   ),
                 ).animate().fadeIn(delay: 800.ms),
-
+                
                 const SizedBox(height: 40),
-
-                _isLoading
-                    ? const Center(child: CircularProgressIndicator(color: AppColors.primary))
-                    : ElevatedButton(
+                
+                _isLoading 
+                  ? const Center(child: CircularProgressIndicator(color: AppColors.primary))
+                  : ElevatedButton(
                         onPressed: _onLogin,
-                        child: const Text('SE CONNECTER'),
-                      ).animate().fadeIn(delay: 1.seconds).scale(),
-
+                    child: const Text('SE CONNECTER'),
+                  ).animate().fadeIn(delay: 1.seconds).scale(),
+                
                 if (_biometricAvailable) ...[
                   const SizedBox(height: 16),
                   OutlinedButton.icon(
@@ -217,7 +217,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                 ],
 
                 const SizedBox(height: 32),
-
+                
                 Center(
                   child: GestureDetector(
                     onTap: () {
@@ -243,7 +243,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                     ),
                   ),
                 ).animate().fadeIn(delay: 1.2.seconds),
-
+                
                 const SizedBox(height: 120),
               ],
             ),

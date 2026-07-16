@@ -78,6 +78,10 @@ class _PaymentScreenState extends ConsumerState<PaymentScreen> {
     return (amount / dailyRate).floor();
   }
 
+  bool _isGoalReached(ProjectModel p) {
+    return p.total > 0 && p.saved >= p.total;
+  }
+
   List<String> _presetAmounts(double daily) {
     final base = <String>{..._presetsExtra};
     if (daily > 0) {
@@ -94,7 +98,11 @@ class _PaymentScreenState extends ConsumerState<PaymentScreen> {
     final financeState = ref.watch(financeProvider);
     final auth = ref.watch(authProvider);
     final projects = financeState.projects;
-    final ids = projects.map((p) => p.id).toList();
+    final goalReachedIds = projects.where(_isGoalReached).map((p) => p.id).toSet();
+    final selectableProjects = projects.where((p) => !goalReachedIds.contains(p.id)).toList();
+    final hasSelectable = selectableProjects.isNotEmpty;
+    final projectLocked = _selectedProjectId != null && goalReachedIds.contains(_selectedProjectId);
+    final ids = selectableProjects.map((p) => p.id).toList();
     if (_selectedProjectId == null || (_selectedProjectId != null && !ids.contains(_selectedProjectId))) {
       WidgetsBinding.instance.addPostFrameCallback((_) {
         if (!mounted) return;
@@ -241,13 +249,48 @@ class _PaymentScreenState extends ConsumerState<PaymentScreen> {
                       hint: Text('Choisir un projet', style: GoogleFonts.manrope(color: Colors.white54)),
                       items: projects
                           .map(
-                            (p) => DropdownMenuItem<String>(
-                              value: p.id,
-                              child: Text(p.title, style: const TextStyle(color: Colors.white)),
-                            ),
-                          )
-                          .toList(),
+                            (p) {
+                              final disabled = goalReachedIds.contains(p.id);
+                              return DropdownMenuItem<String>(
+                                value: p.id,
+                                enabled: !disabled,
+                                child: Row(
+                                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                                  children: [
+                                    Expanded(
+                                      child: Text(
+                                        p.title,
+                                        overflow: TextOverflow.ellipsis,
+                                        style: TextStyle(
+                                          color: disabled ? Colors.white54 : Colors.white,
+                                          fontWeight: FontWeight.w700,
+                                        ),
+                                      ),
+                                    ),
+                                    if (disabled)
+                                      Container(
+                                        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                                        margin: const EdgeInsets.only(left: 8),
+                                        decoration: BoxDecoration(
+                                          color: Colors.white12,
+                                          borderRadius: BorderRadius.circular(10),
+                                        ),
+                                        child: Text(
+                                          'Objectif atteint',
+                                          style: GoogleFonts.inter(
+                                            color: Colors.white70,
+                                            fontSize: 10,
+                                            fontWeight: FontWeight.w700,
+                                          ),
+                                        ),
+                                      ),
+                                  ],
+                                ),
+                              );
+                            },
+                          ).toList(),
                       onChanged: (v) async {
+                        if (v != null && goalReachedIds.contains(v)) return;
                         setState(() => _selectedProjectId = v);
                         final uid = ref.read(authProvider).userId;
                         if (v != null && uid != null) {
@@ -263,6 +306,19 @@ class _PaymentScreenState extends ConsumerState<PaymentScreen> {
                   Text(
                     'Référence plan : ~${formatFcfaLong(daily)} / jour pour ce projet.',
                     style: GoogleFonts.inter(fontSize: 11, color: AppColors.secondary.withOpacity(0.45)),
+                  ),
+                ],
+                if (projects.isNotEmpty && selectableProjects.isEmpty) ...[
+                  const SizedBox(height: 10),
+                  Text(
+                    'Objectif déjà atteint pour vos projets. Ajoutez un nouvel article dans le catalogue pour continuer à épargner.',
+                    style: GoogleFonts.inter(fontSize: 11, color: AppColors.secondary.withOpacity(0.6)),
+                  ),
+                ] else if (goalReachedIds.isNotEmpty) ...[
+                  const SizedBox(height: 10),
+                  Text(
+                    'Les projets en gris sont verrouillés car leur objectif est atteint.',
+                    style: GoogleFonts.inter(fontSize: 11, color: AppColors.secondary.withOpacity(0.55)),
                   ),
                 ],
 
@@ -419,7 +475,7 @@ class _PaymentScreenState extends ConsumerState<PaymentScreen> {
                   width: double.infinity,
                   height: 64,
                   child: ElevatedButton(
-                    onPressed: (projects.isEmpty || _amountController.text.isEmpty || _isProcessing)
+                    onPressed: (projects.isEmpty || _amountController.text.isEmpty || _isProcessing || !hasSelectable || projectLocked)
                       ? null
                       : () => _processPayment(context),
                     style: ElevatedButton.styleFrom(
@@ -508,6 +564,21 @@ class _PaymentScreenState extends ConsumerState<PaymentScreen> {
     if (amount <= 0) return;
 
     final paymentMode = _selectedMethod == 'mobile_money' ? 'mobile_money' : 'cash';
+    final financeState = ref.read(financeProvider);
+    ProjectModel? selectedProject;
+    try {
+      selectedProject = financeState.projects.firstWhere((p) => p.id == _selectedProjectId);
+    } catch (_) {
+      selectedProject = null;
+    }
+    if (selectedProject == null) {
+      _showErrorSnack(context, 'Sélectionnez d’abord un projet actif.');
+      return;
+    }
+    if (_isGoalReached(selectedProject)) {
+      _showErrorSnack(context, 'Objectif atteint pour ce projet. Choisissez un autre produit.');
+      return;
+    }
 
     String? payerPhone;
     if (paymentMode == 'mobile_money' && _useAlternatePayerPhone) {
@@ -528,72 +599,109 @@ class _PaymentScreenState extends ConsumerState<PaymentScreen> {
     var gatewayValidated = false;
 
     if (auth.userId != null && paymentMode == 'mobile_money') {
-      final gatewayInit = _paydunyaAvailable
-          ? await _mobileApi.initPaydunyaContribution(
+      final gatewayInit = await _mobileApi.initPaydunyaContribution(
+        userId: auth.userId!,
+        amount: amount,
+        productId: productIdApi,
+        payerPhone: payerPhone,
+      );
+      if (gatewayInit == null) {
+        setState(() => _isProcessing = false);
+        _showErrorSnack(context, 'Impossible de joindre le serveur. Réessayez.');
+        return;
+      }
+      if (gatewayInit['error'] != null) {
+        setState(() => _isProcessing = false);
+        _showErrorSnack(context, gatewayInit['error'].toString());
+        return;
+      }
+      final gatewayOn = gatewayInit['paydunyaEnabled'] == true;
+      final paymentUrl = gatewayInit['paymentUrl']?.toString() ?? '';
+      final contributionId = (gatewayInit['contributionId'] as num?)?.toInt();
+      final callbackUrl = gatewayInit['callbackUrl']?.toString() ?? '';
+      if (mounted && gatewayOn && !_paydunyaAvailable) {
+        // Si la détection initiale a échoué (réseau), on réactive PayDunya pour la session.
+        setState(() => _paydunyaAvailable = true);
+      }
+      if (gatewayOn && paymentUrl.isNotEmpty && contributionId != null && context.mounted) {
+        serverContributionId = contributionId.toString();
+        setState(() => _isProcessing = false);
+        final checkout = await Navigator.of(context).push<PaymentCheckoutResult>(
+          MaterialPageRoute(
+            fullscreenDialog: true,
+            builder: (_) => PaymentCheckoutScreen(
+              paymentUrl: paymentUrl,
+              contributionId: contributionId,
               userId: auth.userId!,
-              amount: amount,
-              productId: productIdApi,
-              payerPhone: payerPhone,
-            )
-          : null;
-      final gatewayOn = gatewayInit?['paydunyaEnabled'] == true;
-      if (gatewayOn && (gatewayInit?['paymentUrl']?.toString().isNotEmpty ?? false)) {
-        final paymentUrl = gatewayInit?['paymentUrl']?.toString() ?? '';
-        final contributionId = (gatewayInit?['contributionId'] as num?)?.toInt();
-        serverContributionId = contributionId?.toString();
-        if (paymentUrl.isNotEmpty && contributionId != null && context.mounted) {
-          setState(() => _isProcessing = false);
-          final checkout = await Navigator.of(context).push<PaymentCheckoutResult>(
-            MaterialPageRoute(
-              fullscreenDialog: true,
-              builder: (_) => PaymentCheckoutScreen(
-                paymentUrl: paymentUrl,
-                contributionId: contributionId,
-                userId: auth.userId!,
-                amountFcfa: amount.round(),
-                callbackUrl: gatewayInit?['callbackUrl']?.toString() ?? '',
-              ),
+              amountFcfa: amount.round(),
+              callbackUrl: callbackUrl,
             ),
-          );
-          if (!context.mounted) return;
-          if (checkout == null || checkout.outcome == PaymentCheckoutOutcome.cancelled) {
-            ScaffoldMessenger.of(context).showSnackBar(
-              SnackBar(
-                content: Text(
-                  'Paiement annulé. Vous pouvez réessayer quand vous voulez.',
-                  style: GoogleFonts.manrope(fontWeight: FontWeight.w600),
-                ),
-                behavior: SnackBarBehavior.floating,
-              ),
-            );
-            return;
-          }
-          if (checkout.outcome == PaymentCheckoutOutcome.rejected) {
-            ScaffoldMessenger.of(context).showSnackBar(
-              SnackBar(
-                content: Text(
-                  'Paiement non confirmé par PayDunya.',
-                  style: GoogleFonts.manrope(fontWeight: FontWeight.w600),
-                ),
-                behavior: SnackBarBehavior.floating,
-              ),
-            );
-            return;
-          }
-          gatewayValidated = checkout.outcome == PaymentCheckoutOutcome.validated;
+          ),
+        );
+        if (!context.mounted) return;
+        if (checkout == null || checkout.outcome == PaymentCheckoutOutcome.cancelled) {
+          _showErrorSnack(context, 'Paiement annulé. Vous pouvez réessayer quand vous voulez.');
+          return;
         }
+        if (checkout.outcome == PaymentCheckoutOutcome.rejected) {
+          _showErrorSnack(context, 'Paiement non confirmé par PayDunya.');
+          return;
+        }
+        gatewayValidated = checkout.outcome == PaymentCheckoutOutcome.validated;
       } else {
-        // PayDunya non configuré, erreur API ou lien absent → déclaration classique
+        if (gatewayOn && paymentUrl.isEmpty && context.mounted) {
+          _showErrorSnack(context, 'Lien PayDunya indisponible. Cotisation enregistrée pour validation manuelle.');
+        } else if (!gatewayOn && gatewayInit['message'] != null && context.mounted) {
+          _showErrorSnack(
+            context,
+            gatewayInit['message']?.toString() ??
+                'PayDunya indisponible. Cotisation enregistrée pour validation manuelle.',
+          );
+        }
+        // PayDunya non configuré, indisponible ou sans URL → déclaration classique
         final apiRes = await _mobileApi.sendContribution(
           userId: auth.userId!,
           amount: amount,
           paymentMode: paymentMode,
           productId: productIdApi,
         );
-        serverContributionId = apiRes?['id']?.toString();
+        final errorMessage = apiRes?['error']?.toString();
+        if (errorMessage != null) {
+          setState(() => _isProcessing = false);
+          _showErrorSnack(context, errorMessage);
+          return;
+        }
+        if (apiRes == null) {
+          setState(() => _isProcessing = false);
+          _showErrorSnack(context, 'Cotisation non enregistrée. Vérifiez votre connexion.');
+          return;
+        }
+        serverContributionId = apiRes['id']?.toString();
       }
     } else {
-      await Future.delayed(const Duration(milliseconds: 400));
+      // Déclaration classique (espèces)
+      if (auth.userId != null) {
+        final apiRes = await _mobileApi.sendContribution(
+          userId: auth.userId!,
+          amount: amount,
+          paymentMode: paymentMode,
+          productId: productIdApi,
+        );
+        final errorMessage = apiRes?['error']?.toString();
+        if (errorMessage != null) {
+          setState(() => _isProcessing = false);
+          _showErrorSnack(context, errorMessage);
+          return;
+        }
+        if (apiRes == null) {
+          setState(() => _isProcessing = false);
+          _showErrorSnack(context, 'Cotisation non enregistrée. Vérifiez votre connexion.');
+          return;
+        }
+        serverContributionId = apiRes['id']?.toString();
+      } else {
+        await Future.delayed(const Duration(milliseconds: 400));
+      }
     }
 
     if (!mounted) return;
@@ -616,22 +724,25 @@ class _PaymentScreenState extends ConsumerState<PaymentScreen> {
       );
       return;
     }
-    if (auth.userId != null && paymentMode != 'mobile_money') {
-      try {
-        await _mobileApi.sendContribution(
-          userId: auth.userId!,
-          amount: amount,
-          paymentMode: paymentMode,
-          productId: productIdApi,
-        );
-      } catch (_) {}
-    }
     if (!context.mounted) return;
     _showSuccessDialog(
       context,
       amount,
       awaitingAgentValidation: paymentMode == 'mobile_money' && !gatewayValidated,
       gatewayConfirmed: gatewayValidated,
+    );
+  }
+
+  void _showErrorSnack(BuildContext context, String message) {
+    if (!mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(
+          message,
+          style: GoogleFonts.manrope(fontWeight: FontWeight.w600),
+        ),
+        behavior: SnackBarBehavior.floating,
+      ),
     );
   }
 

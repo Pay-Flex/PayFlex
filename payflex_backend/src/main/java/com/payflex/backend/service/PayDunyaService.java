@@ -78,6 +78,9 @@ public class PayDunyaService {
         body.set("invoice", invoice);
         body.set("store", store);
         body.set("actions", actions);
+        body.putArray("channels")
+            .add("MTN_MOBILE_MONEY_TG")
+            .add("MOOV_MONEY_TG");
         if (customData != null && !customData.isEmpty()) {
             body.set("custom_data", objectMapper.valueToTree(customData));
         }

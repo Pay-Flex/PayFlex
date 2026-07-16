@@ -22,6 +22,7 @@ public class ContributionWorkflowService {
 
     public static final String NOTIF_TYPE_VALIDATED = "contribution_validated";
     public static final String NOTIF_TYPE_REJECTED = "contribution_rejected";
+    public static final String GOAL_REACHED_MESSAGE = "Objectif atteint pour ce produit, cotisation bloquée.";
 
     private final JdbcTemplate jdbcTemplate;
     private final PermissionService permissionService;
@@ -50,6 +51,50 @@ public class ContributionWorkflowService {
         this.inboxNotifications = inboxNotifications;
         this.productDeliveryService = productDeliveryService;
         this.adminWebPushService = adminWebPushService;
+    }
+
+    /**
+     * Vérifie que l'objectif du produit n'est pas déjà atteint pour ce client (sur les cotisations VALIDÉES uniquement).
+     * Utilisé en garde-fou avant d'insérer une nouvelle cotisation (client ou agent).
+     * Ignore si le produit est absent / non renseigné.
+     */
+    public void assertProductGoalNotReached(long clientUserId, Long productId) {
+        if (clientUserId <= 0 || productId == null || productId <= 0) {
+            return;
+        }
+        Double target;
+        try {
+            target = jdbcTemplate.queryForObject(
+                """
+                SELECT COALESCE(p.price, 0) * COALESCE(NULLIF(cps.quantity, 0), 1)
+                FROM products p
+                LEFT JOIN client_product_selections cps ON cps.product_id = p.id AND cps.user_id = ?
+                WHERE p.id = ?
+                LIMIT 1
+                """,
+                Double.class,
+                clientUserId,
+                productId
+            );
+        } catch (EmptyResultDataAccessException ex) {
+            return;
+        }
+        if (target == null || target <= 0) {
+            return;
+        }
+        Double validated = jdbcTemplate.queryForObject(
+            """
+            SELECT COALESCE(SUM(amount), 0) FROM contributions
+            WHERE user_id = ? AND product_id = ? AND status = 'validated'
+            """,
+            Double.class,
+            clientUserId,
+            productId
+        );
+        double validatedTotal = validated == null ? 0 : validated;
+        if (validatedTotal >= target - 0.009) {
+            throw new IllegalArgumentException(GOAL_REACHED_MESSAGE);
+        }
     }
 
     public Long findAgentRowIdForClient(long clientUserId) {

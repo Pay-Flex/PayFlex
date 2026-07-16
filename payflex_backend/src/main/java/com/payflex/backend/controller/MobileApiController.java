@@ -635,16 +635,26 @@ public class MobileApiController {
         if (!permissionService.userHasPermission(userId, PermissionService.MOBILE_CONTRIBUTION_CREATE)) {
             return ResponseEntity.status(403).body(Map.of("message", "Vous ne pouvez pas enregistrer ce versement avec votre profil actuel. Contactez le support."));
         }
-        long id = mobileApiService.createContribution(
-            userId,
-            productId,
-            agentRowIdPayload,
-            amount,
-            paymentMode,
-            catchupYear,
-            catchupMonth,
-            catchupDay
-        );
+        long id;
+        try {
+            id = mobileApiService.createContribution(
+                userId,
+                productId,
+                agentRowIdPayload,
+                amount,
+                paymentMode,
+                catchupYear,
+                catchupMonth,
+                catchupDay
+            );
+        } catch (IllegalArgumentException ex) {
+            return ResponseEntity.badRequest().body(Map.of(
+                "message",
+                ex.getMessage() == null || ex.getMessage().isBlank()
+                    ? ContributionWorkflowService.GOAL_REACHED_MESSAGE
+                    : ex.getMessage()
+            ));
+        }
         String ref = mobileApiService.referenceCodeForContribution(id);
         auditService.logClient(
             userId,
