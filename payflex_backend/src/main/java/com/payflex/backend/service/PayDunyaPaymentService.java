@@ -77,6 +77,7 @@ public class PayDunyaPaymentService {
         if (amountFcfa <= 0) {
             throw new IllegalArgumentException("Montant invalide.");
         }
+        contributionWorkflowService.assertProductGoalNotReached(userId, productId);
         String ref = "PF-PAYDUNYA-" + System.currentTimeMillis();
         jdbcTemplate.update(
             """
