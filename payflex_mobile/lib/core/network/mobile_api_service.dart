@@ -982,6 +982,39 @@ class MobileApiService {
     }
   }
 
+  /// Détail d'une répartition automatique (paiement scindé entre plusieurs produits),
+  /// utilisé par l'historique client quand une ligne porte un `allocation_group_id`.
+  Future<Map<String, dynamic>?> fetchAllocationGroup({
+    required int userId,
+    required String phone,
+    required String pin,
+    required int groupId,
+  }) async {
+    final uri = Uri.parse(
+      '${ApiConfig.baseUrl}/api/mobile/contributions/allocation-group',
+    );
+    try {
+      final res = await _client
+          .post(
+            uri,
+            headers: {'Content-Type': 'application/json'},
+            body: jsonEncode({
+              'userId': userId,
+              'phone': phone,
+              'pin': pin,
+              'groupId': groupId,
+            }),
+          )
+          .timeout(const Duration(seconds: 15));
+      if (res.statusCode != 200) return null;
+      final decoded = jsonDecode(res.body);
+      if (decoded is! Map) return null;
+      return Map<String, dynamic>.from(decoded);
+    } catch (_) {
+      return null;
+    }
+  }
+
   Future<
     ({
       int chatUnread,

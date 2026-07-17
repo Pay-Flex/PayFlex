@@ -80,7 +80,7 @@
             <span th:text="${#numbers.formatInteger(d.totalValidated(),0,'POINT')} + ' / ' + ${#numbers.formatInteger(d.productPrice(),0,'POINT')} + ' FCFA'"></span>
             <p th:if="${d.balanceGap() > 0}" class="text-xs text-red-700">Manque <span th:text="${#numbers.formatInteger(d.balanceGap(),0,'POINT')}"></span></p>
           </td>
-          <td class="py-4 px-4 text-xs" th:text="${d.catchupDaysSnapshot() > 0} ? (d.catchupDaysSnapshot() + ' j. rattrapage') : 'OK'"></td>
+          <td class="py-4 px-4 text-xs" th:text="${d.catchupDaysSnapshot() > 0 ? (d.catchupDaysSnapshot() + ' j. rattrapage') : 'OK'}"></td>
           <td class="py-4 px-4">
             <span class="pf-badge-soft text-xs font-bold"
                   th:classappend="${d.status() == 'awaiting_closure'} ? ' pf-badge-soft--amber' : (${d.status() == 'closure_validated'} ? ' pf-badge-soft--emerald' : ' pf-badge-soft--slate')"

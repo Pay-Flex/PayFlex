@@ -1798,8 +1798,8 @@ public class AdminViewController {
         model.addAttribute("clientMonthly", adminCrudService.clientMonthlyCollections(clientId));
         model.addAttribute("clientContributions", adminCrudService.getRecentContributionsForClient(clientId, 40));
         model.addAttribute("agentOptions", registrationService.agentOptions());
-        model.addAttribute("deliveryCase", productDeliveryService.findOpenDeliveryForClient(clientId).orElse(null));
-        model.addAttribute("productProgress", productDeliveryService.resolvePrimaryProductProgress(clientId).orElse(null));
+        model.addAttribute("deliveryCases", productDeliveryService.listOpenDeliveriesForClient(clientId));
+        model.addAttribute("productProgressList", productDeliveryService.listProductProgress(clientId));
         model.addAttribute("credentialSummary", adminClientCredentialService.credentialSummary(clientId));
         model.addAttribute("clientEdit", adminClientCredentialService.loadClientEditRow(clientId));
         return "client-detail";
@@ -1933,11 +1933,12 @@ public class AdminViewController {
     @PostMapping("/admin/clients/{clientId}/delivery/open")
     public String openDeliveryCase(
         @PathVariable long clientId,
+        @RequestParam long productId,
         Principal principal,
         RedirectAttributes redirectAttributes
     ) {
         try {
-            productDeliveryService.openClosureCase(clientId, principal.getName());
+            productDeliveryService.openClosureCase(clientId, productId, principal.getName());
             redirectAttributes.addFlashAttribute("success", true);
             redirectAttributes.addFlashAttribute("successText", "Dossier clôture / livraison ouvert.");
         } catch (IllegalArgumentException ex) {

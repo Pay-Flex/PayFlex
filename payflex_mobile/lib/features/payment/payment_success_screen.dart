@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_animate/flutter_animate.dart';
 
 import '../../core/constants/app_colors.dart';
+import '../../core/models/allocation_result.dart';
 import '../../core/theme/app_typography.dart';
 import '../../core/utils/money_format.dart';
 
@@ -19,6 +20,7 @@ class PaymentSuccessScreen extends StatelessWidget {
     required this.slotsCount,
     this.gatewayConfirmed = false,
     this.productName,
+    this.allocation,
     this.onViewReceipt,
     required this.onDone,
   });
@@ -29,6 +31,10 @@ class PaymentSuccessScreen extends StatelessWidget {
   final String paymentModeLabel;
   final int slotsCount;
   final String? productName;
+
+  /// Détail de la répartition automatique si le paiement a dépassé le reste à
+  /// payer du produit visé et a été scindé entre plusieurs produits actifs.
+  final AllocationResult? allocation;
   final VoidCallback? onViewReceipt;
   final VoidCallback onDone;
 
@@ -44,11 +50,15 @@ class PaymentSuccessScreen extends StatelessWidget {
         ? 'Demande envoyée'
         : (gatewayConfirmed ? 'Paiement confirmé' : 'Cotisation validée');
 
+    final splitNow = allocation != null && allocation!.wasSplit;
     final String message = awaitingAgentValidation
         ? 'Votre cotisation sera ajoutée à votre carnet après validation par votre agent.'
-        : 'C\'est fait ! Votre carnet est à jour.';
+        : splitNow
+            ? allocation!.toFrenchMessage()
+            : 'C\'est fait ! Votre carnet est à jour.';
 
     final slots = slotsCount > 0 ? slotsCount : 1;
+    final split = splitNow;
 
     return PopScope(
       canPop: false,
@@ -90,7 +100,7 @@ class PaymentSuccessScreen extends StatelessWidget {
                   ),
                 ).animate().fadeIn(delay: 150.ms),
                 const SizedBox(height: 8),
-                if (productName != null && productName!.trim().isNotEmpty) ...[
+                if (!split && productName != null && productName!.trim().isNotEmpty) ...[
                   Text(
                     productName!.trim(),
                     textAlign: TextAlign.center,
@@ -111,6 +121,10 @@ class PaymentSuccessScreen extends StatelessWidget {
                     color: AppColors.secondary.withValues(alpha: 0.7),
                   ),
                 ),
+                if (split) ...[
+                  const SizedBox(height: 16),
+                  _AllocationBreakdownCard(allocation: allocation!),
+                ],
                 const SizedBox(height: 12),
                 Container(
                   padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
@@ -162,6 +176,79 @@ class PaymentSuccessScreen extends StatelessWidget {
             ),
           ),
         ),
+      ),
+    );
+  }
+}
+
+/// Carte récapitulant la répartition automatique d'un paiement scindé entre
+/// plusieurs produits (ex. « 200 F → Produit A · objectif atteint, 300 F → Produit B »).
+class _AllocationBreakdownCard extends StatelessWidget {
+  const _AllocationBreakdownCard({required this.allocation});
+
+  final AllocationResult allocation;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: AppColors.secondary.withValues(alpha: 0.05),
+        borderRadius: BorderRadius.circular(18),
+        border: Border.all(color: AppColors.secondary.withValues(alpha: 0.1)),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Icon(Icons.call_split_rounded, size: 16, color: AppColors.secondary.withValues(alpha: 0.6)),
+              const SizedBox(width: 6),
+              Text(
+                'RÉPARTITION AUTOMATIQUE',
+                style: AppTypography.manrope(
+                  fontSize: 11,
+                  fontWeight: FontWeight.w900,
+                  letterSpacing: 1,
+                  color: AppColors.secondary.withValues(alpha: 0.55),
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 10),
+          for (final line in allocation.lines)
+            Padding(
+              padding: const EdgeInsets.only(bottom: 6),
+              child: Row(
+                children: [
+                  Expanded(
+                    child: Text(
+                      line.productName,
+                      overflow: TextOverflow.ellipsis,
+                      style: AppTypography.manrope(fontWeight: FontWeight.w700, fontSize: 13, color: AppColors.secondary),
+                    ),
+                  ),
+                  if (line.goalReachedNow)
+                    Padding(
+                      padding: const EdgeInsets.only(right: 8),
+                      child: Icon(Icons.check_circle_rounded, size: 15, color: const Color(0xFF38A169).withValues(alpha: 0.8)),
+                    ),
+                  Text(
+                    formatFcfa(line.amountFcfa),
+                    style: AppTypography.manrope(fontWeight: FontWeight.w900, fontSize: 13, color: AppColors.secondary),
+                  ),
+                ],
+              ),
+            ),
+          if (allocation.unallocatedSurplusFcfa > 0) ...[
+            const SizedBox(height: 4),
+            Text(
+              '${formatFcfa(allocation.unallocatedSurplusFcfa)} en attente d’affectation — contactez votre agent.',
+              style: AppTypography.inter(fontSize: 11, color: Colors.orange.shade800, height: 1.3),
+            ),
+          ],
+        ],
       ),
     );
   }

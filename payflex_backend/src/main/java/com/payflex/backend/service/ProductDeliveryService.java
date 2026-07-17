@@ -5,6 +5,8 @@ import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.util.ArrayList;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
@@ -151,20 +153,105 @@ public class ProductDeliveryService {
         return rows.isEmpty() ? Optional.empty() : Optional.of(rows.get(0));
     }
 
-    public Optional<ProductProgress> resolvePrimaryProductProgress(long clientUserId) {
+    /** Tous les dossiers clôture/livraison ouverts d'un client (un client multi-produits peut en avoir plusieurs en parallèle). */
+    public List<DeliveryRow> listOpenDeliveriesForClient(long clientUserId) {
         if (clientUserId <= 0) {
+            return List.of();
+        }
+        return jdbcTemplate.query(
+            """
+            SELECT d.id, d.user_id, u.full_name, u.phone, d.product_id, p.name AS product_name,
+                   d.status, d.total_validated, d.product_price, d.catchup_days_snapshot,
+                   d.admin_note, d.closed_by, d.closed_at, d.delivered_by, d.delivered_at,
+                   d.stock_reference, d.created_at
+            FROM client_product_deliveries d
+            JOIN users u ON u.id = d.user_id
+            JOIN products p ON p.id = d.product_id
+            WHERE d.user_id = ? AND d.status IN (?, ?)
+            ORDER BY d.id DESC
+            """,
+            (rs, i) -> mapDeliveryRow(rs),
+            clientUserId,
+            STATUS_AWAITING_CLOSURE,
+            STATUS_CLOSURE_VALIDATED
+        );
+    }
+
+    /** Dossier clôture/livraison ouvert pour CE produit précis d'un client (un client peut en avoir plusieurs, un par produit). */
+    public Optional<DeliveryRow> findOpenDeliveryForClientAndProduct(long clientUserId, long productId) {
+        if (clientUserId <= 0 || productId <= 0) {
             return Optional.empty();
         }
-        List<ProductProgress> rows = jdbcTemplate.query(
+        List<DeliveryRow> rows = jdbcTemplate.query(
             """
-            SELECT c.product_id, p.name AS product_name, p.price AS product_price,
-                   COALESCE(SUM(CASE WHEN c.status = 'validated' THEN c.amount ELSE 0 END), 0) AS total_validated
-            FROM contributions c
-            JOIN products p ON p.id = c.product_id
-            WHERE c.user_id = ? AND c.product_id IS NOT NULL
-            GROUP BY c.product_id, p.name, p.price
-            ORDER BY MAX(c.created_at) DESC
+            SELECT d.id, d.user_id, u.full_name, u.phone, d.product_id, p.name AS product_name,
+                   d.status, d.total_validated, d.product_price, d.catchup_days_snapshot,
+                   d.admin_note, d.closed_by, d.closed_at, d.delivered_by, d.delivered_at,
+                   d.stock_reference, d.created_at
+            FROM client_product_deliveries d
+            JOIN users u ON u.id = d.user_id
+            JOIN products p ON p.id = d.product_id
+            WHERE d.user_id = ? AND d.product_id = ? AND d.status IN (?, ?)
+            ORDER BY d.id DESC
             LIMIT 1
+            """,
+            (rs, i) -> mapDeliveryRow(rs),
+            clientUserId,
+            productId,
+            STATUS_AWAITING_CLOSURE,
+            STATUS_CLOSURE_VALIDATED
+        );
+        return rows.isEmpty() ? Optional.empty() : Optional.of(rows.get(0));
+    }
+
+    /**
+     * @deprecated Ne considère que le produit le plus récemment cotisé du client — faux pour un
+     * client multi-produits. Conservé uniquement pour compatibilité ponctuelle ; préférer
+     * {@link #listProductProgress(long)} qui liste TOUS les produits actifs du client.
+     */
+    @Deprecated
+    public Optional<ProductProgress> resolvePrimaryProductProgress(long clientUserId) {
+        List<ProductProgress> all = listProductProgress(clientUserId);
+        return all.isEmpty() ? Optional.empty() : Optional.of(all.get(all.size() - 1));
+    }
+
+    /**
+     * Liste TOUS les produits avec lesquels le client a une relation (sélection en cours et/ou
+     * cotisation historique), avec la progression de chacun. Un client peut cotiser simultanément
+     * sur plusieurs produits (table {@code client_product_selections}) : contrairement à l'ancienne
+     * méthode {@code resolvePrimaryProductProgress} (limitée au produit le plus récemment cotisé),
+     * cette méthode retourne la liste complète, triée par ordre de sélection croissant
+     * ({@code client_product_selections.created_at ASC}, à défaut date de première cotisation) —
+     * c'est aussi l'ordre utilisé pour la cascade de répartition automatique des surplus.
+     */
+    public List<ProductProgress> listProductProgress(long clientUserId) {
+        if (clientUserId <= 0) {
+            return List.of();
+        }
+        return jdbcTemplate.query(
+            """
+            SELECT
+              p.id AS product_id,
+              p.name AS product_name,
+              COALESCE(p.price, 0) * COALESCE(NULLIF(cps.quantity, 0), 1) AS product_price,
+              COALESCE(val.total_validated, 0) AS total_validated,
+              COALESCE(cps.created_at, fc.first_created_at) AS order_key
+            FROM products p
+            LEFT JOIN client_product_selections cps ON cps.product_id = p.id AND cps.user_id = ?
+            LEFT JOIN (
+                SELECT product_id, SUM(amount) AS total_validated
+                FROM contributions
+                WHERE user_id = ? AND status = 'validated' AND product_id IS NOT NULL
+                GROUP BY product_id
+            ) val ON val.product_id = p.id
+            LEFT JOIN (
+                SELECT product_id, MIN(created_at) AS first_created_at
+                FROM contributions
+                WHERE user_id = ? AND product_id IS NOT NULL
+                GROUP BY product_id
+            ) fc ON fc.product_id = p.id
+            WHERE cps.id IS NOT NULL OR fc.first_created_at IS NOT NULL
+            ORDER BY order_key ASC
             """,
             (rs, i) -> {
                 double price = rs.getDouble("product_price");
@@ -177,23 +264,29 @@ public class ProductDeliveryService {
                     total >= price && price > 0
                 );
             },
+            clientUserId,
+            clientUserId,
             clientUserId
         );
-        return rows.isEmpty() ? Optional.empty() : Optional.of(rows.get(0));
     }
 
-    /** Crée ou met à jour un dossier « en attente de clôture » quand l’objectif est atteint. */
+    private Optional<ProductProgress> progressForProduct(long clientUserId, long productId) {
+        return listProductProgress(clientUserId).stream()
+            .filter(p -> p.productId() == productId)
+            .findFirst();
+    }
+
+    /** Crée ou met à jour un dossier « en attente de clôture » quand l’objectif est atteint (par produit). */
     @Transactional
     public void ensureAwaitingClosure(long clientUserId, long productId) {
         if (clientUserId <= 0 || productId <= 0) {
             return;
         }
-        Optional<DeliveryRow> open = findOpenDeliveryForClient(clientUserId);
-        if (open.isPresent()) {
+        if (findOpenDeliveryForClientAndProduct(clientUserId, productId).isPresent()) {
             return;
         }
-        ProductProgress progress = resolvePrimaryProductProgress(clientUserId).orElse(null);
-        if (progress == null || progress.productId() != productId) {
+        ProductProgress progress = progressForProduct(clientUserId, productId).orElse(null);
+        if (progress == null || !progress.goalReached()) {
             return;
         }
         int catchup = catchupDays(clientUserId);
@@ -212,14 +305,14 @@ public class ProductDeliveryService {
         );
     }
 
-    /** Ouvre manuellement un dossier clôture depuis la fiche client. */
+    /** Ouvre manuellement un dossier clôture depuis la fiche client, pour UN produit donné. */
     @Transactional
-    public long openClosureCase(long clientUserId, String actorLogin) {
-        if (findOpenDeliveryForClient(clientUserId).isPresent()) {
-            throw new IllegalArgumentException("Un dossier clôture / livraison est déjà ouvert pour ce client.");
+    public long openClosureCase(long clientUserId, long productId, String actorLogin) {
+        if (findOpenDeliveryForClientAndProduct(clientUserId, productId).isPresent()) {
+            throw new IllegalArgumentException("Un dossier clôture / livraison est déjà ouvert pour ce produit.");
         }
-        ProductProgress progress = resolvePrimaryProductProgress(clientUserId)
-            .orElseThrow(() -> new IllegalArgumentException("Aucun produit / cotisation trouvé pour ce client."));
+        ProductProgress progress = progressForProduct(clientUserId, productId)
+            .orElseThrow(() -> new IllegalArgumentException("Aucune cotisation trouvée pour ce produit et ce client."));
         int catchup = catchupDays(clientUserId);
         jdbcTemplate.update(
             """
@@ -249,7 +342,7 @@ public class ProductDeliveryService {
         if (!STATUS_AWAITING_CLOSURE.equals(row.status())) {
             throw new IllegalArgumentException("Ce dossier n'est pas en attente de clôture.");
         }
-        ProductProgress live = resolvePrimaryProductProgress(row.userId())
+        ProductProgress live = progressForProduct(row.userId(), row.productId())
             .orElseThrow(() -> new IllegalArgumentException("Produit client introuvable."));
         if (live.totalValidated() < live.productPrice()) {
             throw new IllegalArgumentException(
@@ -371,6 +464,14 @@ public class ProductDeliveryService {
         );
     }
 
+    /**
+     * Enrichit le profil mobile (client) avec la progression de TOUS ses produits actifs
+     * (clé {@code productDeliveries}, liste). Les anciens champs singuliers
+     * ({@code deliveryStatus}, {@code deliveryProductName}, ...) restent renseignés par
+     * compatibilité — ils reflètent l'entrée « la plus pertinente » (dossier ouvert en priorité,
+     * sinon premier produit avec objectif atteint, sinon premier produit) — mais un client
+     * multi-produits doit utiliser {@code productDeliveries} pour voir l'ensemble.
+     */
     public void enrichProfileMap(Map<String, Object> profile) {
         Object idObj = profile.get("id");
         if (!(idObj instanceof Number n)) {
@@ -380,23 +481,44 @@ public class ProductDeliveryService {
         if (!"client".equalsIgnoreCase(Objects.toString(profile.get("role"), ""))) {
             return;
         }
-        findOpenDeliveryForClient(userId).ifPresentOrElse(
-            d -> {
-                profile.put("deliveryStatus", d.status());
-                profile.put("deliveryProductName", d.productName());
-                profile.put("deliveryProductPrice", d.productPrice());
-                profile.put("deliveryTotalValidated", d.totalValidated());
-                profile.put("deliveryId", d.id());
-            },
-            () -> resolvePrimaryProductProgress(userId).ifPresent(p -> {
-                if (p.goalReached()) {
-                    profile.put("deliveryStatus", "goal_reached");
-                    profile.put("deliveryProductName", p.productName());
-                    profile.put("deliveryProductPrice", p.productPrice());
-                    profile.put("deliveryTotalValidated", p.totalValidated());
-                }
-            })
-        );
+        List<ProductProgress> progressList = listProductProgress(userId);
+        Map<Long, DeliveryRow> deliveryByProduct = new LinkedHashMap<>();
+        for (DeliveryRow d : listOpenDeliveriesForClient(userId)) {
+            deliveryByProduct.put(d.productId(), d);
+        }
+
+        List<Map<String, Object>> entries = new ArrayList<>();
+        for (ProductProgress p : progressList) {
+            DeliveryRow d = deliveryByProduct.get(p.productId());
+            Map<String, Object> entry = new LinkedHashMap<>();
+            entry.put("productId", p.productId());
+            entry.put("productName", p.productName());
+            entry.put("productPrice", p.productPrice());
+            entry.put("totalValidated", p.totalValidated());
+            entry.put("goalReached", p.goalReached());
+            if (d != null) {
+                entry.put("deliveryStatus", d.status());
+                entry.put("deliveryId", d.id());
+            } else {
+                entry.put("deliveryStatus", p.goalReached() ? "goal_reached" : "in_progress");
+            }
+            entries.add(entry);
+        }
+        profile.put("productDeliveries", entries);
+
+        Map<String, Object> primary = entries.stream()
+            .filter(e -> !"in_progress".equals(e.get("deliveryStatus")))
+            .findFirst()
+            .orElse(entries.isEmpty() ? null : entries.get(0));
+        if (primary != null) {
+            profile.put("deliveryStatus", primary.get("deliveryStatus"));
+            profile.put("deliveryProductName", primary.get("productName"));
+            profile.put("deliveryProductPrice", primary.get("productPrice"));
+            profile.put("deliveryTotalValidated", primary.get("totalValidated"));
+            if (primary.get("deliveryId") != null) {
+                profile.put("deliveryId", primary.get("deliveryId"));
+            }
+        }
     }
 
     private int catchupDays(long userId) {

@@ -13,6 +13,7 @@ public class ContributionValidationAlertService {
     public static final String TYPE_PAYDUNYA_APPROVED = "paydunya_approved";
     public static final String TYPE_PAYDUNYA_CANCELED = "paydunya_canceled";
     public static final String TYPE_AGENT_CASH_DEBT = "agent_cash_debt";
+    public static final String TYPE_UNALLOCATED_SURPLUS = "contribution_unallocated_surplus";
 
     private final JdbcTemplate jdbcTemplate;
 
