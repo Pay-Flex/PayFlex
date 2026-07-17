@@ -603,7 +603,10 @@ public class MobileApiService {
         Integer catchupMonth,
         Integer catchupDay
     ) {
-        contributionWorkflowService.assertProductGoalNotReached(userId, productId);
+        // Aucun contrôle de dépassement d'objectif ici : si le montant excède ce qu'il reste à
+        // payer sur ce produit, l'excédent sera automatiquement réparti sur les autres produits
+        // actifs du client au moment de la VALIDATION (voir ContributionAllocationService /
+        // ContributionWorkflowService#applyValidation), pas à la simple déclaration.
         Long resolvedAgentId = agentId;
         if (resolvedAgentId == null) {
             resolvedAgentId = contributionWorkflowService.findAgentRowIdForClient(userId);
@@ -669,6 +672,7 @@ public class MobileApiService {
               c.catchup_month,
               c.catchup_day,
               c.product_id,
+              c.allocation_group_id,
               p.name AS product_name,
               p.price AS product_price,
               p.min_daily_contribution AS product_daily_min
@@ -697,7 +701,8 @@ public class MobileApiService {
         Integer catchupMonth,
         Integer catchupDay
     ) {
-        contributionWorkflowService.assertProductGoalNotReached(clientUserId, productId);
+        // Idem : la répartition automatique de l'excédent se fait à la VALIDATION (rapprochement
+        // caisse ou auto-validation), jamais à la simple saisie de la collecte espèces.
         String ref = referenceCode != null && !referenceCode.isBlank()
             ? referenceCode.trim()
             : "PF-AGENT-" + System.currentTimeMillis();

@@ -210,41 +210,51 @@
 
   <section class="pf-detail-panel border-blue-100 bg-blue-50/30">
     <h2 class="pf-detail-section-head"><i class="fa-solid fa-box-open"></i>Clôture &amp; livraison</h2>
-    <div th:if="${productProgress != null}" class="text-sm mb-4 grid grid-cols-1 md:grid-cols-3 gap-3">
-      <article class="pf-stat-tile">
-        <p class="pf-stat-label">Produit actif</p>
-        <p class="pf-stat-value text-base" th:text="${productProgress.productName()}">—</p>
-      </article>
-      <article class="pf-stat-tile pf-stat-tile--emerald">
-        <p class="pf-stat-label">Solde validé / objectif</p>
-        <p class="pf-stat-value text-base"
-           th:text="${#numbers.formatInteger(productProgress.totalValidated(),0,'POINT')} + ' / ' + ${#numbers.formatInteger(productProgress.productPrice(),0,'POINT')} + ' FCFA'"></p>
-      </article>
-      <article class="pf-stat-tile" th:classappend="${productProgress.goalReached()} ? ' pf-stat-tile--emerald' : ' pf-stat-tile--amber'">
-        <p class="pf-stat-label">Objectif</p>
-        <p class="pf-stat-value text-base" th:text="${productProgress.goalReached()} ? 'Atteint' : 'En cours'"></p>
-      </article>
-    </div>
-    <div th:if="${deliveryCase != null}" class="rounded-lg border border-slate-200 bg-white p-4 text-sm space-y-2">
-      <p><span class="font-semibold">Dossier #</span><span th:text="${deliveryCase.id()}"></span>
-        — <span class="pf-badge-soft text-xs font-bold pf-badge-soft--amber" th:text="${deliveryCase.statusLabel()}"></span></p>
-      <p th:if="${deliveryCase.catchupDaysSnapshot() > 0}" class="text-amber-800 text-xs">
-        <i class="fa-solid fa-calendar-day mr-1"></i>Snapshot carnet : <span th:text="${deliveryCase.catchupDaysSnapshot()}"></span> jour(s) orange au moment de l’ouverture.
-      </p>
-      <p th:if="${deliveryCase.adminNote() != null}" class="text-slate-600 text-xs whitespace-pre-wrap" th:text="${deliveryCase.adminNote()}"></p>
-      <a href="/admin/deliveries" class="pf-btn pf-btn-primary text-xs inline-flex"><i class="fa-solid fa-arrow-right mr-1"></i>Traiter dans la file clôture / livraison</a>
-    </div>
-    <div th:if="${deliveryCase == null && productProgress != null && productProgress.goalReached()}" class="flex flex-wrap gap-2">
-      <form method="post" th:action="@{/admin/clients/{id}/delivery/open(id=${client.id()})}">
-        <input type="hidden" th:name="${_csrf.parameterName}" th:value="${_csrf.token}">
-        <button type="submit" class="pf-btn pf-btn-primary text-xs"><i class="fa-solid fa-folder-open mr-1"></i>Ouvrir dossier clôture</button>
-      </form>
-      <a href="/admin/deliveries" class="pf-btn pf-btn-secondary text-xs">Voir toutes les livraisons</a>
-    </div>
-    <p th:if="${productProgress == null}" class="text-sm text-slate-500">Aucune cotisation produit enregistrée pour ce client.</p>
-    <p th:if="${deliveryCase == null && productProgress != null && !productProgress.goalReached()}" class="text-sm text-slate-600">
-      L’objectif n’est pas encore atteint. La clôture sera proposée automatiquement lorsque le solde validé couvrira le prix du produit.
+    <p class="text-xs text-slate-500 mb-3" th:if="${productProgressList != null && productProgressList.size() > 1}">
+      Ce client cotise sur <span th:text="${productProgressList.size()}"></span> produits en parallèle — chacun est suivi et clôturé indépendamment.
     </p>
+    <div th:if="${productProgressList == null || productProgressList.isEmpty()}">
+      <p class="text-sm text-slate-500">Aucune cotisation produit enregistrée pour ce client.</p>
+    </div>
+    <div th:each="progress : ${productProgressList}" class="rounded-lg border border-slate-200 bg-white p-4 mb-3">
+      <div class="text-sm mb-3 grid grid-cols-1 md:grid-cols-3 gap-3">
+        <article class="pf-stat-tile">
+          <p class="pf-stat-label">Produit</p>
+          <p class="pf-stat-value text-base" th:text="${progress.productName()}">—</p>
+        </article>
+        <article class="pf-stat-tile pf-stat-tile--emerald">
+          <p class="pf-stat-label">Solde validé / objectif</p>
+          <p class="pf-stat-value text-base"
+             th:text="${#numbers.formatInteger(progress.totalValidated(),0,'POINT')} + ' / ' + ${#numbers.formatInteger(progress.productPrice(),0,'POINT')} + ' FCFA'"></p>
+        </article>
+        <article class="pf-stat-tile" th:classappend="${progress.goalReached()} ? ' pf-stat-tile--emerald' : ' pf-stat-tile--amber'">
+          <p class="pf-stat-label">Objectif</p>
+          <p class="pf-stat-value text-base" th:text="${progress.goalReached()} ? 'Atteint' : 'En cours'"></p>
+        </article>
+      </div>
+      <th:block th:with="deliveryCase=${deliveryCases != null ? deliveryCases.?[productId() == progress.productId()] : null}">
+        <div th:if="${deliveryCase != null && !deliveryCase.isEmpty()}" class="rounded-lg border border-slate-200 bg-slate-50 p-3 text-sm space-y-2">
+          <p><span class="font-semibold">Dossier #</span><span th:text="${deliveryCase[0].id()}"></span>
+            — <span class="pf-badge-soft text-xs font-bold pf-badge-soft--amber" th:text="${deliveryCase[0].statusLabel()}"></span></p>
+          <p th:if="${deliveryCase[0].catchupDaysSnapshot() > 0}" class="text-amber-800 text-xs">
+            <i class="fa-solid fa-calendar-day mr-1"></i>Snapshot carnet : <span th:text="${deliveryCase[0].catchupDaysSnapshot()}"></span> jour(s) orange au moment de l’ouverture.
+          </p>
+          <p th:if="${deliveryCase[0].adminNote() != null}" class="text-slate-600 text-xs whitespace-pre-wrap" th:text="${deliveryCase[0].adminNote()}"></p>
+          <a href="/admin/deliveries" class="pf-btn pf-btn-primary text-xs inline-flex"><i class="fa-solid fa-arrow-right mr-1"></i>Traiter dans la file clôture / livraison</a>
+        </div>
+        <div th:if="${(deliveryCase == null || deliveryCase.isEmpty()) && progress.goalReached()}" class="flex flex-wrap gap-2">
+          <form method="post" th:action="@{/admin/clients/{id}/delivery/open(id=${client.id()})}">
+            <input type="hidden" th:name="${_csrf.parameterName}" th:value="${_csrf.token}">
+            <input type="hidden" name="productId" th:value="${progress.productId()}">
+            <button type="submit" class="pf-btn pf-btn-primary text-xs"><i class="fa-solid fa-folder-open mr-1"></i>Ouvrir dossier clôture</button>
+          </form>
+        </div>
+        <p th:if="${(deliveryCase == null || deliveryCase.isEmpty()) && !progress.goalReached()}" class="text-sm text-slate-600">
+          L’objectif n’est pas encore atteint pour ce produit. La clôture sera proposée automatiquement lorsque le solde validé couvrira son prix.
+        </p>
+      </th:block>
+    </div>
+    <a href="/admin/deliveries" class="pf-btn pf-btn-secondary text-xs" th:if="${productProgressList != null && !productProgressList.isEmpty()}">Voir toutes les livraisons</a>
   </section>
 
   <section class="pf-detail-panel" th:if="${clientContributions != null && !clientContributions.isEmpty()}">
@@ -262,7 +272,13 @@
           <td class="py-2 px-3" th:text="${row.agentName()}"></td>
           <td class="py-2 px-3 text-right font-medium tabular-nums" th:text="${#numbers.formatInteger(row.amount(),0,'POINT')} + ' FCFA'"></td>
           <td class="py-2 px-3 text-xs" th:text="${row.status() == 'validated' ? 'Validée' : (row.status() == 'pending' ? 'En attente' : row.status())}"></td>
-          <td class="py-2 px-3 text-xs font-mono" th:text="${row.referenceCode()}"></td>
+          <td class="py-2 px-3 text-xs font-mono">
+            <span th:text="${row.referenceCode()}"></span>
+            <span th:if="${row.isAllocated()}" class="pf-badge-soft pf-badge-soft--slate text-[10px] font-bold ml-1"
+                  title="Cette ligne provient d'un paiement réparti automatiquement sur plusieurs produits.">
+              <i class="fa-solid fa-arrows-split-up-and-left mr-1"></i>Réparti #<span th:text="${row.allocationGroupId()}"></span>
+            </span>
+          </td>
         </tr>
         </tbody>
       </table>

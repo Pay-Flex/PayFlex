@@ -22,6 +22,8 @@ public class ContributionWorkflowService {
 
     public static final String NOTIF_TYPE_VALIDATED = "contribution_validated";
     public static final String NOTIF_TYPE_REJECTED = "contribution_rejected";
+    /** Paiement confirmé mais réparti automatiquement sur plusieurs produits (excédent > reste à payer). */
+    public static final String NOTIF_TYPE_ALLOCATED_MULTI = "contribution_allocated_multi";
     public static final String GOAL_REACHED_MESSAGE = "Objectif atteint pour ce produit, cotisation bloquée.";
 
     private final JdbcTemplate jdbcTemplate;
@@ -32,6 +34,7 @@ public class ContributionWorkflowService {
     private final UserInboxNotificationService inboxNotifications;
     private final ProductDeliveryService productDeliveryService;
     private final AdminWebPushService adminWebPushService;
+    private final ContributionAllocationService contributionAllocationService;
 
     public ContributionWorkflowService(
         JdbcTemplate jdbcTemplate,
@@ -41,7 +44,8 @@ public class ContributionWorkflowService {
         PayflexProperties payflexProperties,
         UserInboxNotificationService inboxNotifications,
         ProductDeliveryService productDeliveryService,
-        AdminWebPushService adminWebPushService
+        AdminWebPushService adminWebPushService,
+        ContributionAllocationService contributionAllocationService
     ) {
         this.jdbcTemplate = jdbcTemplate;
         this.permissionService = permissionService;
@@ -51,14 +55,28 @@ public class ContributionWorkflowService {
         this.inboxNotifications = inboxNotifications;
         this.productDeliveryService = productDeliveryService;
         this.adminWebPushService = adminWebPushService;
+        this.contributionAllocationService = contributionAllocationService;
     }
 
     /**
-     * Vérifie que l'objectif du produit n'est pas déjà atteint pour ce client (sur les cotisations VALIDÉES uniquement).
-     * Utilisé en garde-fou avant d'insérer une nouvelle cotisation (client ou agent).
-     * Ignore si le produit est absent / non renseigné.
+     * @deprecated Ancien garde-fou bloquant (rejette toute cotisation qui dépasserait le solde
+     * restant du produit visé). Depuis l'introduction de la répartition automatique de l'excédent
+     * ({@link ContributionAllocationService}), ce blocage n'est plus appelé par le flux normal :
+     * un montant excédentaire n'est plus rejeté, il est réparti sur les autres produits actifs du
+     * client (ou tracé comme « surplus non affecté » si aucun produit ne peut l'absorber — jamais
+     * rejeté silencieusement). Méthode conservée uniquement pour compatibilité / usage manuel
+     * ponctuel (ex. script de contrôle), NE PAS la réintroduire dans le flux de déclaration/validation.
      */
+    @Deprecated
     public void assertProductGoalNotReached(long clientUserId, Long productId) {
+        assertProductGoalNotReached(clientUserId, productId, 0);
+    }
+
+    /**
+     * @deprecated Voir {@link #assertProductGoalNotReached(long, Long)}.
+     */
+    @Deprecated
+    public void assertProductGoalNotReached(long clientUserId, Long productId, double proposedAmount) {
         if (clientUserId <= 0 || productId == null || productId <= 0) {
             return;
         }
@@ -94,6 +112,12 @@ public class ContributionWorkflowService {
         double validatedTotal = validated == null ? 0 : validated;
         if (validatedTotal >= target - 0.009) {
             throw new IllegalArgumentException(GOAL_REACHED_MESSAGE);
+        }
+        if (proposedAmount > 0 && validatedTotal + proposedAmount > target + 0.009) {
+            long remaining = Math.round(Math.max(0, target - validatedTotal));
+            throw new IllegalArgumentException(
+                "Montant trop élevé : il ne reste que " + remaining + " FCFA à cotiser pour atteindre l'objectif de ce produit."
+            );
         }
     }
 
@@ -960,18 +984,30 @@ public class ContributionWorkflowService {
         if (!"pending".equals(row.get("status"))) {
             throw new IllegalArgumentException("Cette cotisation n'est plus en attente.");
         }
-        jdbcTemplate.update(
-            """
-            UPDATE contributions
-            SET status = 'validated', paid_at = NOW(), validated_by_user_id = ?, rejection_reason = NULL
-            WHERE id = ?
-            """,
-            validatorUserId,
-            contributionId
-        );
         long clientUserId = ((Number) row.get("user_id")).longValue();
         double amount = ((Number) row.get("amount")).doubleValue();
         String ref = Objects.toString(row.get("reference_code"), "");
+
+        // Transition pending → validated + répartition automatique de l'éventuel excédent sur
+        // les autres produits actifs du client (voir ContributionAllocationService).
+        ContributionAllocationService.AllocationOutcome outcome =
+            contributionAllocationService.allocateAndValidate(contributionId);
+
+        if (outcome.wasSplit()) {
+            jdbcTemplate.update(
+                "UPDATE contributions SET validated_by_user_id = ?, rejection_reason = NULL WHERE id = ? OR allocation_group_id = ?",
+                validatorUserId,
+                contributionId,
+                outcome.allocationGroupId()
+            );
+        } else {
+            jdbcTemplate.update(
+                "UPDATE contributions SET validated_by_user_id = ?, rejection_reason = NULL WHERE id = ?",
+                validatorUserId,
+                contributionId
+            );
+        }
+
         long amt = Math.round(amount);
         String refSuffix = ref.isBlank() ? "." : " (réf. " + ref + ").";
         String actor = actorLabel == null ? "" : actorLabel.trim().toLowerCase();
@@ -1032,22 +1068,36 @@ public class ContributionWorkflowService {
             );
         }
 
-        inboxNotifications.notifyUser(
-            clientUserId,
-            NOTIF_TYPE_VALIDATED,
-            clientTitle,
-            clientMsg,
-            contributionId
-        );
-        if (validatorUserId != null && validatorUserId > 0) {
+        if (outcome.wasSplit()) {
+            // Remplace le message « validation simple » par le récapitulatif de répartition
+            // (une seule notification claire listant chaque produit et montant, comme demandé).
+            clientMsg = buildAllocationClientMessage(outcome);
+            agentMsg = buildAllocationAgentMessage(outcome);
+            inboxNotifications.notifyUser(
+                clientUserId,
+                NOTIF_TYPE_ALLOCATED_MULTI,
+                "Paiement réparti automatiquement",
+                clientMsg,
+                contributionId
+            );
             inboxNotifications.notifyAssignedAgentOnly(
                 clientUserId,
-                "contribution_validated",
-                agentTitle,
+                NOTIF_TYPE_ALLOCATED_MULTI,
+                "Paiement réparti — {client}",
                 agentMsg,
                 contributionId
             );
+            if (outcome.unallocatedSurplusFcfa() > 0.009) {
+                notifyUnallocatedSurplus(outcome);
+            }
         } else {
+            inboxNotifications.notifyUser(
+                clientUserId,
+                NOTIF_TYPE_VALIDATED,
+                clientTitle,
+                clientMsg,
+                contributionId
+            );
             inboxNotifications.notifyAssignedAgentOnly(
                 clientUserId,
                 "contribution_validated",
@@ -1056,7 +1106,90 @@ public class ContributionWorkflowService {
                 contributionId
             );
         }
-        maybeNotifyGoalReached(clientUserId, contributionId);
+
+        if (outcome.wasSplit()) {
+            // Répartition sur plusieurs produits : un même paiement peut faire atteindre
+            // l'objectif de PLUSIEURS produits à la fois (ex. cascade qui complète B puis C) —
+            // on notifie individuellement chaque produit concerné.
+            for (ContributionAllocationService.AllocationLine line : outcome.lines()) {
+                if (line.goalReachedNow()) {
+                    maybeNotifyGoalReached(clientUserId, line.contributionId());
+                }
+            }
+        } else {
+            // Cas non réparti : comportement historique inchangé (la logique interne revérifie
+            // elle-même si l'objectif est atteint ; sans effet sinon).
+            maybeNotifyGoalReached(clientUserId, contributionId);
+        }
+    }
+
+    /** Message client : récapitulatif clair de la répartition automatique d'un paiement. */
+    private String buildAllocationClientMessage(ContributionAllocationService.AllocationOutcome outcome) {
+        long total = Math.round(outcome.originalAmountFcfa());
+        List<ContributionAllocationService.AllocationLine> lines = outcome.lines();
+        StringBuilder sb = new StringBuilder();
+        if (lines.isEmpty()) {
+            sb.append("Votre versement de ")
+                .append(total)
+                .append(" FCFA a été confirmé, mais n'a pu être affecté à aucun produit (tous vos objectifs en cours sont déjà atteints).");
+        } else if (lines.size() == 1) {
+            ContributionAllocationService.AllocationLine only = lines.get(0);
+            sb.append("Votre versement de ")
+                .append(total)
+                .append(" FCFA a été affecté à « ")
+                .append(only.productName())
+                .append(" »")
+                .append(only.goalReachedNow() ? " — objectif atteint !" : ".");
+        } else {
+            sb.append("Votre paiement de ").append(total).append(" FCFA a été réparti automatiquement : ");
+            List<String> parts = new ArrayList<>();
+            for (ContributionAllocationService.AllocationLine line : lines) {
+                parts.add(
+                    Math.round(line.amountFcfa())
+                        + " FCFA pour « " + line.productName() + " »"
+                        + (line.goalReachedNow() ? " (objectif atteint)" : "")
+                );
+            }
+            sb.append(String.join(", ", parts)).append(".");
+        }
+        if (outcome.unallocatedSurplusFcfa() > 0.009) {
+            sb.append(" ")
+                .append(Math.round(outcome.unallocatedSurplusFcfa()))
+                .append(" FCFA n'ont pas pu être affectés à un produit actif (aucun produit en cours disponible) : ")
+                .append("ce montant est conservé et le centre PayFlex vous contactera pour l'affecter manuellement.");
+        }
+        return sb.toString();
+    }
+
+    /** Message agent (parrain) : même récapitulatif, formulation courte à la 3e personne. */
+    private String buildAllocationAgentMessage(ContributionAllocationService.AllocationOutcome outcome) {
+        long total = Math.round(outcome.originalAmountFcfa());
+        List<ContributionAllocationService.AllocationLine> lines = outcome.lines();
+        List<String> parts = new ArrayList<>();
+        for (ContributionAllocationService.AllocationLine line : lines) {
+            parts.add(Math.round(line.amountFcfa()) + " FCFA → « " + line.productName() + " »");
+        }
+        String detail = parts.isEmpty() ? "aucun produit disponible" : String.join(", ", parts);
+        String suffix = outcome.unallocatedSurplusFcfa() > 0.009
+            ? " (" + Math.round(outcome.unallocatedSurplusFcfa()) + " FCFA non affectés — à régulariser au centre)"
+            : "";
+        return "Le paiement de {client} (" + total + " FCFA) a été réparti automatiquement : " + detail + suffix + ".";
+    }
+
+    /** Surplus qu'aucun produit actif ne peut absorber : traçable, jamais perdu — alerte centre + notif client dédiée. */
+    private void notifyUnallocatedSurplus(ContributionAllocationService.AllocationOutcome outcome) {
+        long surplus = Math.round(outcome.unallocatedSurplusFcfa());
+        alertService.createGeneral(
+            ContributionValidationAlertService.TYPE_UNALLOCATED_SURPLUS,
+            "Surplus non affecté de " + surplus + " FCFA pour le client #" + outcome.clientUserId()
+                + " (groupe de répartition #" + outcome.allocationGroupId() + ") — aucun produit actif disponible. "
+                + "Affectation manuelle requise (nouvelle sélection produit ou remboursement)."
+        );
+        adminWebPushService.notifyAllAdmins(
+            "Surplus de cotisation non affecté",
+            surplus + " FCFA n'ont pas pu être affectés à un produit pour le client #" + outcome.clientUserId() + ".",
+            "/admin/contributions?status=validated"
+        );
     }
 
     public void notifyPaydunyaContributionCanceled(long contributionId) {

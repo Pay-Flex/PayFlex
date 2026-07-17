@@ -1649,14 +1649,21 @@ public class AdminCrudService {
         String paymentMode,
         String status,
         String referenceCode,
-        String createdAt
-    ) {}
+        String createdAt,
+        Long allocationGroupId
+    ) {
+        /** Cette ligne provient d'une répartition automatique d'un paiement sur plusieurs produits. */
+        public boolean isAllocated() {
+            return allocationGroupId != null && allocationGroupId > 0;
+        }
+    }
 
     public List<ClientContributionRow> getRecentContributionsForClient(long clientUserId, int limit) {
         int lim = Math.max(1, Math.min(limit, 100));
         return jdbcTemplate.query(
             """
             SELECT c.id, c.amount, c.payment_mode, c.status, c.reference_code, c.created_at,
+                   c.allocation_group_id,
                    COALESCE(p.name, '—') AS product_name, COALESCE(au.full_name, '—') AS agent_name
             FROM contributions c
             LEFT JOIN products p ON p.id = c.product_id
@@ -1674,7 +1681,8 @@ public class AdminCrudService {
                 rs.getString("payment_mode"),
                 rs.getString("status"),
                 rs.getString("reference_code"),
-                rs.getString("created_at")
+                rs.getString("created_at"),
+                rs.getObject("allocation_group_id") == null ? null : rs.getLong("allocation_group_id")
             ),
             clientUserId,
             lim

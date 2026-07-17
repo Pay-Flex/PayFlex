@@ -6,6 +6,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:google_fonts/google_fonts.dart';
 import '../../core/constants/app_colors.dart';
 import '../../core/database/database_service.dart';
+import '../../core/models/allocation_result.dart';
 import '../../core/providers/finance_provider.dart';
 import '../../core/providers/navigation_provider.dart';
 import '../../core/providers/auth_provider.dart';
@@ -597,6 +598,7 @@ class _PaymentScreenState extends ConsumerState<PaymentScreen> {
         : null;
     String? serverContributionId;
     var gatewayValidated = false;
+    AllocationResult? allocation;
 
     if (auth.userId != null && paymentMode == 'mobile_money') {
       final gatewayInit = await _mobileApi.initPaydunyaContribution(
@@ -648,6 +650,7 @@ class _PaymentScreenState extends ConsumerState<PaymentScreen> {
           return;
         }
         gatewayValidated = checkout.outcome == PaymentCheckoutOutcome.validated;
+        allocation = checkout.allocation;
       } else {
         if (gatewayOn && paymentUrl.isEmpty && context.mounted) {
           _showErrorSnack(context, 'Lien PayDunya indisponible. Cotisation enregistrée pour validation manuelle.');
@@ -730,6 +733,7 @@ class _PaymentScreenState extends ConsumerState<PaymentScreen> {
       amount,
       awaitingAgentValidation: paymentMode == 'mobile_money' && !gatewayValidated,
       gatewayConfirmed: gatewayValidated,
+      allocation: allocation,
     );
   }
 
@@ -751,6 +755,7 @@ class _PaymentScreenState extends ConsumerState<PaymentScreen> {
     double amount, {
     required bool awaitingAgentValidation,
     bool gatewayConfirmed = false,
+    AllocationResult? allocation,
   }) {
     final fin = ref.read(financeProvider);
     double rate = 0;
@@ -783,6 +788,7 @@ class _PaymentScreenState extends ConsumerState<PaymentScreen> {
           paymentModeLabel: paymentModeLabel,
           slotsCount: slotsLabel,
           productName: productName,
+          allocation: allocation,
           onDone: () {
             ref.read(navigationIndexProvider.notifier).setIndex(0);
             Navigator.of(screenContext).pop();

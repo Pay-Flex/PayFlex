@@ -39,7 +39,7 @@ class DatabaseService {
 
       final db = await openDatabase(
         path,
-        version: 6,
+        version: 7,
         onCreate: _onCreate,
         onUpgrade: _onUpgrade,
       );
@@ -97,6 +97,7 @@ class DatabaseService {
         catchup_year INTEGER,
         catchup_month INTEGER,
         catchup_day INTEGER,
+        allocation_group_id INTEGER,
         FOREIGN KEY (project_id) REFERENCES projects (id)
       )
     ''');
@@ -219,6 +220,9 @@ class DatabaseService {
       await db.execute('ALTER TABLE transactions ADD COLUMN catchup_year INTEGER');
       await db.execute('ALTER TABLE transactions ADD COLUMN catchup_month INTEGER');
       await db.execute('ALTER TABLE transactions ADD COLUMN catchup_day INTEGER');
+    }
+    if (oldVersion < 7) {
+      await db.execute('ALTER TABLE transactions ADD COLUMN allocation_group_id INTEGER');
     }
     if (oldVersion < 4) {
       await db.execute('''
@@ -710,6 +714,7 @@ class DatabaseService {
             'catchup_year': c['catchup_year'] is num ? (c['catchup_year'] as num).toInt() : null,
             'catchup_month': c['catchup_month'] is num ? (c['catchup_month'] as num).toInt() : null,
             'catchup_day': c['catchup_day'] is num ? (c['catchup_day'] as num).toInt() : null,
+            'allocation_group_id': c['allocation_group_id'] is num ? (c['allocation_group_id'] as num).toInt() : null,
           },
           conflictAlgorithm: ConflictAlgorithm.replace,
         );
