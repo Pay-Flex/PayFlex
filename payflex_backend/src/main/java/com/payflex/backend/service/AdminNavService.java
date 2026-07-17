@@ -12,15 +12,23 @@ public class AdminNavService {
     private final JdbcTemplate jdbcTemplate;
     private final ClientAdhesionService clientAdhesionService;
     private final ProductDeliveryService productDeliveryService;
+    private final SurplusRegularizationService surplusRegularizationService;
 
     public AdminNavService(
         JdbcTemplate jdbcTemplate,
         ClientAdhesionService clientAdhesionService,
-        ProductDeliveryService productDeliveryService
+        ProductDeliveryService productDeliveryService,
+        SurplusRegularizationService surplusRegularizationService
     ) {
         this.jdbcTemplate = jdbcTemplate;
         this.clientAdhesionService = clientAdhesionService;
         this.productDeliveryService = productDeliveryService;
+        this.surplusRegularizationService = surplusRegularizationService;
+    }
+
+    /** Surplus de cotisation non affectés à régulariser (voir SurplusRegularizationService). */
+    public long unresolvedSurplusCount() {
+        return surplusRegularizationService.countUnresolved();
     }
 
     public long adhesionUrgencies() {

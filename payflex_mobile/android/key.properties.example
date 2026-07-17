@@ -1,0 +1,11 @@
+# Copiez ce fichier en `key.properties` (même dossier) et renseignez vos
+# propres valeurs. `key.properties` est ignoré par git (.gitignore) et ne
+# doit JAMAIS être committé.
+#
+# Voir SIGNING.md pour la procédure complète de génération du keystore et
+# les bonnes pratiques de stockage des secrets.
+
+storePassword=CHANGE_ME_STORE_PASSWORD
+keyPassword=CHANGE_ME_KEY_PASSWORD
+keyAlias=payflex-release
+storeFile=keystore/payflex-release.jks

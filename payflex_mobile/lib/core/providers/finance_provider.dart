@@ -481,10 +481,18 @@ class FinanceNotifier extends Notifier<FinanceState> {
 
     try {
       final auth = ref.read(authProvider);
-      if (auth.userId != null) {
+      final authPhone = auth.phone;
+      final authPin = auth.pin;
+      if (auth.userId != null &&
+          authPhone != null &&
+          authPhone.isNotEmpty &&
+          authPin != null &&
+          authPin.isNotEmpty) {
         final productIdApi = int.tryParse(projectId.replaceAll(RegExp(r'[^0-9]'), ''));
         final apiRes = await _api.sendContribution(
           userId: auth.userId!,
+          phone: authPhone,
+          pin: authPin,
           amount: daily,
           paymentMode: type,
           productId: productIdApi,

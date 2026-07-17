@@ -4,4 +4,9 @@
          to allow setting breakpoints, to provide hot reload, etc.
     -->
     <uses-permission android:name="android.permission.INTERNET"/>
+
+    <!-- Cleartext HTTP autorisé en profile pour permettre le profilage sur un
+         backend de test local (mêmes besoins que le mode debug). Absent en
+         release, où seul HTTPS est autorisé. -->
+    <application android:usesCleartextTraffic="true" />
 </manifest>

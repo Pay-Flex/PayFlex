@@ -593,6 +593,8 @@ class _PaymentScreenState extends ConsumerState<PaymentScreen> {
     setState(() => _isProcessing = true);
 
     final auth = ref.read(authProvider);
+    final authPhone = auth.phone?.trim() ?? '';
+    final authPin = auth.pin?.trim() ?? '';
     final productIdApi = _selectedProjectId != null
         ? int.tryParse(_selectedProjectId!.replaceAll(RegExp(r'[^0-9]'), ''))
         : null;
@@ -601,8 +603,15 @@ class _PaymentScreenState extends ConsumerState<PaymentScreen> {
     AllocationResult? allocation;
 
     if (auth.userId != null && paymentMode == 'mobile_money') {
+      if (authPhone.isEmpty || authPin.isEmpty) {
+        setState(() => _isProcessing = false);
+        _showErrorSnack(context, 'Session invalide. Reconnectez-vous.');
+        return;
+      }
       final gatewayInit = await _mobileApi.initPaydunyaContribution(
         userId: auth.userId!,
+        phone: authPhone,
+        pin: authPin,
         amount: amount,
         productId: productIdApi,
         payerPhone: payerPhone,
@@ -635,6 +644,8 @@ class _PaymentScreenState extends ConsumerState<PaymentScreen> {
               paymentUrl: paymentUrl,
               contributionId: contributionId,
               userId: auth.userId!,
+              phone: authPhone,
+              pin: authPin,
               amountFcfa: amount.round(),
               callbackUrl: callbackUrl,
             ),
@@ -664,6 +675,8 @@ class _PaymentScreenState extends ConsumerState<PaymentScreen> {
         // PayDunya non configuré, indisponible ou sans URL → déclaration classique
         final apiRes = await _mobileApi.sendContribution(
           userId: auth.userId!,
+          phone: authPhone,
+          pin: authPin,
           amount: amount,
           paymentMode: paymentMode,
           productId: productIdApi,
@@ -684,8 +697,15 @@ class _PaymentScreenState extends ConsumerState<PaymentScreen> {
     } else {
       // Déclaration classique (espèces)
       if (auth.userId != null) {
+        if (authPhone.isEmpty || authPin.isEmpty) {
+          setState(() => _isProcessing = false);
+          _showErrorSnack(context, 'Session invalide. Reconnectez-vous.');
+          return;
+        }
         final apiRes = await _mobileApi.sendContribution(
           userId: auth.userId!,
+          phone: authPhone,
+          pin: authPin,
           amount: amount,
           paymentMode: paymentMode,
           productId: productIdApi,

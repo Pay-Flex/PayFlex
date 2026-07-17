@@ -645,6 +645,13 @@ public class MobileApiController {
         if (userId <= 0) {
             return ResponseEntity.badRequest().body(Map.of("message", "Montant ou client manquant : vérifiez les informations."));
         }
+        // Déclaration client « pour soi-même » (pas de collecte agent) : le userId fourni DOIT
+        // correspondre au compte authentifié par phone+pin — sinon n'importe quel appelant
+        // pourrait déclarer un versement au nom d'un autre client (même contrôle que
+        // /adhesion/paydunya/init, voir credentialsMatch(...)).
+        if (!credentialsMatch(payload, userId)) {
+            return ResponseEntity.status(401).body(Map.of("message", "Session invalide ou compte introuvable."));
+        }
         if (!permissionService.userHasPermission(userId, PermissionService.MOBILE_CONTRIBUTION_CREATE)) {
             return ResponseEntity.status(403).body(Map.of("message", "Vous ne pouvez pas enregistrer ce versement avec votre profil actuel. Contactez le support."));
         }
@@ -764,6 +771,12 @@ public class MobileApiController {
         if (userId <= 0) {
             return ResponseEntity.badRequest().body(Map.of("message", "Client manquant."));
         }
+        // Même contrôle que /adhesion/paydunya/init : le userId fourni doit correspondre au
+        // compte authentifié (phone+pin), sinon un userId arbitraire pourrait initier un paiement
+        // PayDunya au nom d'un autre client.
+        if (!credentialsMatch(payload, userId)) {
+            return ResponseEntity.status(401).body(Map.of("message", "Session invalide ou compte introuvable."));
+        }
         if (!permissionService.userHasPermission(userId, PermissionService.MOBILE_CONTRIBUTION_CREATE)) {
             return ResponseEntity.status(403).body(Map.of("message", "Profil non autorisé à cotiser."));
         }
@@ -825,6 +838,12 @@ public class MobileApiController {
         long contributionId = parseLong(payload.get("contributionId"));
         if (userId <= 0 || contributionId <= 0) {
             return ResponseEntity.badRequest().body(Map.of("message", "Paramètres manquants."));
+        }
+        // Même contrôle que les autres endpoints /contributions/* : sans ça, un contributionId
+        // deviné avec le vrai userId propriétaire suffirait à consulter un paiement sans être
+        // authentifié.
+        if (!credentialsMatch(payload, userId)) {
+            return ResponseEntity.status(401).body(Map.of("message", "Session invalide ou compte introuvable."));
         }
         try {
             return ResponseEntity.ok(payDunyaPaymentService.paymentStatus(contributionId, userId));

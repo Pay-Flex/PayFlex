@@ -522,6 +522,7 @@ PayFlex/
 │   │   ├── db/migration/   # Flyway V1–V52
 │   │   ├── templates/      # Pages admin Thymeleaf
 │   │   └── static/         # CSS/JS admin
+│   ├── scripts/backup/       # Sauvegarde/restauration MySQL (voir README dédié)
 │   └── uploads/              # Photos, produits, pièces jointes
 ├── payflex_mobile/           # Application Flutter
 │   ├── lib/
@@ -551,6 +552,9 @@ PayFlex/
 | `run-usb.ps1` | `payflex_mobile/scripts/` | `adb reverse` + `flutter run` |
 | `build-apk.ps1` | `payflex_mobile/scripts/` | Build APK/AAB release (tunnel, wifi, prod) |
 | `pull-logs.ps1` | `payflex_mobile/scripts/` | Récupère les logs app depuis un téléphone USB |
+| `backup-db.sh` / `backup-db.ps1` | `payflex_backend/scripts/backup/` | Sauvegarde de la base MySQL (mysqldump, rétention GFS, upload hors-site) |
+| `restore-db.sh` / `restore-db.ps1` | `payflex_backend/scripts/backup/` | Restauration d'un dump dans une base cible (avec confirmation explicite) |
+| `verify-backup.sh` | `payflex_backend/scripts/backup/` | Test de restauration périodique dans une base temporaire jetable |
 
 ---
 
@@ -561,6 +565,7 @@ PayFlex/
 | [TUNNEL.md](TUNNEL.md) | Wi‑Fi, USB, Cloudflare, LocalTunnel, erreurs courantes |
 | [payflex_backend/PAYDUNYA.md](payflex_backend/PAYDUNYA.md) | Clés PayDunya, sandbox, webhook/IPN, tests |
 | [payflex_mobile/PAYFLEX_PUSH.md](payflex_mobile/PAYFLEX_PUSH.md) | Architecture notifications sans Firebase |
+| [payflex_backend/scripts/backup/README.md](payflex_backend/scripts/backup/README.md) | Sauvegarde/restauration de la base de données (mysqldump, rétention GFS, stockage hors-site, tests de restauration) |
 | [payflex_vitrine/README.md](payflex_vitrine/README.md) | Site vitrine Next.js |
 
 ---

@@ -6,8 +6,11 @@
     <application
         android:label="PayFlex"
         android:name="${applicationName}"
-        android:icon="@mipmap/ic_launcher"
-        android:usesCleartextTraffic="true">
+        android:icon="@mipmap/ic_launcher">
+        <!-- android:usesCleartextTraffic n'est PAS défini ici : en release,
+             seul HTTPS est autorisé. Le trafic HTTP en clair (utile pour les
+             tests locaux USB/LAN via PAYFLEX_API_HOST) n'est réactivé que dans
+             les variantes debug/profile, voir src/debug et src/profile. -->
         <activity
             android:name=".MainActivity"
             android:exported="true"

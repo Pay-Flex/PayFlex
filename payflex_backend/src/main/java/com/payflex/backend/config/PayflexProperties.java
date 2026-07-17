@@ -10,8 +10,14 @@ public class PayflexProperties {
     private Push push = new Push();
     /** Seuil jours orange carnet pour alerte inbox client + agent (aligné dashboard admin). */
     private int catchupAlertThreshold = 5;
+    /**
+     * Valeur de repli du coffre identifiants — pratique en dev local, mais jamais acceptable en
+     * production (voir {@link com.payflex.backend.service.CredentialVaultService}, qui refuse de
+     * démarrer avec cette valeur sous le profil {@code prod}).
+     */
+    public static final String DEFAULT_VAULT_KEY = "payflex-dev-vault-key-change-me";
     /** Clé serveur pour le coffre identifiants (révélation admin). */
-    private String vaultKey = "payflex-dev-vault-key-change-me";
+    private String vaultKey = DEFAULT_VAULT_KEY;
 
     public Contributions getContributions() {
         return contributions;

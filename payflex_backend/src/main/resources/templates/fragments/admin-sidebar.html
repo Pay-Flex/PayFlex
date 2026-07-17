@@ -68,6 +68,12 @@
       <span class="pf-nav-text">Agents</span>
       <span th:if="${navAgentsWithDebt > 0}" class="pf-nav-badge pf-nav-badge--urgent" th:text="${navAgentsWithDebt}">0</span>
     </a>
+    <a href="/admin/surplus" th:classappend="${activePage == 'surplus'} ? ' pf-admin-nav-active' : ' pf-admin-nav-idle'"
+       class="pf-admin-nav-link px-3 py-2 rounded-lg" title="Surplus de cotisation non affectés">
+      <i class="fa-solid fa-coins pf-nav-icon" aria-hidden="true"></i>
+      <span class="pf-nav-text">Surplus non affectés</span>
+      <span th:if="${navUnresolvedSurplus > 0}" class="pf-nav-badge pf-nav-badge--urgent" th:text="${navUnresolvedSurplus}">0</span>
+    </a>
     <a th:if="${adminFullAccess}" href="/admin/gestionnaires" th:classappend="${activePage == 'gestionnaires'} ? ' pf-admin-nav-active' : ' pf-admin-nav-idle'"
        class="pf-admin-nav-link px-3 py-2 rounded-lg" title="Gestionnaires">
       <i class="fa-solid fa-user-gear pf-nav-icon" aria-hidden="true"></i>

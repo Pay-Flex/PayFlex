@@ -100,6 +100,11 @@ public class AdminUiAdvice {
         return adminNavService.pendingDeliveries();
     }
 
+    @ModelAttribute("navUnresolvedSurplus")
+    public long navUnresolvedSurplus() {
+        return adminNavService.unresolvedSurplusCount();
+    }
+
     @ModelAttribute("adminPrincipalName")
     public String adminPrincipalName() {
         Authentication auth = SecurityContextHolder.getContext().getAuthentication();
