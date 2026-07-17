@@ -1,0 +1,121 @@
+<!doctype html>
+<html lang="fr" xmlns:th="http://www.thymeleaf.org">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Admin — Surplus non affectés</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.2/css/all.min.css">
+  <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
+  <link rel="stylesheet" href="/css/admin-wow.css">
+</head>
+<body class="pf-admin bg-slate-100 min-h-screen">
+<th:block th:replace="~{fragments/admin-chrome :: startMain('space-y-4')}"/>
+<th:block th:replace="~{fragments/admin-chrome :: pageHeader('Surplus de cotisation non affectés','Excédents de paiement qui n’ont pu être affectés à aucun produit actif au moment de la validation — à régulariser manuellement.')}"/>
+
+    <div class="bg-amber-50 border border-amber-200 rounded-xl p-4 text-sm text-amber-950">
+      <p class="font-semibold mb-1"><i class="fa-solid fa-circle-info mr-2"></i>Pourquoi ces montants apparaissent ici</p>
+      <p class="leading-relaxed">Quand une cotisation validée dépasse ce qu'il reste à payer sur le produit visé, PayFlex répartit
+        automatiquement l'excédent sur les autres produits actifs du client. Si <strong>aucun</strong> produit actif n'est
+        disponible (tous complets), le reliquat est conservé ici — l'argent n'est jamais perdu, mais doit être régularisé
+        manuellement : réaffectation à un nouveau produit du client, ou remboursement / traitement hors système.</p>
+    </div>
+
+    <section class="bg-white rounded-xl p-4 shadow-sm overflow-auto border border-slate-200">
+      <table class="w-full text-sm min-w-[900px]" th:if="${!surplusRows.isEmpty()}">
+        <thead class="bg-slate-100">
+        <tr>
+          <th class="text-left py-2 px-2">Date</th>
+          <th class="text-left py-2 px-2">Client</th>
+          <th class="text-left py-2 px-2">Produit visé (versement d'origine)</th>
+          <th class="text-right py-2 px-2">Montant</th>
+          <th class="text-left py-2 px-2">Régularisation</th>
+        </tr>
+        </thead>
+        <tbody>
+        <tr th:each="row : ${surplusRows}" class="border-t border-slate-100 align-top">
+          <td class="py-3 px-2 text-slate-600 whitespace-nowrap" th:text="${#dates.format(row.createdAt(), 'dd/MM/yyyy HH:mm')}">Date</td>
+          <td class="py-3 px-2">
+            <a th:href="@{/admin/clients/{id}(id=${row.clientUserId()})}" class="font-medium hover:underline" th:text="${row.clientName()}">Client</a>
+            <span class="text-xs text-slate-500 block" th:text="${row.clientPhone()}"></span>
+          </td>
+          <td class="py-3 px-2 text-slate-700" th:text="${row.sourceProductName() != null ? row.sourceProductName() : '—'}">Produit</td>
+          <td class="py-3 px-2 text-right font-semibold tabular-nums whitespace-nowrap"
+              th:text="${#numbers.formatInteger(row.amountFcfa(), 0, 'POINT')} + ' FCFA'">0</td>
+          <td class="py-3 px-2 space-y-2">
+            <form method="post" th:action="@{/admin/surplus/{id}/reallocate(id=${row.id()})}"
+                  class="flex flex-wrap items-center gap-2"
+                  th:if="${!surplusProductChoices.get(row.clientUserId()).isEmpty()}">
+              <input type="hidden" th:name="${_csrf.parameterName}" th:value="${_csrf.token}">
+              <select name="targetProductId" required class="border rounded-lg px-2 py-1.5 text-xs max-w-[220px]">
+                <option value="">Réaffecter à…</option>
+                <option th:each="choice : ${surplusProductChoices.get(row.clientUserId())}"
+                        th:value="${choice.productId()}"
+                        th:text="${choice.productName()} + ' (reste ' + ${#numbers.formatInteger(choice.remainingFcfa(), 0, 'POINT')} + ' FCFA)'">
+                  Produit
+                </option>
+              </select>
+              <button type="submit" class="pf-btn pf-btn-primary text-xs py-1.5 px-3 whitespace-nowrap"
+                      onclick="return confirm('Créditer ce montant sur le produit choisi ?');">
+                <i class="fa-solid fa-arrow-right-arrow-left mr-1"></i>Réaffecter
+              </button>
+            </form>
+            <p th:if="${surplusProductChoices.get(row.clientUserId()).isEmpty()}" class="text-xs text-slate-500 italic">
+              Aucun produit actif chez ce client — utilisez le remboursement ci-dessous.
+            </p>
+            <button type="button" class="pf-btn pf-btn-secondary text-xs py-1.5 px-3"
+                    th:attr="data-id=${row.id()},data-amount=${#numbers.formatInteger(row.amountFcfa(), 0, 'POINT')},data-client=${row.clientName()}"
+                    onclick="openRefundModal(this)">
+              <i class="fa-solid fa-hand-holding-dollar mr-1"></i>Remboursé / traité hors système
+            </button>
+          </td>
+        </tr>
+        </tbody>
+      </table>
+      <p th:if="${surplusRows.isEmpty()}" class="text-slate-600 text-sm py-8 text-center">
+        <i class="fa-solid fa-circle-check text-emerald-500 mr-1"></i>Aucun surplus en attente de régularisation.
+      </p>
+    </section>
+
+<th:block th:replace="~{fragments/admin-chrome :: endMain}"/>
+<script th:inline="javascript">
+  const p = new URLSearchParams(window.location.search);
+  if (p.get('success') === 'reallocated') Swal.fire({icon:'success',title:'Surplus réaffecté',timer:1800,showConfirmButton:false});
+  if (p.get('success') === 'refunded') Swal.fire({icon:'success',title:'Surplus marqué remboursé / traité',timer:1800,showConfirmButton:false});
+  if (p.get('error')) Swal.fire({icon:'error',title:'Erreur',text:decodeURIComponent(p.get('error').replace(/\+/g,' '))});
+
+  function openRefundModal(btn) {
+    const id = btn.dataset.id;
+    const amount = btn.dataset.amount;
+    const client = btn.dataset.client;
+    Swal.fire({
+      title: 'Remboursement / traitement hors système',
+      html: 'Client : <strong>' + client + '</strong><br>Montant : <strong>' + amount + ' FCFA</strong>',
+      input: 'textarea',
+      inputLabel: 'Note (ex. remboursé en espèces au centre le ...)',
+      inputPlaceholder: 'Décrivez comment ce montant a été rendu au client…',
+      showCancelButton: true,
+      confirmButtonText: 'Valider',
+      cancelButtonText: 'Annuler'
+    }).then((r) => {
+      if (!r.isConfirmed) return;
+      const form = document.createElement('form');
+      form.method = 'post';
+      form.action = '/admin/surplus/' + id + '/refund';
+      const csrf = document.querySelector('input[name="_csrf"]');
+      if (csrf) {
+        const c = document.createElement('input');
+        c.type = 'hidden'; c.name = csrf.name; c.value = csrf.value;
+        form.appendChild(c);
+      }
+      const i1 = document.createElement('input');
+      i1.type = 'hidden'; i1.name = 'note'; i1.value = r.value || '';
+      form.appendChild(i1);
+      document.body.appendChild(form);
+      form.submit();
+    });
+  }
+</script>
+<script src="/js/admin-wow.js"></script>
+</body>
+</html>

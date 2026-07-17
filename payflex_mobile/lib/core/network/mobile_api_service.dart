@@ -384,6 +384,8 @@ class MobileApiService {
 
   Future<Map<String, dynamic>?> sendContribution({
     required int userId,
+    required String phone,
+    required String pin,
     required double amount,
     String paymentMode = 'mobile_money',
     int? productId,
@@ -395,6 +397,8 @@ class MobileApiService {
     final uri = Uri.parse('${ApiConfig.baseUrl}/api/mobile/contributions');
     final body = <String, dynamic>{
       'userId': userId,
+      'phone': phone,
+      'pin': pin,
       'amount': amount,
       'paymentMode': paymentMode,
     };
@@ -693,6 +697,8 @@ class MobileApiService {
   /// Initie une cotisation mobile money via PayDunya (Flooz Moov, T-Money / Mixx by Yas, cartes).
   Future<Map<String, dynamic>?> initPaydunyaContribution({
     required int userId,
+    required String phone,
+    required String pin,
     required double amount,
     int? productId,
     int? agentId,
@@ -704,7 +710,12 @@ class MobileApiService {
     final uri = Uri.parse(
       '${ApiConfig.baseUrl}/api/mobile/contributions/paydunya/init',
     );
-    final body = <String, dynamic>{'userId': userId, 'amount': amount};
+    final body = <String, dynamic>{
+      'userId': userId,
+      'phone': phone,
+      'pin': pin,
+      'amount': amount,
+    };
     if (productId != null) body['productId'] = productId;
     if (agentId != null) body['agentId'] = agentId;
     if (catchupYear != null) body['catchupYear'] = catchupYear;
@@ -745,6 +756,8 @@ class MobileApiService {
 
   Future<Map<String, dynamic>?> paydunyaContributionStatus({
     required int userId,
+    required String phone,
+    required String pin,
     required int contributionId,
   }) async {
     final uri = Uri.parse(
@@ -757,6 +770,8 @@ class MobileApiService {
             headers: {'Content-Type': 'application/json'},
             body: jsonEncode({
               'userId': userId,
+              'phone': phone,
+              'pin': pin,
               'contributionId': contributionId,
             }),
           )

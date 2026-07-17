@@ -22,6 +22,7 @@ import com.payflex.backend.service.ProductDeliveryService;
 import com.payflex.backend.service.AdminClientCredentialService;
 import com.payflex.backend.service.JobOfferService;
 import com.payflex.backend.service.LegalDocumentService;
+import com.payflex.backend.service.SurplusRegularizationService;
 import org.springframework.core.io.FileSystemResource;
 import org.springframework.core.io.Resource;
 import org.springframework.dao.DataAccessException;
@@ -79,6 +80,7 @@ public class AdminViewController {
     private final LegalDocumentService legalDocumentService;
     private final JobOfferService jobOfferService;
     private final AdminRevenueService adminRevenueService;
+    private final SurplusRegularizationService surplusRegularizationService;
 
     public AdminViewController(
         AdminDashboardService dashboardService,
@@ -101,7 +103,8 @@ public class AdminViewController {
         AdminClientCredentialService adminClientCredentialService,
         LegalDocumentService legalDocumentService,
         JobOfferService jobOfferService,
-        AdminRevenueService adminRevenueService
+        AdminRevenueService adminRevenueService,
+        SurplusRegularizationService surplusRegularizationService
     ) {
         this.dashboardService = dashboardService;
         this.adminCrudService = adminCrudService;
@@ -124,6 +127,7 @@ public class AdminViewController {
         this.legalDocumentService = legalDocumentService;
         this.jobOfferService = jobOfferService;
         this.adminRevenueService = adminRevenueService;
+        this.surplusRegularizationService = surplusRegularizationService;
     }
 
     @GetMapping({"/", "/admin"})
@@ -1272,6 +1276,55 @@ public class AdminViewController {
             return "redirect:" + base + "?success=repayment&amount=" + amountFcfa;
         } catch (IllegalArgumentException ex) {
             return redirectError(base, ex.getMessage());
+        }
+    }
+
+    /**
+     * Surplus de cotisation non affectés à un produit (aucun produit actif disponible au moment
+     * de la validation) — voir {@link SurplusRegularizationService}. Tous clients confondus.
+     */
+    @GetMapping("/admin/surplus")
+    public String surplus(Model model) {
+        model.addAttribute("activePage", "surplus");
+        List<SurplusRegularizationService.UnresolvedSurplus> rows = surplusRegularizationService.listUnresolved();
+        model.addAttribute("surplusRows", rows);
+        model.addAttribute("surplusProductChoices", surplusRegularizationService.activeProductChoicesByClient(rows));
+        return "surplus";
+    }
+
+    @PostMapping("/admin/surplus/{surplusId}/reallocate")
+    public String reallocateSurplus(
+        @PathVariable long surplusId,
+        @RequestParam long targetProductId,
+        Principal principal
+    ) {
+        try {
+            surplusRegularizationService.reallocateToProduct(surplusId, targetProductId, principal.getName());
+            adminAuditService.logEquipe(
+                principal.getName(),
+                "Régularisation d'un surplus de cotisation (#" + surplusId + ") par réaffectation au produit #" + targetProductId + "."
+            );
+            return "redirect:/admin/surplus?success=reallocated";
+        } catch (IllegalArgumentException ex) {
+            return redirectError("/admin/surplus", ex.getMessage());
+        }
+    }
+
+    @PostMapping("/admin/surplus/{surplusId}/refund")
+    public String refundSurplus(
+        @PathVariable long surplusId,
+        @RequestParam(required = false) String note,
+        Principal principal
+    ) {
+        try {
+            surplusRegularizationService.markRefundedOutOfSystem(surplusId, note, principal.getName());
+            adminAuditService.logEquipe(
+                principal.getName(),
+                "Régularisation d'un surplus de cotisation (#" + surplusId + ") — traité hors système."
+            );
+            return "redirect:/admin/surplus?success=refunded";
+        } catch (IllegalArgumentException ex) {
+            return redirectError("/admin/surplus", ex.getMessage());
         }
     }
 

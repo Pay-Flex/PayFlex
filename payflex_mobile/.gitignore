@@ -49,3 +49,7 @@ logs_mobile/
 
 # FVM Version Cache
 .fvm/
+
+# Release signing (secrets — never commit)
+/android/key.properties
+/android/keystore/

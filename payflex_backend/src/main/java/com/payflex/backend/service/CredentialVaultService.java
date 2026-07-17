@@ -1,6 +1,7 @@
 package com.payflex.backend.service;
 
 import com.payflex.backend.config.PayflexProperties;
+import org.springframework.core.env.Environment;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.stereotype.Service;
 
@@ -11,6 +12,7 @@ import java.nio.ByteBuffer;
 import java.nio.charset.StandardCharsets;
 import java.security.MessageDigest;
 import java.security.SecureRandom;
+import java.util.Arrays;
 import java.util.Base64;
 import java.util.Objects;
 
@@ -28,9 +30,31 @@ public class CredentialVaultService {
     private final SecretKeySpec secretKey;
     private final SecureRandom secureRandom = new SecureRandom();
 
-    public CredentialVaultService(JdbcTemplate jdbcTemplate, PayflexProperties payflexProperties) {
+    public CredentialVaultService(JdbcTemplate jdbcTemplate, PayflexProperties payflexProperties, Environment environment) {
         this.jdbcTemplate = jdbcTemplate;
+        failFastIfUnsafeInProd(payflexProperties, environment);
         this.secretKey = deriveKey(payflexProperties.getVaultKey());
+    }
+
+    /**
+     * Refuse de démarrer sous le profil {@code prod} si PAYFLEX_VAULT_KEY (payflex.vault-key)
+     * n'a pas été explicitement défini : la valeur de repli est publique (présente dans le code
+     * source) et rendrait le chiffrement du coffre identifiants totalement inefficace en
+     * production. Le profil {@code dev} / défaut conserve la valeur de repli pour rester simple
+     * en local.
+     */
+    private static void failFastIfUnsafeInProd(PayflexProperties payflexProperties, Environment environment) {
+        boolean isProd = Arrays.asList(environment.getActiveProfiles()).contains("prod");
+        if (!isProd) {
+            return;
+        }
+        String vaultKey = payflexProperties.getVaultKey();
+        if (vaultKey == null || vaultKey.isBlank() || PayflexProperties.DEFAULT_VAULT_KEY.equals(vaultKey)) {
+            throw new IllegalStateException(
+                "PAYFLEX_VAULT_KEY doit être défini explicitement (variable d'environnement) en profil 'prod' : "
+                    + "la valeur par défaut n'est pas sûre en production. Démarrage refusé."
+            );
+        }
     }
 
     public void storeForUser(long userId, String plainPin, String plainAccountPassword) {

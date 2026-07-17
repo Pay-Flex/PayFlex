@@ -172,6 +172,8 @@ class _PaymentCheckoutScreenState extends State<PaymentCheckoutScreen> {
       } else {
         st = await _api.paydunyaContributionStatus(
           userId: widget.userId,
+          phone: widget.phone,
+          pin: widget.pin,
           contributionId: widget.contributionId,
         );
       }
