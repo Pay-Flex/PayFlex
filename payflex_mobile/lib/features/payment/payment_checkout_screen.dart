@@ -2,14 +2,19 @@ import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:webview_flutter/webview_flutter.dart';
 import '../../core/constants/app_colors.dart';
+import '../../core/models/allocation_result.dart';
 import '../../core/network/api_config.dart';
 import '../../core/network/mobile_api_service.dart';
 
 enum PaymentCheckoutOutcome { validated, rejected, cancelled, pending }
 
 class PaymentCheckoutResult {
-  const PaymentCheckoutResult(this.outcome);
+  const PaymentCheckoutResult(this.outcome, {this.allocation});
   final PaymentCheckoutOutcome outcome;
+
+  /// Détail de la répartition automatique si le paiement confirmé a dépassé le
+  /// reste à payer du produit visé et a été scindé entre plusieurs produits.
+  final AllocationResult? allocation;
 }
 
 /// Paiement PayDunya intégré dans l'app (WebView) — l'utilisateur ne quitte pas PayFlex.
@@ -153,6 +158,7 @@ class _PaymentCheckoutScreenState extends State<PaymentCheckoutScreen> {
       _pageError = null;
     });
     PaymentCheckoutOutcome outcome = PaymentCheckoutOutcome.pending;
+    AllocationResult? allocation;
     final attempts = auto ? 10 : 4;
     for (var i = 0; i < attempts; i++) {
       if (!mounted) return;
@@ -173,6 +179,7 @@ class _PaymentCheckoutScreenState extends State<PaymentCheckoutScreen> {
       final adhered = st?['adhesionFeePaid'] == true || status == 'adhered';
       if (status == 'validated' || adhered) {
         outcome = PaymentCheckoutOutcome.validated;
+        allocation = AllocationResult.tryParse(st);
         break;
       }
       if (status == 'rejected') {
@@ -187,7 +194,7 @@ class _PaymentCheckoutScreenState extends State<PaymentCheckoutScreen> {
     setState(() => _checking = false);
     if (outcome == PaymentCheckoutOutcome.validated ||
         outcome == PaymentCheckoutOutcome.rejected) {
-      Navigator.pop(context, PaymentCheckoutResult(outcome));
+      Navigator.pop(context, PaymentCheckoutResult(outcome, allocation: allocation));
       return;
     }
     if (!auto && mounted) {

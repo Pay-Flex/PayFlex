@@ -5,6 +5,7 @@ import com.payflex.backend.service.AgentMobileService;
 import com.payflex.backend.service.ClientAdhesionService;
 import com.payflex.backend.service.ClientBonusSavingsService;
 import com.payflex.backend.service.ClientProductSelectionService;
+import com.payflex.backend.service.ContributionAllocationService;
 import com.payflex.backend.service.ContributionWorkflowService;
 import com.payflex.backend.service.PayDunyaPaymentService;
 import com.payflex.backend.service.JobOfferService;
@@ -53,6 +54,7 @@ public class MobileApiController {
     private final AgentMobileService agentMobileService;
     private final ClientProductSelectionService clientProductSelectionService;
     private final ClientBonusSavingsService clientBonusSavingsService;
+    private final ContributionAllocationService contributionAllocationService;
 
     public MobileApiController(
         MobileApiService mobileApiService,
@@ -69,7 +71,8 @@ public class MobileApiController {
         JobOfferService jobOfferService,
         AgentMobileService agentMobileService,
         ClientProductSelectionService clientProductSelectionService,
-        ClientBonusSavingsService clientBonusSavingsService
+        ClientBonusSavingsService clientBonusSavingsService,
+        ContributionAllocationService contributionAllocationService
     ) {
         this.mobileApiService = mobileApiService;
         this.mobileRecoveryService = mobileRecoveryService;
@@ -86,6 +89,7 @@ public class MobileApiController {
         this.agentMobileService = agentMobileService;
         this.clientProductSelectionService = clientProductSelectionService;
         this.clientBonusSavingsService = clientBonusSavingsService;
+        this.contributionAllocationService = contributionAllocationService;
     }
 
     @GetMapping("/health")
@@ -589,6 +593,7 @@ public class MobileApiController {
             );
             String status = "pending";
             String message = "Collecte espèces enregistrée — en attente de validation au centre (rapprochement fin de journée).";
+            Map<String, Object> extra = new LinkedHashMap<>();
             try {
                 boolean validatedNow = contributionWorkflowService.validateAgentCashCollection(id, collectorUserId);
                 if (validatedNow) {
@@ -602,6 +607,13 @@ public class MobileApiController {
                         clientUserId,
                         "Collecte espèces de " + Math.round(amount) + " FCFA confirmée par votre agent PayFlex."
                     );
+                    // Validation immédiate : la répartition automatique (si l'excédent dépasse le
+                    // reste à payer) a déjà eu lieu — on la renvoie tout de suite à l'app agent.
+                    ContributionAllocationService.AllocationOutcome outcome =
+                        contributionAllocationService.findOutcomeForContribution(id);
+                    extra.put("allocations", outcome.lines());
+                    extra.put("unallocatedSurplusFcfa", outcome.unallocatedSurplusFcfa());
+                    extra.put("wasSplit", outcome.wasSplit());
                 } else {
                     auditService.logAgent(
                         collectorUserId,
@@ -622,11 +634,12 @@ public class MobileApiController {
                 );
                 message = ex.getMessage() != null ? ex.getMessage() : message;
             }
-            return ResponseEntity.ok(Map.of(
-                "id", id,
-                "status", status,
-                "message", message
-            ));
+            Map<String, Object> out = new LinkedHashMap<>();
+            out.put("id", id);
+            out.put("status", status);
+            out.put("message", message);
+            out.putAll(extra);
+            return ResponseEntity.ok(out);
         }
 
         if (userId <= 0) {
@@ -681,6 +694,28 @@ public class MobileApiController {
             return ResponseEntity.status(401).body(Map.of("message", "Session invalide."));
         }
         return ResponseEntity.ok(Map.of("items", mobileApiService.contributionHistoryForClient(userId)));
+    }
+
+    /** Détail d'une répartition automatique (paiement scindé entre plusieurs produits) pour l'historique client. */
+    @PostMapping("/contributions/allocation-group")
+    public ResponseEntity<?> contributionAllocationGroup(@RequestBody Map<String, Object> payload) {
+        long userId = parseLong(payload.get("userId"));
+        long groupId = parseLong(payload.get("groupId"));
+        if (userId <= 0 || groupId <= 0) {
+            return ResponseEntity.badRequest().body(Map.of("message", "Paramètres manquants."));
+        }
+        if (!credentialsMatch(payload, userId)) {
+            return ResponseEntity.status(401).body(Map.of("message", "Session invalide."));
+        }
+        ContributionAllocationService.AllocationOutcome outcome = contributionAllocationService.findOutcomeByGroupId(groupId);
+        if (outcome == null || outcome.clientUserId() != userId) {
+            return ResponseEntity.status(404).body(Map.of("message", "Répartition introuvable."));
+        }
+        return ResponseEntity.ok(Map.of(
+            "sourceAmountFcfa", outcome.originalAmountFcfa(),
+            "allocations", outcome.lines(),
+            "unallocatedSurplusFcfa", outcome.unallocatedSurplusFcfa()
+        ));
     }
 
     @PostMapping("/client/bonus-savings")

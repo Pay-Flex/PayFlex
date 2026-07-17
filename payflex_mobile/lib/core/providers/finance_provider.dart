@@ -113,6 +113,11 @@ class TransactionModel {
   final String status;
   final String? rejectionReason;
 
+  /// Non nul si cette ligne provient d'un paiement réparti automatiquement entre
+  /// plusieurs produits (excédent cascadé) — sert à afficher le tag « répartition
+  /// automatique » et à retrouver les autres lignes du même paiement.
+  final int? allocationGroupId;
+
   TransactionModel({
     required this.id,
     required this.title,
@@ -120,6 +125,7 @@ class TransactionModel {
     required this.amount,
     required this.status,
     this.rejectionReason,
+    this.allocationGroupId,
   });
 
   factory TransactionModel.fromMap(Map<String, dynamic> map) {
@@ -130,6 +136,7 @@ class TransactionModel {
       amount: (map['amount'] as num?)?.toDouble() ?? 0,
       status: map['status'] as String? ?? 'validated',
       rejectionReason: map['rejection_reason'] as String?,
+      allocationGroupId: (map['allocation_group_id'] as num?)?.toInt(),
     );
   }
 }

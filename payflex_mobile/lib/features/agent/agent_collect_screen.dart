@@ -5,6 +5,7 @@ import 'package:google_fonts/google_fonts.dart';
 
 import '../../core/constants/app_colors.dart';
 import '../../core/database/database_service.dart';
+import '../../core/models/allocation_result.dart';
 import '../../core/network/mobile_api_service.dart';
 import '../../core/providers/agent_provider.dart';
 import '../../core/providers/auth_provider.dart';
@@ -405,6 +406,7 @@ class _AgentCollectScreenState extends ConsumerState<AgentCollectScreen> {
     var anyPending = false;
     var anyValidated = false;
     String? serverMessage;
+    final allocations = <AllocationResult>[];
 
     for (var i = 0; i < days.length; i++) {
       final day = days[i];
@@ -440,6 +442,8 @@ class _AgentCollectScreenState extends ConsumerState<AgentCollectScreen> {
           if (st == 'validated') {
             anyValidated = true;
             await _db.updateTransactionStatus(transId, 'validated');
+            final alloc = AllocationResult.tryParse(syncRes);
+            if (alloc != null) allocations.add(alloc);
           } else {
             anyPending = true;
           }
@@ -462,6 +466,7 @@ class _AgentCollectScreenState extends ConsumerState<AgentCollectScreen> {
       rootContext,
       pendingAtCentre: anyPending && !anyValidated,
       subtitle: serverMessage,
+      allocations: allocations,
     );
   }
 
@@ -469,27 +474,43 @@ class _AgentCollectScreenState extends ConsumerState<AgentCollectScreen> {
     BuildContext rootContext, {
     required bool pendingAtCentre,
     String? subtitle,
+    List<AllocationResult> allocations = const [],
   }) {
-    final title = pendingAtCentre ? 'Collecte saisie' : 'Collecte enregistrée';
-    final detail = subtitle?.trim().isNotEmpty == true
-        ? subtitle!.trim()
+    final split = allocations.any((a) => a.wasSplit);
+    final title = split
+        ? 'Répartition automatique'
         : pendingAtCentre
-            ? 'En attente de validation au centre (rapprochement fin de journée). Mode : espèces.'
-            : 'Cotisation confirmée côté centre.';
+            ? 'Collecte saisie'
+            : 'Collecte enregistrée';
+    final detail = split
+        ? allocations.map((a) => a.toFrenchMessage()).join('\n\n')
+        : subtitle?.trim().isNotEmpty == true
+            ? subtitle!.trim()
+            : pendingAtCentre
+                ? 'En attente de validation au centre (rapprochement fin de journée). Mode : espèces.'
+                : 'Cotisation confirmée côté centre.';
     showDialog<void>(
       context: rootContext,
       barrierDismissible: false,
       builder: (dialogContext) => Center(
         child: Container(
-          width: 280,
+          width: split ? 320 : 280,
           padding: const EdgeInsets.all(28),
           decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(32)),
           child: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
               Icon(
-                pendingAtCentre ? Icons.schedule_rounded : Icons.check_circle_rounded,
-                color: pendingAtCentre ? Colors.orange.shade700 : const Color(0xFF48BB78),
+                split
+                    ? Icons.call_split_rounded
+                    : pendingAtCentre
+                        ? Icons.schedule_rounded
+                        : Icons.check_circle_rounded,
+                color: split
+                    ? AppColors.primary
+                    : pendingAtCentre
+                        ? Colors.orange.shade700
+                        : const Color(0xFF48BB78),
                 size: 88,
               ),
               const SizedBox(height: 16),
@@ -502,7 +523,7 @@ class _AgentCollectScreenState extends ConsumerState<AgentCollectScreen> {
       ),
     );
 
-    Future.delayed(const Duration(milliseconds: 1500), () {
+    Future.delayed(Duration(milliseconds: split ? 3200 : 1500), () {
       if (!rootContext.mounted) return;
       Navigator.of(rootContext).pop();
       Navigator.of(rootContext).pop(true);

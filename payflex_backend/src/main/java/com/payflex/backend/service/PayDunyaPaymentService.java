@@ -24,6 +24,7 @@ public class PayDunyaPaymentService {
     private final ContributionValidationAlertService alertService;
     private final AdminAuditService auditService;
     private final ClientAdhesionService clientAdhesionService;
+    private final ContributionAllocationService contributionAllocationService;
     private final PayflexProperties.Paydunya paydunyaConfig;
 
     public PayDunyaPaymentService(
@@ -33,6 +34,7 @@ public class PayDunyaPaymentService {
         ContributionValidationAlertService alertService,
         AdminAuditService auditService,
         ClientAdhesionService clientAdhesionService,
+        ContributionAllocationService contributionAllocationService,
         PayflexProperties payflexProperties
     ) {
         this.jdbcTemplate = jdbcTemplate;
@@ -41,6 +43,7 @@ public class PayDunyaPaymentService {
         this.alertService = alertService;
         this.auditService = auditService;
         this.clientAdhesionService = clientAdhesionService;
+        this.contributionAllocationService = contributionAllocationService;
         this.paydunyaConfig = payflexProperties.getPaydunya();
     }
 
@@ -77,7 +80,9 @@ public class PayDunyaPaymentService {
         if (amountFcfa <= 0) {
             throw new IllegalArgumentException("Montant invalide.");
         }
-        contributionWorkflowService.assertProductGoalNotReached(userId, productId);
+        // Pas de blocage ici : un montant supérieur au reste à payer sera automatiquement réparti
+        // sur les autres produits actifs du client au moment de la VALIDATION du paiement
+        // (webhook/IPN PayDunya confirmé) — voir ContributionWorkflowService#applyValidation.
         String ref = "PF-PAYDUNYA-" + System.currentTimeMillis();
         jdbcTemplate.update(
             """
@@ -249,6 +254,16 @@ public class PayDunyaPaymentService {
         out.put("status", status);
         out.put("referenceCode", row == null ? "" : Objects.toString(row.get("reference_code"), ""));
         out.put("paydunyaToken", token);
+        if ("validated".equals(status)) {
+            // Le paiement est confirmé : la répartition automatique (si l'excédent dépassait le
+            // reste à payer sur le produit visé) a déjà eu lieu — on la renvoie à l'app mobile
+            // pour qu'elle affiche clairement le détail (produit(s) + montant(s) affectés).
+            ContributionAllocationService.AllocationOutcome outcome =
+                contributionAllocationService.findOutcomeForContribution(contributionId);
+            out.put("allocations", outcome.lines());
+            out.put("unallocatedSurplusFcfa", outcome.unallocatedSurplusFcfa());
+            out.put("wasSplit", outcome.wasSplit());
+        }
         return out;
     }
 
