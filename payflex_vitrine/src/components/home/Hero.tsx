@@ -21,7 +21,7 @@ export function Hero() {
     <section className="relative overflow-hidden" data-hero>
       <HeroBackdrop />
       {/* Décor doux */}
-      <div className="pointer-events-none absolute inset-0 -z-10">
+      <div className="pointer-events-none absolute inset-0 z-[1]">
         <div className="blob animate-blob absolute -left-24 -top-24 h-96 w-96 rounded-full bg-[var(--pf-primary)]/25" />
         <div className="blob animate-blob absolute -right-16 top-24 h-80 w-80 rounded-full bg-[var(--pf-secondary)]/25" />
         <div
@@ -36,7 +36,7 @@ export function Hero() {
         />
       </div>
 
-      <div className="mx-auto grid max-w-7xl items-center gap-12 px-4 pb-16 pt-14 lg:grid-cols-2 lg:gap-8 lg:px-8 lg:pb-24 lg:pt-20">
+      <div className="relative z-10 mx-auto grid max-w-7xl items-center gap-12 px-4 pb-16 pt-14 lg:grid-cols-2 lg:gap-8 lg:px-8 lg:pb-24 lg:pt-20">
         {/* Colonne texte */}
         <div>
           <motion.div
@@ -46,7 +46,7 @@ export function Hero() {
           >
             <span className="eyebrow">
               <Sparkles className="h-3.5 w-3.5" />
-              Nouvelle app · Disponible sur Google Play
+              Avec PayFlex
             </span>
           </motion.div>
 

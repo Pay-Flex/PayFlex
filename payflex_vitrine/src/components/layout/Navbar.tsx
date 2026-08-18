@@ -121,7 +121,7 @@ export function Navbar() {
             <button
               type="button"
               onClick={toggleTheme}
-              className="flex h-10 w-10 items-center justify-center rounded-full border border-slate-200 text-[var(--foreground)] transition hover:border-transparent hover:bg-[var(--pf-secondary)] hover:text-[#0b1f3a] dark:border-white/15"
+              className="flex h-10 w-10 items-center justify-center rounded-full border border-slate-200 text-[var(--foreground)] transition hover:border-[var(--pf-primary)] hover:text-[var(--pf-primary)] dark:border-white/15"
               aria-label="Mode sombre"
             >
               {dark ? <Sun className="h-4 w-4" /> : <Moon className="h-4 w-4" />}

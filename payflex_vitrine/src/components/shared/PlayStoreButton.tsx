@@ -24,12 +24,12 @@ export function PlayStoreButton({ variant = "dark", className = "" }: Props) {
       aria-label="Télécharger PayFlex sur Google Play"
       className={`group inline-flex items-center gap-3 rounded-2xl px-5 py-3 transition-all duration-300 hover:-translate-y-0.5 ${
         isLight
-          ? "border border-white/25 bg-white text-[#0b1f3a] shadow-[0_16px_40px_-18px_rgba(11,31,58,0.45)] hover:border-transparent hover:bg-[var(--pf-secondary)] hover:text-[#0b1f3a]"
-          : "bg-[var(--pf-dark)] text-white shadow-[0_16px_40px_-16px_rgba(11,31,58,0.7)] hover:bg-[var(--pf-secondary)] hover:text-[#0b1f3a]"
+          ? "border border-white/25 bg-white text-[#0b1f3a] shadow-[0_16px_40px_-18px_rgba(11,31,58,0.45)] hover:border-transparent hover:bg-[var(--pf-secondary)]"
+          : "bg-[var(--pf-dark)] text-white shadow-[0_16px_40px_-16px_rgba(11,31,58,0.7)] hover:bg-[#0f2547]"
       } ${className}`}
     >
       <PlayIcon className="h-7 w-7 shrink-0 transition-transform duration-300 group-hover:scale-110" />
-      <span className="leading-tight text-inherit">
+      <span className={`leading-tight ${isLight ? "text-[#0b1f3a]" : "text-white"}`}>
         <span className="block text-[10px] font-medium uppercase tracking-wide opacity-70">Disponible sur</span>
         <span className="block text-base font-bold tracking-tight">Google Play</span>
       </span>
