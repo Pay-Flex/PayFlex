@@ -44,8 +44,8 @@ export function HeroBackdrop() {
           />
         </div>
       ))}
-      <div className="absolute inset-0 bg-[var(--background)]/55 dark:bg-[var(--background)]/70" />
-      <div className="absolute inset-0 bg-gradient-to-b from-[var(--background)]/30 via-transparent to-[var(--background)]" />
+      <div className="hero-text-scrim absolute inset-0" />
+      <div className="absolute inset-0 bg-gradient-to-b from-[var(--background)]/25 via-transparent to-[var(--background)]/85" />
     </div>
   );
 }

@@ -86,6 +86,27 @@ body::before {
 }
 
 @layer components {
+  /* Voile flou coloré à gauche du hero — lisibilité du texte */
+  .hero-text-scrim {
+    background: linear-gradient(
+      90deg,
+      color-mix(in srgb, var(--background) 94%, transparent) 0%,
+      color-mix(in srgb, var(--background) 86%, transparent) 36%,
+      color-mix(in srgb, var(--background) 45%, transparent) 62%,
+      transparent 82%
+    );
+    -webkit-backdrop-filter: blur(22px);
+    backdrop-filter: blur(22px);
+    -webkit-mask-image: linear-gradient(90deg, #000 0%, #000 58%, transparent 100%);
+    mask-image: linear-gradient(90deg, #000 0%, #000 58%, transparent 100%);
+  }
+  @media (min-width: 1024px) {
+    .hero-text-scrim {
+      -webkit-mask-image: linear-gradient(90deg, #000 0%, #000 46%, transparent 72%);
+      mask-image: linear-gradient(90deg, #000 0%, #000 46%, transparent 72%);
+    }
+  }
+
   /* ——— Typographie de section ——— */
   .eyebrow {
     @apply inline-flex items-center gap-2 rounded-full border border-[rgba(11,74,158,0.2)] bg-white px-4 py-1.5 text-[11px] font-bold uppercase tracking-[0.18em] text-[var(--pf-primary)] shadow-sm dark:border-white/15 dark:bg-white/5 dark:text-[var(--pf-secondary)];
